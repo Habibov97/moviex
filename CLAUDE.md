@@ -16,6 +16,7 @@ Root-level commands run through Turborepo across all workspaces; most day-to-day
 ## Commands
 
 Run from repo root (Turborepo fans out per workspace):
+
 ```
 npm run dev            # turbo run dev (all apps)
 npm run build           # turbo run build
@@ -27,6 +28,7 @@ npm run format          # prettier --write "**/*.{ts,tsx,md}"
 Filter to one workspace with `--filter`, e.g. `npx turbo dev --filter=api`.
 
 ### `apps/api` (NestJS)
+
 ```
 npm run dev              # nest start --watch
 npm run build             # nest build
@@ -37,30 +39,38 @@ npm run test:watch
 npm run test:cov
 npm run test:e2e           # jest -c ./test/jest-e2e.json
 ```
+
 Run a single test file: `npx jest src/auth/auth.service.spec.ts` (jest `rootDir` is `src`, test files must match `*.spec.ts`).
 
 ### `apps/web` (Next.js)
+
 ```
 npm run dev          # next dev --port 3001
 npm run build
 npm run check-types  # next typegen && tsc --noEmit
 ```
+
 Add a shadcn component: `npx shadcn@latest add <component>` (run from `apps/web`).
 
 ### Database migrations (`apps/api`)
+
 TypeORM CLI is driven entirely by `src/data-source.ts`, which loads `DATABASE_URL` from `.env` via `dotenv/config` and discovers entities with the glob `src/**/*.entity.ts` (new `*.entity.ts` files are picked up automatically — no manual registration needed there).
+
 ```
 npm run migration:generate -- src/migrations/<Name>   # diffs entities against the live DB
 npm run migration:run
 npm run migration:revert
 ```
+
 Always review a generated migration's SQL before running it — `migration:generate` connects to and diffs against the **real** database configured in `.env` (a remote Supabase Postgres instance in this project), so treat `migration:run` as a live schema change, not a local-only operation. `synchronize` is intentionally left disabled/commented out in `app.module.ts`'s `TypeOrmModule.forRootAsync` — schema changes go through migrations, not entity auto-sync.
 
 ## Architecture notes (`apps/api`)
 
 - **Config**: `@nestjs/config` is global (`ConfigModule.forRoot({ isGlobal: true, load: configs })` in `app.module.ts`), loading `src/config/{app,database,jwt}.config.ts` via `registerAs`. Feature code injects typed config directly with `@Inject(xConfig.KEY)` / `ConfigType<typeof xConfig>` rather than calling `ConfigService.get('SOME_KEY')` with string literals — follow this pattern for new config (see `AuthService`'s `jwtConfig` injection). Note `database.config.ts` (namespace `'db'`) is currently unused — `TypeOrmModule.forRootAsync` reads `DATABASE_URL` straight off `ConfigService` instead.
 - **Auth is hand-rolled, not Passport-based.** There is no `@nestjs/passport` or `@nestjs/jwt` in this project by design. `AuthService` calls the `jsonwebtoken` package directly (`jwt.sign` / `jwt.verify`), using `jwt.config.ts` (`JWT_SECRET`, `JWT_EXPIRES_IN`) as the single source of truth for signing options. Passwords are hashed with `bcrypt` before insert; `password` has no DB-level uniqueness constraint.
-- **Route protection**: `src/auth/guards/jwt-auth.guard.ts` (`JwtAuthGuard`) is a plain `CanActivate` that manually verifies the `Authorization: Bearer` header via `jwt.verify` (same injected `jwtConfig`) and attaches the decoded payload to `request.user` (typed via the `src/auth/types/express.d.ts` module augmentation). Pull the current user in a handler with the `@CurrentUser()` decorator (`src/auth/decorators/current-user.decorator.ts`). Protect a route with `@UseGuards(JwtAuthGuard) @ApiBearerAuth('access-token')` — the `'access-token'` name must match the scheme registered in `main.ts`'s `DocumentBuilder.addBearerAuth(..., 'access-token')` for Swagger's Authorize button to work.
+- **Auth is cookie-based, not bearer.** The access token is delivered as an **httpOnly `access_token` cookie** set by `POST /auth/login`; it is deliberately _not_ in the response body, so frontend JavaScript never holds the raw token. `Authorization: Bearer` is no longer accepted anywhere. The cookie name and its attributes live once in `src/auth/auth.constants.ts` (`ACCESS_TOKEN_COOKIE`, `accessTokenCookieOptions()`) — login, logout and the guard all import from there, and login/logout must pass **identical** attributes or the browser won't treat clear-cookie as matching the set cookie. `main.ts` registers `cookieParser()` (without it `req.cookies` is undefined and every guarded route 401s) and credentialed CORS against `FRONTEND_URL` — a wildcard origin is invalid with `credentials: true` and silently breaks cookies.
+- **Route protection**: `src/auth/guards/jwt-auth.guard.ts` (`JwtAuthGuard`) is a plain `CanActivate` that reads the token from `req.cookies[ACCESS_TOKEN_COOKIE]`, verifies it via `jwt.verify` (injected `jwtConfig`) and attaches the decoded payload to `request.user` (typed via the `src/auth/types/express.d.ts` module augmentation). Pull the current user in a handler with the `@CurrentUser()` decorator (`src/auth/decorators/current-user.decorator.ts`). Protect a route with `@UseGuards(JwtAuthGuard) @ApiCookieAuth('access-token')` — the `'access-token'` name must match the scheme registered in `main.ts`'s `DocumentBuilder.addCookieAuth(..., 'access-token')`. There is no "Authorize" button to paste a token into: sign in via `POST /auth/login` from the docs page itself and, because Swagger UI is same-origin, the browser carries the cookie on every later "Try it out" call.
+- **No refresh tokens, no server-side session.** The JWT has a fixed expiry (`JWT_EXPIRES_IN`) and that is the whole lifetime. `POST /auth/logout` only clears the browser's cookie — the token stays cryptographically valid until it expires, since there is no denylist. Don't add refresh-token machinery without a deliberate decision to.
 - **Entities** live in `src/entity/*.entity.ts` and must be registered in the owning feature module's `TypeOrmModule.forFeature([...])` for runtime DI (`autoLoadEntities: true` picks these up for the app; the CLI's `data-source.ts` finds them independently via its own glob — the two are separate registration paths, see the migrations section above).
 - **Swagger** is served at `/docs` (`main.ts`), built from a single global `DocumentBuilder` — add new tags/bearer schemes there, not per-module.
 - **Global `ValidationPipe`** (`whitelist`, `transform`, `forbidNonWhitelisted`) is set once in `main.ts`; DTOs rely on `class-validator` decorators only (no per-route pipe setup needed).
@@ -74,7 +84,34 @@ Always review a generated migration's SQL before running it — `migration:gener
 - **Base-layer resets**: anything global in `globals.css` must sit inside `@layer base`. Unlayered CSS outranks Tailwind's utility layer, so a bare `* { padding: 0; margin: 0 }` silently kills every `p-*`/`m-*` utility in the app (this bit us once already).
 - **lucide-react** is `components.json`'s configured `iconLibrary`, but the auth/nav components use **`@tabler/icons-react`** (outline), which is what the design references specify.
 - **TanStack Query** is wired up in `app/providers.tsx` (`QueryClientProvider`, client created inside `useState` so SSR requests don't share a cache). Server-state calls belong in hooks like `hooks/use-auth.ts` (`useLoginMutation` / `useRegisterMutation`), not inline in components. Note it only covers async/server state — DOM concerns (scroll lock, key listeners, focus) are still plain effects.
-- **Shared types**: import domain types *and validation* from `@moviex/shared-types` rather than redefining them locally. The package ships raw TS source (`exports` → `./src/index.ts`), so `next.config.js` lists it in `transpilePackages`. `src/auth.ts` holds the zod schemas both apps validate against (`loginSchema`, `registerSchema`, plus the `passwordSchema` / `PASSWORD_MIN_LENGTH` pieces the UI reuses — e.g. the strength meter parses against the same `min(8)` rule instead of duplicating it).
+- **Shared types**: import domain types _and validation_ from `@moviex/shared-types` rather than redefining them locally. The package ships raw TS source (`exports` → `./src/index.ts`), so `next.config.js` lists it in `transpilePackages`. `src/auth.ts` holds the zod schemas both apps validate against (`loginSchema`, `registerSchema`, plus the `passwordSchema` / `PASSWORD_MIN_LENGTH` pieces the UI reuses — e.g. the strength meter parses against the same `min(8)` rule instead of duplicating it).
+
+## Genres come from TMDB — never hard-code them
+
+There is **no static genre list anywhere in this repo**, and adding one back is a regression. Genres are fetched live:
+
+- `apps/api` proxies TMDB at **`GET /tmdb/genres`** (`src/tmdb/`), returning TMDB's array **unchanged** as `{ id: number, name: string }[]`. Don't rename or reshape those fields — `id` is exactly the value TMDB's `/discover/movie` takes as `with_genres`, so it passes straight through with no lookup table on either side. The route is public (no guard); `TmdbService` uses Node's global `fetch` (there is no HTTP-client dependency, and `@nestjs/axios` is not installed) with `TMDB_API_KEY` injected via `src/config/tmdb.config.ts` following the usual `registerAs` pattern.
+- `apps/web` fetches it in `lib/api.ts` with `next: { revalidate: 86400 }` — **Next's `fetch` cache is the only caching layer**, deliberately: no Redis, no database. `app/page.tsx` (a Server Component) calls it and passes `genres` down as props; the array never lives in client state.
+- The shared `Genre` type is `packages/shared-types/src/genre.ts`, used by the service return type, the Swagger response (via `GenreDto`, which `implements Genre` so drift fails to compile), and every web component.
+- A movie's genre is stored as `Movie.genreId` (a TMDB numeric id) and its **name is resolved at render time** against the fetched list — never stored on the movie.
+- Selection lives in the **URL**, not state: `?genre=28`. `GENRE_SEARCH_PARAM` and `parseGenreParam()` in `lib/constants/discover.ts` are shared by the page (reads) and the chips (write), so the two cannot disagree. The "Tümü" chip is not a TMDB genre — it **deletes** the param rather than writing an "all" sentinel, and `null` means "no genre filter" throughout. A non-numeric param falls back to `null`.
+
+## TMDB endpoints: normalise on the way out, and cache per-endpoint
+
+`GET /tmdb/genres` and `GET /tmdb/discover` (both public, both in `src/tmdb/`) deliberately behave differently in three ways. Match the existing one when adding a third endpoint.
+
+- **Pass through vs. normalise.** Genres are returned in TMDB's exact shape because `id` is the `with_genres` value. Discover results are **not**: `TmdbService.toMovieSummary()` is the only place TMDB's snake_case is read, expanding `poster_path` into a full `https://image.tmdb.org/t/p/w500/…` URL (**`null` stays `null`** — concatenating it yields a URL ending in `null` that 404s) and slicing `release_date` to a four-digit `releaseYear` (`null` for TMDB's `""` undated entries). Web components are typed against `MovieSummary` / `DiscoverMoviesResponse` directly — there is no adapter layer, so an API shape change fails to compile.
+- **Cache lifetime is per-endpoint, and Next's `fetch` is the only cache** (no Redis, no DB). Genres: `next: { revalidate: 86400 }`. Discover: `cache: "no-store"` — results vary per filter combination and shift with TMDB popularity, so nothing is reusable.
+- **Failure mode differs on purpose.** `getGenres()` degrades to `[]` (an optional filter; losing it must not take down the page or the build). `getDiscoverMovies()` **throws**, and `TmdbService.discoverMovies()` never returns an empty page on error — an empty grid reads as "no films match this filter", which is a different and misleading claim. There is no `app/error.tsx` yet, so a discover failure currently renders Next's default 500.
+- `discoverMovies(params)` accepts `yearFrom` / `yearTo` / `minRating` but does not forward them yet — the chips are still stubs. Fill in the TODO there rather than changing the signature. `page` is capped at `TMDB_MAX_PAGE` (500) because TMDB 400s above it, which would otherwise surface as a bogus 503.
+
+### Discover filters live in the URL
+
+Every filter is a search param read by the Server Component, never client state — so a filtered view is linkable and paginating re-runs the server fetch. Each param gets a `*_SEARCH_PARAM` constant plus a `parse*Param()` guard in `lib/constants/discover.ts`, shared by whatever reads and whatever writes it; follow that pair when adding one.
+
+- `?genre=<tmdbId>` — written by the chips, cleared (not set to a sentinel) by "Tümü".
+- `?page=<n>` — 1-based, **omitted for page 1** rather than written as `?page=1`. `parsePageParam()` clamps everything out of range (`0`, negatives, `abc`, `9999`) into `[1, MAX_PAGE]` **server-side**, so a hand-edited URL can never reach TMDB and error. `MAX_PAGE` (500) mirrors the API's `TMDB_MAX_PAGE`, and the pagination UI clamps `totalPages` by it too.
+- Pagination is numbered only — **no "load more", no infinite scroll**; a page selection fully replaces the results. `Pagination.tsx` is a Server Component whose controls are plain `<Link>`s that copy every existing param forward, so paginating never drops the active genre. Each href ends in `#results` (`RESULTS_ANCHOR_ID`, with `scroll-mt-16` clearing the sticky navbar) — that is what scrolls the grid back into view, no client scroll effect.
 
 ## Movie list flow (Listem → İzlediklerim)
 
@@ -87,7 +124,7 @@ There are exactly **two** things a user can do with a film — put it in **Liste
 Consequences to respect when touching the discover screens:
 
 - **Every row/card always offers an action; no state renders an empty button slot.** Only `listed` swaps `Ekle` for `İzledim`.
-- **There is no rating action anywhere in this flow.** A `Puanla` button existed briefly on the list row and was deliberately removed; do not reintroduce rating (or any third state) without updating this section first. `Movie.rating` is the *catalogue's* score — display-only, not something the user sets here.
+- **There is no rating action anywhere in this flow.** A `Puanla` button existed briefly on the list row and was deliberately removed; do not reintroduce rating (or any third state) without updating this section first. `Movie.rating` is the _catalogue's_ score — display-only, not something the user sets here.
 - `MovieUserState` (`'watched' | 'listed'`) in `packages/shared-types/src/movie.ts` is the single definition of the two states; `userState` is optional because the API omits it for signed-out users, so "absent" and "not in the list" are the same case in the UI.
 - All copy lives in `DISCOVER_COPY` (`apps/web/lib/constants/discover.ts`): `add` / `markWatched` for the actions, `listed` / `watched` for the tags. Never inline these strings in a component.
 - The state tag renders through `components/discover/StatusTag.tsx`, shared by the grid card and the list row so the label/colour mapping cannot drift between views.
@@ -97,3 +134,13 @@ Consequences to respect when touching the discover screens:
 ### Discover result views (`apps/web/components/discover/`)
 
 `MovieGrid` (poster cards) and `MovieList` (ranked rows) are the two renderings of the same result set and take **prop-compatible** signatures, so the view toggle swaps one for the other without reshaping data. `DiscoverSection.tsx` is the client boundary that owns the active `viewMode` and renders the hero plus the matching view — `app/page.tsx` stays a server component, which is why the toggle state lives there and not on the page. `MovieList` renders every row inside one bordered, hairline-divided surface (`bg-mx-card`), not as separate cards per film. `Movie.runtimeMinutes` and `Movie.overview` are optional and consumed only by the list row; the grid card has no room for them.
+
+# MovieX — Development Notes
+
+## Verification policy
+
+- Do NOT use Playwright or browser automation to verify UI changes.
+- Do NOT take screenshots to self-check work.
+- After writing code, just report what you changed — I will test/verify
+  visually and functionally myself (via browser or Swagger).
+- Exception: only use browser verification if I explicitly ask for it.

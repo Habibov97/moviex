@@ -1,49 +1,72 @@
-import {
-  ALL_CATEGORIES_ID,
-  type DiscoverFilters,
-  type Movie,
-  type MovieCategory,
-  type MovieSortId,
-} from '@moviex/shared-types';
+import { type DiscoverFilters, type MovieSortId } from '@moviex/shared-types';
 
 /**
  * Every label, option and default the discover ("Keşfet") screen renders.
  *
- * Nothing here is meant to stay hard-coded: the category list is a placeholder
- * for `GET /movies/categories`, and the result count for `GET /movies`. Both are
- * already typed against `@moviex/shared-types`, so swapping the constant for a
- * query result is a one-line change at the call site — the components take them
- * as props and never reach into this file themselves.
+ * Copy and UI defaults only — **no catalogue data**. Genres come from
+ * `GET /tmdb/genres` and films from `GET /tmdb/discover` (both in `lib/api.ts`),
+ * fetched by the page and passed down as props. The only local values are the
+ * "Tümü" reset chip, which is not a TMDB genre, and the year/rating/sort
+ * defaults, whose filter chips are still stubs.
  */
 
 /** Locale used for every number the discover screens format. */
 export const DISCOVER_LOCALE = 'tr-TR';
 
-/** The reset chip. Not a real genre, so it is kept out of `MOVIE_CATEGORIES`. */
-export const ALL_CATEGORY: MovieCategory = {
-  id: ALL_CATEGORIES_ID,
-  label: 'Tümü',
-};
+/**
+ * The reset chip. Not a TMDB genre — it clears the filter rather than applying
+ * one — so it is rendered separately from the fetched list, and `null` is what
+ * "no genre selected" means throughout.
+ */
+export const ALL_GENRE_LABEL = 'Tümü';
 
-// TODO: connect to /movies/categories
-export const MOVIE_CATEGORIES: MovieCategory[] = [
-  { id: 'action', label: 'Aksiyon' },
-  { id: 'drama', label: 'Dram' },
-  { id: 'sci-fi', label: 'Bilim kurgu' },
-  { id: 'thriller', label: 'Gerilim' },
-  { id: 'comedy', label: 'Komedi' },
-  { id: 'adventure', label: 'Macera' },
-  { id: 'animation', label: 'Animasyon' },
-  { id: 'documentary', label: 'Belgesel' },
-  { id: 'fantasy', label: 'Fantastik' },
-  { id: 'horror', label: 'Korku' },
-  { id: 'romance', label: 'Romantik' },
-  { id: 'crime', label: 'Suç' },
-  { id: 'history', label: 'Tarih' },
-];
+/**
+ * URL search param carrying the selected TMDB genre id (`?genre=28`). Read by
+ * the page, written by the chips — shared so the two cannot disagree.
+ */
+export const GENRE_SEARCH_PARAM = 'genre';
+
+/**
+ * Parses the `genre` search param into a TMDB id. Anything non-numeric (a
+ * hand-edited URL, a stale link) falls back to `null` — "Tümü" — rather than
+ * producing a filter that matches nothing.
+ */
+export function parseGenreParam(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** URL search param carrying the 1-based result page (`?page=3`). */
+export const PAGE_SEARCH_PARAM = 'page';
+
+/**
+ * TMDB's `/discover/movie` errors above page 500, so both the request and the
+ * pagination UI are bounded by it. Mirrors `TMDB_MAX_PAGE` in `apps/api`.
+ */
+export const MAX_PAGE = 500;
+
+/**
+ * Parses the `page` search param into a request-safe page number.
+ *
+ * Everything out of range — `0`, negatives, `abc`, `9999` — is clamped rather
+ * than forwarded, so a hand-edited URL can never make TMDB error.
+ */
+export function parsePageParam(value: string | undefined): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return 1;
+  return Math.min(parsed, MAX_PAGE);
+}
+
+/**
+ * Anchor the pagination links target, so changing page scrolls the results
+ * back into view instead of leaving the reader mid-list with nothing visibly
+ * changed. A hash link keeps this server-only — no scroll effect needed.
+ */
+export const RESULTS_ANCHOR_ID = 'results';
 
 /** Genres rendered before the rest collapse behind the "+N" chip. */
-export const VISIBLE_CATEGORY_COUNT = 5;
+export const VISIBLE_GENRE_COUNT = 5;
 
 export const RELEASE_YEAR_RANGE = { from: 2020, to: 2026 } as const;
 
@@ -57,7 +80,7 @@ export const SORT_OPTIONS: ReadonlyArray<{ id: MovieSortId; label: string }> = [
 ];
 
 export const DEFAULT_DISCOVER_FILTERS: DiscoverFilters = {
-  categoryId: ALL_CATEGORIES_ID,
+  genreId: null,
   yearFrom: RELEASE_YEAR_RANGE.from,
   yearTo: RELEASE_YEAR_RANGE.to,
   minRating: MIN_RATING,
@@ -72,102 +95,6 @@ export const VIEW_MODES = [
 ] as const satisfies ReadonlyArray<{ id: ViewModeId; label: string }>;
 
 export const DEFAULT_VIEW_MODE: ViewModeId = 'grid';
-
-// TODO: connect to /movies (total of the current filter set)
-export const PLACEHOLDER_RESULT_COUNT = 1248;
-
-/**
- * The eight films the design reference shows, in its order.
- *
- * `posterUrl` is deliberately absent everywhere — the catalogue serves no
- * artwork yet, so every card renders its skeleton tone, which is exactly the
- * state the reference was designed in.
- */
-// TODO: connect to /movies (first page of the current filter set)
-export const PLACEHOLDER_MOVIES: Movie[] = [
-  {
-    id: 'dune-part-two',
-    title: 'Dune: Part two',
-    year: 2024,
-    categoryId: 'sci-fi',
-    rating: 8.4,
-    runtimeMinutes: 166,
-    overview:
-      'Paul Atreides, çölün xalqı ilə birləşərək ailəsini məhv edənlərdən intiqam almaq yoluna çıxır.',
-  },
-  {
-    id: 'oppenheimer',
-    title: 'Oppenheimer',
-    year: 2023,
-    categoryId: 'drama',
-    rating: 8.1,
-    userState: 'watched',
-    runtimeMinutes: 180,
-    overview:
-      'Atom bombasını yaradan fizikin həyatı və bu kəşfin onun vicdanında qoyduğu iz.',
-  },
-  {
-    id: 'blade-runner-2049',
-    title: 'Blade Runner 2049',
-    year: 2017,
-    categoryId: 'sci-fi',
-    rating: 8.0,
-    runtimeMinutes: 164,
-    overview:
-      'Gənc bir blade runner uzun müddət gizlədilmiş bir sirri üzə çıxarır və itkin düşmüş bir adamı axtarmağa başlayır.',
-  },
-  {
-    id: 'interstellar',
-    title: 'Interstellar',
-    year: 2014,
-    categoryId: 'sci-fi',
-    rating: 8.6,
-    userState: 'listed',
-    runtimeMinutes: 169,
-    overview:
-      'Ölməkdə olan Yer üzünü tərk edən bir qrup astronavt insanlığa yeni ev axtarır.',
-  },
-  {
-    id: 'the-batman',
-    title: 'The Batman',
-    year: 2022,
-    categoryId: 'action',
-    rating: 7.8,
-    runtimeMinutes: 176,
-    overview:
-      'Gotham şəhərinin kölgələrində iz buraxan bir qatil Batman-i şəhərin ən dərin sirlərinə aparır.',
-  },
-  {
-    id: 'parasite',
-    title: 'Parasite',
-    year: 2019,
-    categoryId: 'thriller',
-    rating: 8.5,
-    runtimeMinutes: 132,
-    overview:
-      'Kasıb bir ailə varlı bir evə addım-addım sızır, lakin işlər gözlənilməz istiqamətə dönür.',
-  },
-  {
-    id: 'whiplash',
-    title: 'Whiplash',
-    year: 2014,
-    categoryId: 'drama',
-    rating: 8.5,
-    runtimeMinutes: 106,
-    overview:
-      'Gənc bir cazz barabançısı mükəmməlliyi tələb edən amansız bir müəllimin gözü altında sınağa çəkilir.',
-  },
-  {
-    id: 'arrival',
-    title: 'Arrival',
-    year: 2016,
-    categoryId: 'sci-fi',
-    rating: 7.9,
-    runtimeMinutes: 116,
-    overview:
-      'Bir dilçi Yerə gələn naməlum gəmilərlə ünsiyyət qurmağa çalışarkən zamanın özünü yenidən kəşf edir.',
-  },
-];
 
 /** Cards rendered while the first page is still in flight. */
 export const SKELETON_CARD_COUNT = 8;
@@ -196,8 +123,14 @@ export const DISCOVER_COPY = {
   listed: 'Listede',
   /** Two digits, so the numbers stay in one column down the list. */
   rank: (position: number) => String(position).padStart(2, '0'),
-  loadMore: 'Daha fazla yükle',
   loading: 'Filmler yükleniyor',
+  /** Matches the reference image's wording. */
+  paginationLabel: 'Səhifələr',
+  previousPage: 'Əvvəlki səhifə',
+  nextPage: 'Növbəti səhifə',
+  goToPage: (page: number) => `${page}-ci səhifəyə keç`,
+  pageSummary: (page: number, totalPages: number, results: string) =>
+    `${page}-ci səhifə, ${totalPages}-dən — ${results} nəticə`,
   empty: 'Bu filtrelere uyan film bulunamadı',
   /**
    * Deliberately not `Intl.NumberFormat(DISCOVER_LOCALE)`: tr-TR would render
@@ -205,18 +138,28 @@ export const DISCOVER_COPY = {
    */
   rating: (value: number) => value.toFixed(1),
   ratingLabel: (value: number) => `${value.toFixed(1)} / 10 puan`,
-  movieMeta: (year: number, genreLabel?: string) =>
-    genreLabel ? `${year} · ${genreLabel}` : `${year}`,
   /**
-   * `166 → "2s 46d"`. The minutes part is kept even at zero (`180 → "3s 0d"`),
-   * which is what the reference shows; under an hour the hours part is dropped.
+   * `releaseYear` is nullable (TMDB has undated entries), so parts are filtered
+   * rather than interpolated — otherwise a missing year renders as "null · …".
+   */
+  movieMeta: (year: string | null, genreLabel?: string) =>
+    [year, genreLabel].filter(Boolean).join(' · '),
+  /**
+   * `166 → "2s 46d"`. The minutes part is kept even at zero (`180 → "3s 0d"`).
+   *
+   * Currently unused: TMDB's `/discover/movie` does not return runtime (that
+   * needs a per-movie details call), so the list row's meta line omits it. Kept
+   * for when the details endpoint lands.
    */
   runtime: (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
     return hours > 0 ? `${hours}s ${rest}d` : `${rest}d`;
   },
-  /** Same line as `movieMeta`, plus runtime when the catalogue has it. */
-  movieMetaLong: (year: number, genreLabel?: string, runtime?: string) =>
-    [year, genreLabel, runtime].filter(Boolean).join(' · '),
+  /** Same line as `movieMeta`, plus runtime once the catalogue serves it. */
+  movieMetaLong: (
+    year: string | null,
+    genreLabel?: string,
+    runtime?: string,
+  ) => [year, genreLabel, runtime].filter(Boolean).join(' · '),
 } as const;

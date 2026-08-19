@@ -1,6 +1,6 @@
 "use client";
 
-import type { Movie } from "@moviex/shared-types";
+import type { MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { StatusTag } from "@/components/discover/StatusTag";
@@ -31,7 +31,7 @@ const posterBase =
   "relative aspect-[2/3] overflow-hidden rounded-[12px] border-[0.5px] border-mx-border-subtle";
 
 export type MovieCardProps = {
-  movie: Movie;
+  movie: MovieSummary;
   /**
    * Resolved from the category list by the caller — the card never owns a genre
    * label of its own.
@@ -39,7 +39,7 @@ export type MovieCardProps = {
   genreLabel?: string;
   /** Position in the grid; picks which skeleton tone the poster falls back to. */
   toneIndex?: number;
-  onAdd?: (movie: Movie) => void;
+  onAdd?: (movie: MovieSummary) => void;
   className?: string;
 };
 
@@ -54,10 +54,21 @@ export function MovieCard({
     <article className={cn("group font-mx", className)}>
       <div className={cn(posterBase, posterTone(toneIndex))}>
         {/*
-          TODO: render the artwork here once /movies serves `posterUrl` — an
-          absolutely positioned, object-cover image over the tone, so a slow or
-          failed load simply leaves the skeleton colour visible.
+          Layered over the tone rather than replacing it, so a missing or
+          still-loading poster simply leaves the skeleton colour visible.
+          Plain <img>: next/image would need `image.tmdb.org` in
+          next.config.js's remotePatterns, and these are already fixed-width
+          w500 files.
         */}
+        {movie.posterUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={movie.posterUrl}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 size-full object-cover"
+          />
+        )}
 
         {/* Hover scrim: dims the poster so the action below stays readable. */}
         <span
@@ -94,7 +105,7 @@ export function MovieCard({
         {movie.title}
       </h3>
       <p className="mt-0.5 truncate text-[13px] text-mx-fg-faint">
-        {DISCOVER_COPY.movieMeta(movie.year, genreLabel)}
+        {DISCOVER_COPY.movieMeta(movie.releaseYear, genreLabel)}
       </p>
     </article>
   );

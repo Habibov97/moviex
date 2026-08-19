@@ -37,6 +37,7 @@ async function bootstrap() {
     )
     .setVersion('1.0')
     .addTag('movies')
+    .addTag('tmdb', 'Public catalogue data proxied from TMDB')
     /*
      * Auth is a httpOnly cookie, not an Authorization header, so there is no
      * token for a user to paste into an "Authorize" box — the browser attaches

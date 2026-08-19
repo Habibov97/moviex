@@ -1,22 +1,11 @@
 /**
  * The catalogue contract the discover screens are built against.
  *
- * `apps/web` currently feeds these shapes from a static constants module, but
- * nothing in the UI reads a category label it owns — so when `apps/api` starts
- * serving categories only the data source changes, not the components.
+ * These shapes are what `apps/api` returns after normalising TMDB — the web
+ * components are typed against them directly, so no adapter layer sits in
+ * between and a change to the API shape fails to compile rather than silently
+ * rendering blanks.
  */
-
-export type MovieCategory = {
-  /**
-   * Stable key the API returns. Selection state, query params and analytics all
-   * key off this — never off `label`, which is display-only and translatable.
-   */
-  id: string;
-  label: string;
-};
-
-/** Pseudo-category id meaning "no genre filter applied". */
-export const ALL_CATEGORIES_ID = 'all';
 
 /**
  * How the signed-in user has already engaged with a film. Absent (or `null`)
@@ -24,44 +13,61 @@ export const ALL_CATEGORIES_ID = 'all';
  */
 export type MovieUserState = 'watched' | 'listed';
 
-/** A single catalogue entry as the discover grid renders it. */
-export type Movie = {
-  id: string;
+/**
+ * A single film as the discover grid and list render it.
+ *
+ * Normalised from TMDB's `/discover/movie` result: relative paths are resolved
+ * to full URLs and snake_case is dropped, so nothing downstream needs to know
+ * TMDB's wire format.
+ */
+export type MovieSummary = {
+  /** TMDB's movie id. The identity used for keys and, later, list membership. */
+  tmdbId: number;
   title: string;
-  /** Release year. */
-  year: number;
   /**
-   * `MovieCategory.id` of the film's primary genre. The label is resolved from
-   * the category list at render time — never stored on the movie, for the same
-   * reason `MovieCategory.label` is display-only.
+   * Fully-qualified poster URL, already expanded from TMDB's relative
+   * `poster_path`. `null` when TMDB has no artwork — the card then falls back
+   * to its skeleton tone rather than requesting a broken URL.
    */
-  categoryId: string;
-  /** 0–10; the UI renders it with a single decimal. */
+  posterUrl: string | null;
+  /** TMDB's `vote_average`, 0–10; the UI renders it with a single decimal. */
   rating: number;
   /**
-   * Absent until the catalogue serves artwork. While it is missing (or the
-   * image is still loading) the card falls back to its skeleton tone.
+   * Four-digit year as a string, sliced from TMDB's `release_date`. `null` for
+   * unreleased or undated entries, which TMDB returns with an empty date.
    */
-  posterUrl?: string | null;
-  /** Only meaningful for a signed-in user; the API omits it otherwise. */
+  releaseYear: string | null;
+  /**
+   * TMDB genre ids. Display names are resolved against the live genre list at
+   * render time — never stored here, so a genre rename needs no data migration.
+   */
+  genreIds: number[];
+  /**
+   * Synopsis, clamped to two lines by the list view. TMDB returns an empty
+   * string when it has none, normalised to `null` here.
+   */
+  overview: string | null;
+  /**
+   * Not from TMDB — filled in by our API once a signed-in user's list is joined
+   * onto the results. Until then it is always absent and no status tag renders.
+   */
   userState?: MovieUserState | null;
-  /**
-   * Total running time in minutes. Only the list view renders it, so the grid
-   * stays correct while the catalogue still omits it.
-   */
-  runtimeMinutes?: number | null;
-  /**
-   * One- or two-sentence synopsis. Same story as `runtimeMinutes`: the list view
-   * shows it (clamped to two lines), the grid card has no room for it.
-   */
-  overview?: string | null;
+};
+
+/** A page of discover results, mirroring TMDB's pagination. */
+export type DiscoverMoviesResponse = {
+  results: MovieSummary[];
+  page: number;
+  totalPages: number;
+  totalResults: number;
 };
 
 export type MovieSortId = 'popularity' | 'rating' | 'release-date' | 'title';
 
 /** Query shape the discover endpoint will accept. */
 export type DiscoverFilters = {
-  categoryId: string;
+  /** TMDB genre id, or `null` for "Tümü" — no genre filter applied. */
+  genreId: number | null;
   yearFrom: number;
   yearTo: number;
   minRating: number;

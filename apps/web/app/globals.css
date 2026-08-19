@@ -93,6 +93,15 @@
   --color-mx-poster-fg: var(--mx-poster-fg);
   --color-mx-tag-watched: var(--mx-tag-watched);
   --color-mx-tag-listed: var(--mx-tag-listed);
+  /*
+   * Pagination. The chevrons and the "page X of Y" line sit at greys between
+   * the existing `fg` steps, so they get their own tokens rather than being
+   * approximated — and `arrow-disabled` has no equivalent at all.
+   */
+  --color-mx-page-arrow: var(--mx-page-arrow);
+  --color-mx-page-arrow-disabled: var(--mx-page-arrow-disabled);
+  --color-mx-page-ellipsis: var(--mx-page-ellipsis);
+  --color-mx-page-meta: var(--mx-page-meta);
 
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
@@ -182,6 +191,11 @@
   --mx-poster-fg: #fafafa;
   --mx-tag-watched: #0f6f57;
   --mx-tag-listed: #864e0c;
+  /* Pagination — light: the dark values inverted around the surface. */
+  --mx-page-arrow: #3f3f46;
+  --mx-page-arrow-disabled: #d4d4d8;
+  --mx-page-ellipsis: #a1a1aa;
+  --mx-page-meta: #71717a;
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -249,6 +263,11 @@
   --mx-poster-6: #4a1b0b;
   --mx-poster-7: #04342c;
   --mx-poster-8: #4b1528;
+  /* Pagination — dark: measured off `moviex-pagination.png`. */
+  --mx-page-arrow: #d4d4d8;
+  --mx-page-arrow-disabled: #3f3f46;
+  --mx-page-ellipsis: #52525b;
+  --mx-page-meta: #5f5f68;
 
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

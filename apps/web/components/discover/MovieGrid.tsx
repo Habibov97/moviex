@@ -1,45 +1,43 @@
 "use client";
 
-import type { Movie, MovieCategory } from "@moviex/shared-types";
+import type { Genre, MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { MovieCard, MovieCardSkeleton } from "@/components/discover/MovieCard";
-import { LoadMoreButton } from "@/components/discover/LoadMoreButton";
 import {
   DISCOVER_COPY,
-  MOVIE_CATEGORIES,
-  PLACEHOLDER_MOVIES,
   SKELETON_CARD_COUNT,
 } from "@/lib/constants/discover";
 
 export type MovieGridProps = {
+  /** A page of results from `GET /tmdb/discover`, fetched by the page. */
+  movies: MovieSummary[];
   /**
-   * Defaults to the placeholder catalogue. Pass the `GET /movies` page here once
-   * it exists — no other change is needed.
+   * Live TMDB genres, used to turn each movie's `genreId` into the label under
+   * its title. Empty simply means no genre label is rendered.
    */
-  movies?: Movie[];
-  /** Used to turn each movie's `categoryId` into the label under its title. */
-  categories?: MovieCategory[];
+  genres?: Genre[];
   isLoading?: boolean;
-  /** Hides the "load more" button once the last page has been fetched. */
-  hasMore?: boolean;
-  onLoadMore?: () => void;
-  onAddMovie?: (movie: Movie) => void;
+  onAddMovie?: (movie: MovieSummary) => void;
   className?: string;
 };
 
 export function MovieGrid({
-  movies = PLACEHOLDER_MOVIES,
-  categories = MOVIE_CATEGORIES,
+  movies,
+  genres = [],
   isLoading = false,
-  hasMore = true,
-  onLoadMore,
   onAddMovie,
   className,
 }: MovieGridProps) {
-  const genreLabels = new Map(
-    categories.map((category) => [category.id, category.label]),
-  );
+  const genreNames = new Map(genres.map((genre) => [genre.id, genre.name]));
+
+  /**
+   * TMDB gives every film several genre ids; the card has room for one. Take
+   * the first that resolves against the fetched list, so an id we don't have a
+   * name for falls through to the next rather than blanking the label.
+   */
+  const genreLabelFor = (movie: MovieSummary) =>
+    movie.genreIds.map((id) => genreNames.get(id)).find(Boolean);
 
   return (
     <section
@@ -64,10 +62,10 @@ export function MovieGrid({
       ) : (
         <ul className={GRID_CLASSNAME}>
           {movies.map((movie, index) => (
-            <li key={movie.id}>
+            <li key={movie.tmdbId}>
               <MovieCard
                 movie={movie}
-                genreLabel={genreLabels.get(movie.categoryId)}
+                genreLabel={genreLabelFor(movie)}
                 toneIndex={index}
                 onAdd={onAddMovie}
               />
@@ -76,9 +74,6 @@ export function MovieGrid({
         </ul>
       )}
 
-      {hasMore && !isLoading && movies.length > 0 && (
-        <LoadMoreButton onClick={onLoadMore} />
-      )}
     </section>
   );
 }

@@ -1,21 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { IconLayoutGrid, IconLayoutList } from "@tabler/icons-react";
-import type { DiscoverFilters, MovieCategory } from "@moviex/shared-types";
+import type { DiscoverFilters, Genre } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import {
-  ALL_CATEGORY,
+  ALL_GENRE_LABEL,
   DEFAULT_DISCOVER_FILTERS,
   DEFAULT_VIEW_MODE,
   DISCOVER_COPY,
   DISCOVER_LOCALE,
-  MOVIE_CATEGORIES,
-  PLACEHOLDER_RESULT_COUNT,
+  GENRE_SEARCH_PARAM,
+  PAGE_SEARCH_PARAM,
   SORT_OPTIONS,
   VIEW_MODES,
-  VISIBLE_CATEGORY_COUNT,
+  VISIBLE_GENRE_COUNT,
   type ViewModeId,
 } from "@/lib/constants/discover";
 
@@ -30,23 +31,38 @@ const chipBase =
 
 export type DiscoverHeroProps = {
   /**
-   * Defaults to the placeholder catalogue. Pass the API response here once
-   * `GET /movies/categories` exists — no other change is needed.
+   * The live TMDB genre list, fetched server-side. No default value: there is
+   * no hard-coded genre list to fall back to, and an empty array simply renders
+   * the "Tümü" chip on its own.
    */
-  categories?: MovieCategory[];
-  resultCount?: number;
+  genres: Genre[];
+  /**
+   * Currently selected TMDB genre id, read from the `genre` search param by the
+   * page. `null` means "Tümü". The URL is the source of truth, so this arrives
+   * as a prop rather than living in local state.
+   */
+  selectedGenreId: number | null;
+  /** TMDB's total match count for the active filter. */
+  resultCount: number;
   onFiltersChange?: (filters: DiscoverFilters) => void;
   onViewModeChange?: (viewMode: ViewModeId) => void;
   className?: string;
 };
 
 export function DiscoverHero({
-  categories = MOVIE_CATEGORIES,
-  resultCount = PLACEHOLDER_RESULT_COUNT,
+  genres,
+  selectedGenreId,
+  resultCount,
   onFiltersChange,
   onViewModeChange,
   className,
 }: DiscoverHeroProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Genre lives in the URL; year/rating/sort are still local, exactly as they
+  // were — their panels are not designed yet.
   const [filters, setFilters] = useState<DiscoverFilters>(
     DEFAULT_DISCOVER_FILTERS,
   );
@@ -55,26 +71,51 @@ export function DiscoverHero({
 
   // Selecting a collapsed genre keeps its chip on screen, so the active state is
   // never hidden behind "+N".
-  const collapsed = categories.slice(0, VISIBLE_CATEGORY_COUNT);
-  const selectedIsCollapsed = categories.some(
-    (category) =>
-      category.id === filters.categoryId &&
-      !collapsed.some((visible) => visible.id === category.id),
+  const collapsed = genres.slice(0, VISIBLE_GENRE_COUNT);
+  const selectedIsCollapsed = genres.some(
+    (genre) =>
+      genre.id === selectedGenreId &&
+      !collapsed.some((visible) => visible.id === genre.id),
   );
-  const shownCategories = isExpanded
-    ? categories
+  const shownGenres = isExpanded
+    ? genres
     : selectedIsCollapsed
-      ? [
-          ...collapsed,
-          ...categories.filter((category) => category.id === filters.categoryId),
-        ]
+      ? [...collapsed, ...genres.filter((genre) => genre.id === selectedGenreId)]
       : collapsed;
-  const hiddenCount = categories.length - shownCategories.length;
+  const hiddenCount = genres.length - shownGenres.length;
+
+  /**
+   * Writes the selection to the URL rather than to state. `null` (the "Tümü"
+   * chip) drops the param entirely instead of writing an "all" sentinel, so a
+   * cleared filter leaves a clean URL. Any other params are preserved.
+   */
+  const selectGenre = (genreId: number | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (genreId === null) {
+      params.delete(GENRE_SEARCH_PARAM);
+    } else {
+      params.set(GENRE_SEARCH_PARAM, String(genreId));
+    }
+
+    /*
+     * Changing the filter changes the result set, so the old page number is
+     * meaningless against it — page 5 of Action has no relationship to page 5
+     * of Documentary, and a narrow genre may not even have five pages. Dropping
+     * the param resets to page 1. The pagination's own links do the opposite
+     * and preserve `genre`.
+     */
+    params.delete(PAGE_SEARCH_PARAM);
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    onFiltersChange?.({ ...filters, genreId });
+  };
 
   const updateFilters = (patch: Partial<DiscoverFilters>) => {
     const next = { ...filters, ...patch };
     setFilters(next);
-    onFiltersChange?.(next);
+    onFiltersChange?.({ ...next, genreId: selectedGenreId });
   };
 
   const selectViewMode = (next: ViewModeId) => {
@@ -117,27 +158,21 @@ export function DiscoverHero({
         aria-label={DISCOVER_COPY.categoriesLabel}
         className="mt-4 flex flex-wrap items-center gap-2"
       >
-        {[ALL_CATEGORY, ...shownCategories].map((category) => {
-          const isSelected = category.id === filters.categoryId;
+        {/* Not a TMDB genre — it clears the filter rather than applying one. */}
+        <GenreChip
+          label={ALL_GENRE_LABEL}
+          isSelected={selectedGenreId === null}
+          onClick={() => selectGenre(null)}
+        />
 
-          return (
-            <button
-              key={category.id}
-              type="button"
-              aria-pressed={isSelected}
-              onClick={() => updateFilters({ categoryId: category.id })}
-              className={cn(
-                chipBase,
-                "rounded-full border-[0.5px]",
-                isSelected
-                  ? "border-transparent bg-mx-accent text-mx-on-accent hover:bg-mx-accent-hover"
-                  : "border-mx-border bg-mx-chip text-mx-fg-muted hover:text-mx-fg",
-              )}
-            >
-              {category.label}
-            </button>
-          );
-        })}
+        {shownGenres.map((genre) => (
+          <GenreChip
+            key={genre.id}
+            label={genre.name}
+            isSelected={genre.id === selectedGenreId}
+            onClick={() => selectGenre(genre.id)}
+          />
+        ))}
 
         {(hiddenCount > 0 || isExpanded) && (
           <button
@@ -167,13 +202,13 @@ export function DiscoverHero({
           aria-label={DISCOVER_COPY.filtersLabel}
           className="flex flex-wrap items-center gap-2"
         >
-          <FilterChip onClick={() => {}}>
+          <FilterChip onClick={() => updateFilters({})}>
             {DISCOVER_COPY.yearRange(filters.yearFrom, filters.yearTo)}
           </FilterChip>
-          <FilterChip onClick={() => {}}>
+          <FilterChip onClick={() => updateFilters({})}>
             {DISCOVER_COPY.minRating(filters.minRating)}
           </FilterChip>
-          <FilterChip onClick={() => {}}>{sortLabel}</FilterChip>
+          <FilterChip onClick={() => updateFilters({})}>{sortLabel}</FilterChip>
         </div>
 
         <div
@@ -210,8 +245,40 @@ export function DiscoverHero({
 }
 
 /**
+ * The pill-shaped genre chip. Styling is byte-for-byte what the static version
+ * used — only the data source changed.
+ */
+function GenreChip({
+  label,
+  isSelected,
+  onClick,
+}: {
+  label: string;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={isSelected}
+      onClick={onClick}
+      className={cn(
+        chipBase,
+        "rounded-full border-[0.5px]",
+        isSelected
+          ? "border-transparent bg-mx-accent text-mx-on-accent hover:bg-mx-accent-hover"
+          : "border-mx-border bg-mx-chip text-mx-fg-muted hover:text-mx-fg",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
  * Presentational for now — the reference shows no dropdown affordance and the
- * panels are not designed yet.
+ * panels are not designed yet. Unlike the genre chips, these do not write to
+ * the URL.
  */
 function FilterChip({
   children,

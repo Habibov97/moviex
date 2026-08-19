@@ -1,14 +1,11 @@
 "use client";
 
-import type { Movie, MovieCategory } from "@moviex/shared-types";
+import type { Genre, MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { MovieRow, MovieRowSkeleton } from "@/components/discover/MovieRow";
-import { LoadMoreButton } from "@/components/discover/LoadMoreButton";
 import {
   DISCOVER_COPY,
-  MOVIE_CATEGORIES,
-  PLACEHOLDER_MOVIES,
   SKELETON_CARD_COUNT,
 } from "@/lib/constants/discover";
 
@@ -18,38 +15,39 @@ import {
  * the view toggle can swap one for the other without the page reshaping data.
  */
 export type MovieListProps = {
+  /** A page of results from `GET /tmdb/discover`, fetched by the page. */
+  movies: MovieSummary[];
   /**
-   * Defaults to the placeholder catalogue. Pass the `GET /movies` page here once
-   * it exists — no other change is needed.
+   * Live TMDB genres, used to turn each movie's `genreId` into the label under
+   * its title. Empty simply means no genre label is rendered.
    */
-  movies?: Movie[];
-  /** Used to turn each movie's `categoryId` into the label under its title. */
-  categories?: MovieCategory[];
+  genres?: Genre[];
   isLoading?: boolean;
-  /** Hides the "load more" button once the last page has been fetched. */
-  hasMore?: boolean;
-  onLoadMore?: () => void;
   /**
    * Fired by whichever action the row's state offers — add, rate, or mark
    * watched. The row passes the movie back so the caller can branch on
    * `movie.userState` rather than the list needing three separate handlers.
    */
-  onMovieAction?: (movie: Movie) => void;
+  onMovieAction?: (movie: MovieSummary) => void;
   className?: string;
 };
 
 export function MovieList({
-  movies = PLACEHOLDER_MOVIES,
-  categories = MOVIE_CATEGORIES,
+  movies,
+  genres = [],
   isLoading = false,
-  hasMore = true,
-  onLoadMore,
   onMovieAction,
   className,
 }: MovieListProps) {
-  const genreLabels = new Map(
-    categories.map((category) => [category.id, category.label]),
-  );
+  const genreNames = new Map(genres.map((genre) => [genre.id, genre.name]));
+
+  /**
+   * TMDB gives every film several genre ids; the card has room for one. Take
+   * the first that resolves against the fetched list, so an id we don't have a
+   * name for falls through to the next rather than blanking the label.
+   */
+  const genreLabelFor = (movie: MovieSummary) =>
+    movie.genreIds.map((id) => genreNames.get(id)).find(Boolean);
 
   return (
     <section
@@ -74,11 +72,11 @@ export function MovieList({
       ) : (
         <ol className={SHELL_CLASSNAME}>
           {movies.map((movie, index) => (
-            <li key={movie.id}>
+            <li key={movie.tmdbId}>
               <MovieRow
                 movie={movie}
                 position={index + 1}
-                genreLabel={genreLabels.get(movie.categoryId)}
+                genreLabel={genreLabelFor(movie)}
                 toneIndex={index}
                 onAction={onMovieAction}
               />
@@ -87,9 +85,6 @@ export function MovieList({
         </ol>
       )}
 
-      {hasMore && !isLoading && movies.length > 0 && (
-        <LoadMoreButton onClick={onLoadMore} />
-      )}
     </section>
   );
 }

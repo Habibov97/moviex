@@ -134,7 +134,10 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 401, description: 'Missing, invalid or expired cookie.' })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid or expired cookie.',
+  })
   me(@CurrentUser() user: JwtPayload) {
     return user;
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Movie, MovieUserState } from "@moviex/shared-types";
+import type { MovieSummary, MovieUserState } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { StatusTag } from "@/components/discover/StatusTag";
@@ -48,7 +48,7 @@ const posterBase =
 const actionWidth = "w-full sm:w-[124px]";
 
 export type MovieRowProps = {
-  movie: Movie;
+  movie: MovieSummary;
   /** 1-based; rendered zero-padded as the row's rank. */
   position: number;
   /**
@@ -59,7 +59,7 @@ export type MovieRowProps = {
   /** Position in the list; picks which skeleton tone the poster falls back to. */
   toneIndex?: number;
   /** Fired for whichever action the film's current state offers. */
-  onAction?: (movie: Movie) => void;
+  onAction?: (movie: MovieSummary) => void;
   className?: string;
 };
 
@@ -72,9 +72,8 @@ export function MovieRow({
   className,
 }: MovieRowProps) {
   const action = ROW_ACTIONS[movie.userState ?? "none"];
-  const runtime = movie.runtimeMinutes
-    ? DISCOVER_COPY.runtime(movie.runtimeMinutes)
-    : undefined;
+  // No runtime: TMDB's discover endpoint doesn't return it, so the meta line
+  // is just "year · genre" until a details call fills it in.
 
   return (
     <article
@@ -91,12 +90,17 @@ export function MovieRow({
         {DISCOVER_COPY.rank(position)}
       </span>
 
-      <div className={cn(posterBase, posterTone(toneIndex))}>
-        {/*
-          TODO: render the artwork here once /movies serves `posterUrl` — an
-          object-cover image over the tone, so a slow or failed load simply
-          leaves the skeleton colour visible.
-        */}
+      <div className={cn(posterBase, "relative", posterTone(toneIndex))}>
+        {/* Layered over the tone — see MovieCard for why it is a plain <img>. */}
+        {movie.posterUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={movie.posterUrl}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 size-full object-cover"
+          />
+        )}
         <div className="aspect-[2/3]" />
       </div>
 
@@ -114,7 +118,7 @@ export function MovieRow({
           </div>
 
           <p className="mt-1 text-[13px] text-mx-fg-faint">
-            {DISCOVER_COPY.movieMetaLong(movie.year, genreLabel, runtime)}
+            {DISCOVER_COPY.movieMetaLong(movie.releaseYear, genreLabel)}
           </p>
 
           {movie.overview && (
