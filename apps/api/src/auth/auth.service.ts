@@ -53,8 +53,6 @@ export class AuthService {
       where: { email: dto.email },
     });
 
-    console.log(this.jwtConfiguration);
-
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
@@ -71,9 +69,19 @@ export class AuthService {
       },
     );
 
+    const { password: _password, ...safeUser } = user;
+
+    /*
+     * The caller sets this as the cookie's `maxAge`. Derived from the token's
+     * own claims rather than by parsing JWT_EXPIRES_IN ("1d") a second time, so
+     * the cookie cannot outlive — or expire before — the token inside it.
+     */
+    const { iat, exp } = jwt.decode(accessToken) as { iat: number; exp: number };
+
     return {
-      status: 'success',
+      user: safeUser,
       accessToken,
+      expiresInMs: (exp - iat) * 1000,
     };
   }
 }

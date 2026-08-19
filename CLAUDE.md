@@ -75,3 +75,25 @@ Always review a generated migration's SQL before running it — `migration:gener
 - **lucide-react** is `components.json`'s configured `iconLibrary`, but the auth/nav components use **`@tabler/icons-react`** (outline), which is what the design references specify.
 - **TanStack Query** is wired up in `app/providers.tsx` (`QueryClientProvider`, client created inside `useState` so SSR requests don't share a cache). Server-state calls belong in hooks like `hooks/use-auth.ts` (`useLoginMutation` / `useRegisterMutation`), not inline in components. Note it only covers async/server state — DOM concerns (scroll lock, key listeners, focus) are still plain effects.
 - **Shared types**: import domain types *and validation* from `@moviex/shared-types` rather than redefining them locally. The package ships raw TS source (`exports` → `./src/index.ts`), so `next.config.js` lists it in `transpilePackages`. `src/auth.ts` holds the zod schemas both apps validate against (`loginSchema`, `registerSchema`, plus the `passwordSchema` / `PASSWORD_MIN_LENGTH` pieces the UI reuses — e.g. the strength meter parses against the same `min(8)` rule instead of duplicating it).
+
+## Movie list flow (Listem → İzlediklerim)
+
+There are exactly **two** things a user can do with a film — put it in **Listem**, and mark it in **İzlediklerim**. This is the whole model right now; it may grow later, but treat it as closed until this section says otherwise.
+
+1. A film the user has not saved has no state at all (`Movie.userState` absent/`null`). Its action is **Ekle**, which adds it to **Listem**.
+2. A film in Listem is `userState: 'listed'` and shows the `Listede` tag. Its action is **İzledim**, which tags it watched.
+3. A watched film is `userState: 'watched'` and shows the `İzlendi` tag. It keeps the **Ekle** action, because Listem and İzlediklerim are separate lists — having seen a film does not put it in the list.
+
+Consequences to respect when touching the discover screens:
+
+- **Every row/card always offers an action; no state renders an empty button slot.** Only `listed` swaps `Ekle` for `İzledim`.
+- **There is no rating action anywhere in this flow.** A `Puanla` button existed briefly on the list row and was deliberately removed; do not reintroduce rating (or any third state) without updating this section first. `Movie.rating` is the *catalogue's* score — display-only, not something the user sets here.
+- `MovieUserState` (`'watched' | 'listed'`) in `packages/shared-types/src/movie.ts` is the single definition of the two states; `userState` is optional because the API omits it for signed-out users, so "absent" and "not in the list" are the same case in the UI.
+- All copy lives in `DISCOVER_COPY` (`apps/web/lib/constants/discover.ts`): `add` / `markWatched` for the actions, `listed` / `watched` for the tags. Never inline these strings in a component.
+- The state tag renders through `components/discover/StatusTag.tsx`, shared by the grid card and the list row so the label/colour mapping cannot drift between views.
+- The list row derives its button from `ROW_ACTIONS` in `components/discover/MovieRow.tsx`, a total map keyed by state (`satisfies Record<MovieUserState | 'none', RowAction>`, so a new state fails to compile until it has an action). Adding a state means adding an entry there, not a conditional at the call site.
+- `userState` being a single enum cannot express "in Listem **and** watched". Today `'watched'` wins and the row still offers `Ekle`; if both need to show at once, that is a change to `MovieUserState`, not to the components.
+
+### Discover result views (`apps/web/components/discover/`)
+
+`MovieGrid` (poster cards) and `MovieList` (ranked rows) are the two renderings of the same result set and take **prop-compatible** signatures, so the view toggle swaps one for the other without reshaping data. `DiscoverSection.tsx` is the client boundary that owns the active `viewMode` and renders the hero plus the matching view — `app/page.tsx` stays a server component, which is why the toggle state lives there and not on the page. `MovieList` renders every row inside one bordered, hairline-divided surface (`bg-mx-card`), not as separate cards per film. `Movie.runtimeMinutes` and `Movie.overview` are optional and consumed only by the list row; the grid card has no room for them.

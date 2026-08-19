@@ -1,8 +1,9 @@
 "use client";
 
-import type { Movie, MovieUserState } from "@moviex/shared-types";
+import type { Movie } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { StatusTag } from "@/components/discover/StatusTag";
 import { DISCOVER_COPY } from "@/lib/constants/discover";
 
 /**
@@ -24,11 +25,6 @@ export const POSTER_TONES = [
 export function posterTone(index: number) {
   return POSTER_TONES[index % POSTER_TONES.length];
 }
-
-const STATUS_TAGS = {
-  watched: { label: DISCOVER_COPY.watched, className: "bg-mx-tag-watched" },
-  listed: { label: DISCOVER_COPY.listed, className: "bg-mx-tag-listed" },
-} satisfies Record<MovieUserState, { label: string; className: string }>;
 
 /** Poster geometry shared with the skeleton, so the two never drift apart. */
 const posterBase =
@@ -54,8 +50,6 @@ export function MovieCard({
   onAdd,
   className,
 }: MovieCardProps) {
-  const status = movie.userState ? STATUS_TAGS[movie.userState] : undefined;
-
   return (
     <article className={cn("group font-mx", className)}>
       <div className={cn(posterBase, posterTone(toneIndex))}>
@@ -72,16 +66,7 @@ export function MovieCard({
         />
 
         <div className="absolute inset-x-0 top-0 flex items-start gap-2 p-2.5">
-          {status && (
-            <span
-              className={cn(
-                "inline-flex h-6 shrink-0 items-center rounded-[6px] px-2 text-[12px] font-medium text-mx-poster-fg",
-                status.className,
-              )}
-            >
-              {status.label}
-            </span>
-          )}
+          <StatusTag state={movie.userState} />
 
           <span
             className="ml-auto inline-flex h-6 shrink-0 items-center rounded-[6px] bg-mx-poster-badge px-2 text-[12px] font-medium text-mx-poster-fg tabular-nums"

@@ -9,6 +9,7 @@ import type { ConfigType } from '@nestjs/config';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import jwtConfig from 'src/config/jwt.config';
+import { ACCESS_TOKEN_COOKIE } from '../auth.constants';
 
 export interface JwtPayload {
   sub: number;
@@ -28,7 +29,7 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractToken(request);
 
-    if (!token) throw new UnauthorizedException('Missing access token');
+    if (!token) throw new UnauthorizedException('Missing access token cookie');
 
     try {
       const payload = jwt.verify(
@@ -43,8 +44,16 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
+  /**
+   * Reads the token from the httpOnly cookie rather than the Authorization
+   * header — the header is deliberately no longer accepted, so a token that
+   * leaked to client JavaScript cannot be replayed as a bearer credential.
+   *
+   * Depends on `cookieParser()` being registered in `main.ts`; without it
+   * `request.cookies` is undefined and every guarded route 401s.
+   */
   private extractToken(request: Request): string | undefined {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    return type === 'Bearer' ? token : undefined;
+    const token: unknown = request.cookies?.[ACCESS_TOKEN_COOKIE];
+    return typeof token === 'string' && token.length > 0 ? token : undefined;
   }
 }

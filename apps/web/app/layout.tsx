@@ -5,6 +5,7 @@ import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -35,10 +36,18 @@ export default function RootLayout({
       className={cn("font-sans", geist.variable)}
       suppressHydrationWarning
     >
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      {/* Column layout so the footer sits at the bottom on short pages. */}
+      <body
+        className={cn(
+          "flex min-h-screen flex-col",
+          geistSans.variable,
+          geistMono.variable,
+        )}
+      >
         <Providers>
           <Navbar />
-          {children}
+          <div className="flex-1">{children}</div>
+          <Footer />
         </Providers>
       </body>
     </html>

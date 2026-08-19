@@ -3,7 +3,7 @@
 import type { Movie, MovieCategory } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
-import { MovieCard, MovieCardSkeleton } from "@/components/discover/MovieCard";
+import { MovieRow, MovieRowSkeleton } from "@/components/discover/MovieRow";
 import { LoadMoreButton } from "@/components/discover/LoadMoreButton";
 import {
   DISCOVER_COPY,
@@ -12,7 +12,12 @@ import {
   SKELETON_CARD_COUNT,
 } from "@/lib/constants/discover";
 
-export type MovieGridProps = {
+/**
+ * List view of the discover results — the same data and the same props as
+ * `MovieGrid`, laid out as ranked rows. Deliberately prop-compatible with it so
+ * the view toggle can swap one for the other without the page reshaping data.
+ */
+export type MovieListProps = {
   /**
    * Defaults to the placeholder catalogue. Pass the `GET /movies` page here once
    * it exists — no other change is needed.
@@ -24,26 +29,31 @@ export type MovieGridProps = {
   /** Hides the "load more" button once the last page has been fetched. */
   hasMore?: boolean;
   onLoadMore?: () => void;
-  onAddMovie?: (movie: Movie) => void;
+  /**
+   * Fired by whichever action the row's state offers — add, rate, or mark
+   * watched. The row passes the movie back so the caller can branch on
+   * `movie.userState` rather than the list needing three separate handlers.
+   */
+  onMovieAction?: (movie: Movie) => void;
   className?: string;
 };
 
-export function MovieGrid({
+export function MovieList({
   movies = PLACEHOLDER_MOVIES,
   categories = MOVIE_CATEGORIES,
   isLoading = false,
   hasMore = true,
   onLoadMore,
-  onAddMovie,
+  onMovieAction,
   className,
-}: MovieGridProps) {
+}: MovieListProps) {
   const genreLabels = new Map(
     categories.map((category) => [category.id, category.label]),
   );
 
   return (
     <section
-      aria-label={DISCOVER_COPY.gridLabel}
+      aria-label={DISCOVER_COPY.listLabel}
       aria-busy={isLoading || undefined}
       className={cn(
         "w-full border-b-[0.5px] border-mx-border-subtle bg-mx-bg px-4 py-6 font-mx sm:px-6",
@@ -51,9 +61,9 @@ export function MovieGrid({
       )}
     >
       {isLoading ? (
-        <div className={GRID_CLASSNAME}>
+        <div className={SHELL_CLASSNAME}>
           {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
-            <MovieCardSkeleton key={index} toneIndex={index} />
+            <MovieRowSkeleton key={index} toneIndex={index} />
           ))}
           <span className="sr-only">{DISCOVER_COPY.loading}</span>
         </div>
@@ -62,18 +72,19 @@ export function MovieGrid({
           {DISCOVER_COPY.empty}
         </p>
       ) : (
-        <ul className={GRID_CLASSNAME}>
+        <ol className={SHELL_CLASSNAME}>
           {movies.map((movie, index) => (
             <li key={movie.id}>
-              <MovieCard
+              <MovieRow
                 movie={movie}
+                position={index + 1}
                 genreLabel={genreLabels.get(movie.categoryId)}
                 toneIndex={index}
-                onAdd={onAddMovie}
+                onAction={onMovieAction}
               />
             </li>
           ))}
-        </ul>
+        </ol>
       )}
 
       {hasMore && !isLoading && movies.length > 0 && (
@@ -84,10 +95,10 @@ export function MovieGrid({
 }
 
 /**
- * The reference is an 8-up row on an ultrawide viewport; the column count steps
- * down so a card never falls below ~150px, where the title would start to clip.
+ * One bordered card holding every row, hairline-divided — the reference draws
+ * the list as a single surface rather than as separate cards per film.
  */
-const GRID_CLASSNAME =
-  "grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8";
+const SHELL_CLASSNAME =
+  "divide-y-[0.5px] divide-mx-border-subtle overflow-hidden rounded-[14px] border-[0.5px] border-mx-border-subtle bg-mx-card";
 
-export default MovieGrid;
+export default MovieList;

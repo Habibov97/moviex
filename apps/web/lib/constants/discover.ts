@@ -91,6 +91,9 @@ export const PLACEHOLDER_MOVIES: Movie[] = [
     year: 2024,
     categoryId: 'sci-fi',
     rating: 8.4,
+    runtimeMinutes: 166,
+    overview:
+      'Paul Atreides, çölün xalqı ilə birləşərək ailəsini məhv edənlərdən intiqam almaq yoluna çıxır.',
   },
   {
     id: 'oppenheimer',
@@ -99,6 +102,9 @@ export const PLACEHOLDER_MOVIES: Movie[] = [
     categoryId: 'drama',
     rating: 8.1,
     userState: 'watched',
+    runtimeMinutes: 180,
+    overview:
+      'Atom bombasını yaradan fizikin həyatı və bu kəşfin onun vicdanında qoyduğu iz.',
   },
   {
     id: 'blade-runner-2049',
@@ -106,6 +112,9 @@ export const PLACEHOLDER_MOVIES: Movie[] = [
     year: 2017,
     categoryId: 'sci-fi',
     rating: 8.0,
+    runtimeMinutes: 164,
+    overview:
+      'Gənc bir blade runner uzun müddət gizlədilmiş bir sirri üzə çıxarır və itkin düşmüş bir adamı axtarmağa başlayır.',
   },
   {
     id: 'interstellar',
@@ -114,6 +123,9 @@ export const PLACEHOLDER_MOVIES: Movie[] = [
     categoryId: 'sci-fi',
     rating: 8.6,
     userState: 'listed',
+    runtimeMinutes: 169,
+    overview:
+      'Ölməkdə olan Yer üzünü tərk edən bir qrup astronavt insanlığa yeni ev axtarır.',
   },
   {
     id: 'the-batman',
@@ -121,6 +133,9 @@ export const PLACEHOLDER_MOVIES: Movie[] = [
     year: 2022,
     categoryId: 'action',
     rating: 7.8,
+    runtimeMinutes: 176,
+    overview:
+      'Gotham şəhərinin kölgələrində iz buraxan bir qatil Batman-i şəhərin ən dərin sirlərinə aparır.',
   },
   {
     id: 'parasite',
@@ -128,6 +143,9 @@ export const PLACEHOLDER_MOVIES: Movie[] = [
     year: 2019,
     categoryId: 'thriller',
     rating: 8.5,
+    runtimeMinutes: 132,
+    overview:
+      'Kasıb bir ailə varlı bir evə addım-addım sızır, lakin işlər gözlənilməz istiqamətə dönür.',
   },
   {
     id: 'whiplash',
@@ -135,6 +153,9 @@ export const PLACEHOLDER_MOVIES: Movie[] = [
     year: 2014,
     categoryId: 'drama',
     rating: 8.5,
+    runtimeMinutes: 106,
+    overview:
+      'Gənc bir cazz barabançısı mükəmməlliyi tələb edən amansız bir müəllimin gözü altında sınağa çəkilir.',
   },
   {
     id: 'arrival',
@@ -142,6 +163,9 @@ export const PLACEHOLDER_MOVIES: Movie[] = [
     year: 2016,
     categoryId: 'sci-fi',
     rating: 7.9,
+    runtimeMinutes: 116,
+    overview:
+      'Bir dilçi Yerə gələn naməlum gəmilərlə ünsiyyət qurmağa çalışarkən zamanın özünü yenidən kəşf edir.',
   },
 ];
 
@@ -162,10 +186,16 @@ export const DISCOVER_COPY = {
   minRating: (value: number) => `${value}+ puan`,
 
   gridLabel: 'Filmler',
+  listLabel: 'Filmler listesi',
   add: 'Ekle',
   addLabel: (title: string) => `${title} filmini listene ekle`,
+  /** Offered on a film already in the list but not yet watched. */
+  markWatched: 'İzledim',
+  markWatchedLabel: (title: string) => `${title} filmini izlendi olarak işaretle`,
   watched: 'İzlendi',
   listed: 'Listede',
+  /** Two digits, so the numbers stay in one column down the list. */
+  rank: (position: number) => String(position).padStart(2, '0'),
   loadMore: 'Daha fazla yükle',
   loading: 'Filmler yükleniyor',
   empty: 'Bu filtrelere uyan film bulunamadı',
@@ -177,4 +207,16 @@ export const DISCOVER_COPY = {
   ratingLabel: (value: number) => `${value.toFixed(1)} / 10 puan`,
   movieMeta: (year: number, genreLabel?: string) =>
     genreLabel ? `${year} · ${genreLabel}` : `${year}`,
+  /**
+   * `166 → "2s 46d"`. The minutes part is kept even at zero (`180 → "3s 0d"`),
+   * which is what the reference shows; under an hour the hours part is dropped.
+   */
+  runtime: (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return hours > 0 ? `${hours}s ${rest}d` : `${rest}d`;
+  },
+  /** Same line as `movieMeta`, plus runtime when the catalogue has it. */
+  movieMetaLong: (year: number, genreLabel?: string, runtime?: string) =>
+    [year, genreLabel, runtime].filter(Boolean).join(' · '),
 } as const;

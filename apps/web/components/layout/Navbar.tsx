@@ -7,6 +7,7 @@ import { IconMenu2, IconSearch, IconUser, IconX } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { LoginRegisterModal } from "@/components/auth/LoginRegisterModal";
+import { BrandMark } from "@/components/layout/BrandMark";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { NAV_LINKS, type NavLink } from "@/lib/constants/navigation";
 
@@ -57,13 +58,10 @@ export function Navbar({ user, links = NAV_LINKS }: NavbarProps) {
 
           <Link
             href="/"
-            className="flex shrink-0 items-center gap-2 outline-none"
+            className="inline-flex shrink-0 outline-none"
             aria-label="MovieX ana səhifə"
           >
-            <span className="size-7 rounded-[8px] bg-mx-accent" aria-hidden="true" />
-            <span className="text-[18px] font-medium text-mx-fg">
-              Movie<span className="text-mx-accent">X</span>
-            </span>
+            <BrandMark />
           </Link>
 
           <nav className="hidden shrink-0 items-center gap-5 md:flex" aria-label="Əsas menyu">

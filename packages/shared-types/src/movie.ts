@@ -45,6 +45,16 @@ export type Movie = {
   posterUrl?: string | null;
   /** Only meaningful for a signed-in user; the API omits it otherwise. */
   userState?: MovieUserState | null;
+  /**
+   * Total running time in minutes. Only the list view renders it, so the grid
+   * stays correct while the catalogue still omits it.
+   */
+  runtimeMinutes?: number | null;
+  /**
+   * One- or two-sentence synopsis. Same story as `runtimeMinutes`: the list view
+   * shows it (clamped to two lines), the grid card has no room for it.
+   */
+  overview?: string | null;
 };
 
 export type MovieSortId = 'popularity' | 'rating' | 'release-date' | 'title';
