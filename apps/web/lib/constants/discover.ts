@@ -256,7 +256,7 @@ export const DISCOVER_COPY = {
   // Search
   searchPlaceholder: 'Search movies…',
   searchLabel: 'Search movies',
-  escHint: 'esc',
+  closeSearch: 'Close search',
   typeaheadSection: 'Movies',
   typeaheadNoResults: 'No results',
   typeaheadSearching: 'Searching…',

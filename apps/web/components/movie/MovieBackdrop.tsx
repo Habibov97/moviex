@@ -35,7 +35,7 @@ export function MovieBackdrop({
   return (
     <div
       className={cn(
-        "relative h-[150px] w-full overflow-hidden",
+        "relative h-[150px] w-full overflow-hidden md:h-[280px]",
         !backdropUrl && posterTone(toneIndex),
       )}
     >
@@ -61,6 +61,7 @@ export function MovieBackdrop({
         className="absolute inset-0 bg-mx-hero-overlay"
       />
 
+      {/* Positioned against the backdrop itself — no inner column. */}
       <button
         type="button"
         onClick={() => {
@@ -68,9 +69,13 @@ export function MovieBackdrop({
           if (window.history.length > 1) router.back();
           else router.push(DISCOVER_HREF);
         }}
-        className="absolute top-4 left-4 inline-flex h-8 items-center gap-2 rounded-[8px] border-[0.5px] border-mx-border bg-mx-hero-pill px-3 text-[13px] text-mx-poster-fg outline-none transition-colors hover:bg-mx-accent focus-visible:border-mx-accent"
+        className="absolute top-4 left-4 inline-flex h-8 items-center gap-2 rounded-[8px] border-[0.5px] border-mx-border bg-mx-hero-pill px-3 text-[13px] text-mx-poster-fg outline-none transition-colors hover:bg-mx-accent focus-visible:border-mx-accent md:top-6 md:left-8 md:h-10 md:px-4 md:text-[14.5px]"
       >
-        <IconArrowLeft className="size-4" stroke={1.75} aria-hidden="true" />
+        <IconArrowLeft
+          className="size-4 md:size-5"
+          stroke={1.75}
+          aria-hidden="true"
+        />
         {DETAIL_COPY.back}
       </button>
 
@@ -82,13 +87,13 @@ export function MovieBackdrop({
         <button
           type="button"
           onClick={() => setIsTrailerOpen(true)}
-          className="absolute right-4 bottom-4 inline-flex h-9 items-center gap-2.5 rounded-[8px] border-[0.5px] border-mx-border bg-mx-hero-pill pr-4 pl-2 text-[13.5px] font-medium text-mx-poster-fg outline-none transition-colors hover:border-mx-accent focus-visible:border-mx-accent"
+          className="absolute right-4 bottom-4 inline-flex h-9 items-center gap-2.5 rounded-[8px] border-[0.5px] border-mx-border bg-mx-hero-pill pr-4 pl-2 text-[13.5px] font-medium text-mx-poster-fg outline-none transition-colors hover:border-mx-accent focus-visible:border-mx-accent md:right-8 md:bottom-6 md:h-11 md:gap-3 md:pr-5 md:pl-2.5 md:text-[14.5px]"
         >
           <span
             aria-hidden="true"
-            className="flex size-6 items-center justify-center rounded-full bg-mx-accent"
+            className="flex size-6 items-center justify-center rounded-full bg-mx-accent md:size-7"
           >
-            <IconPlayerPlayFilled className="size-3 text-mx-on-accent" />
+            <IconPlayerPlayFilled className="size-3 text-mx-on-accent md:size-3.5" />
           </span>
           {DETAIL_COPY.watchTrailer}
         </button>

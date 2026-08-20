@@ -45,7 +45,12 @@ export function Navbar({ user, genres, links = NAV_LINKS }: NavbarProps) {
       <header
         className="sticky top-0 z-40 w-full border-b-[0.5px] border-mx-border-subtle bg-mx-nav font-mx"
       >
-        <div className="flex h-16 w-full items-center gap-3 px-4 sm:gap-4 sm:px-6">
+        {/*
+          `gap-2` below `sm` on purpose: at 320px the hamburger, wordmark and
+          three 36px controls only just fit, and `gap-3` tips the row into
+          overflow. `px-4` stays so the logo lines up with the page content.
+        */}
+        <div className="flex h-16 w-full items-center gap-2 px-4 sm:gap-4 sm:px-6">
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
@@ -87,26 +92,35 @@ export function Navbar({ user, genres, links = NAV_LINKS }: NavbarProps) {
           </nav>
 
           {/*
-            Owns its own input state, so typing re-renders the search box and
-            its dropdown rather than the whole navbar.
+            One right-hand cluster: search, theme, account. `flex-1` +
+            `justify-end` pins it to the right edge on mobile, where search is
+            only an icon and nothing else would push these across. On `md` and
+            up the search input inside grows to fill the gap, so the toggle and
+            avatar stay hard right while the logo holds the left.
           */}
-          <SearchTypeahead genres={genres} />
+          <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+            {/*
+              Owns its own input state, so typing re-renders the search box and
+              its dropdown rather than the whole navbar.
+            */}
+            <SearchTypeahead genres={genres} />
 
-          <ThemeToggle />
+            <ThemeToggle />
 
-          <button
-            type="button"
-            onClick={() => setAuthOpen(true)}
-            aria-label={user ? user.name : "Sign in or create an account"}
-            aria-haspopup="dialog"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full md:size-8 border-[0.5px] border-mx-avatar-border bg-mx-avatar text-[13px] font-medium text-mx-avatar-fg outline-none transition-colors hover:bg-mx-avatar-hover focus-visible:border-mx-accent"
-          >
-            {user ? (
-              initialsOf(user.name)
-            ) : (
-              <IconUser className="size-4.5" stroke={1.75} />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={() => setAuthOpen(true)}
+              aria-label={user ? user.name : "Sign in or create an account"}
+              aria-haspopup="dialog"
+              className="flex size-9 shrink-0 items-center justify-center rounded-full md:size-8 border-[0.5px] border-mx-avatar-border bg-mx-avatar text-[13px] font-medium text-mx-avatar-fg outline-none transition-colors hover:bg-mx-avatar-hover focus-visible:border-mx-accent"
+            >
+              {user ? (
+                initialsOf(user.name)
+              ) : (
+                <IconUser className="size-4.5" stroke={1.75} />
+              )}
+            </button>
+          </div>
         </div>
 
         {menuOpen && (

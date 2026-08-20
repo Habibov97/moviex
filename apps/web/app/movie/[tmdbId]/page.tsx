@@ -65,12 +65,17 @@ export default async function MoviePage({ params }: MoviePageProps) {
         trailer={movie.trailer}
       />
 
-      <div className="px-4 sm:px-6">
+      {/*
+        Edge padding only — no max width and no centering, same as Discover
+        and Search. `md:px-8` just keeps content off the viewport edge on a
+        large screen; the content itself still fills the available width.
+      */}
+      <div className="px-4 sm:px-6 md:px-8">
         {/* Pulled up over the backdrop band. */}
-        <div className="-mt-14 flex items-start gap-4">
+        <div className="-mt-14 flex items-start gap-4 md:-mt-24 md:gap-6">
           <div
             className={cn(
-              'relative aspect-[2/3] w-[118px] shrink-0 overflow-hidden rounded-[10px]',
+              'relative aspect-[2/3] w-[118px] shrink-0 overflow-hidden rounded-[10px] md:w-[200px] md:rounded-[12px]',
               // A light hairline plus a lift shadow — NOT a page-coloured
               // border, which would only separate the poster from the page and
               // leave its top half dissolved into the backdrop it overlaps.
@@ -83,31 +88,31 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 src={movie.posterUrl}
                 alt=""
                 fill
-                sizes="118px"
+                sizes="(min-width: 768px) 200px, 118px"
                 className="object-cover"
               />
             )}
           </div>
 
-          <div className="min-w-0 flex-1 pt-16">
-            <h1 className="text-[23px] leading-tight font-medium text-mx-fg">
+          <div className="min-w-0 flex-1 pt-16 md:pt-28">
+            <h1 className="text-[23px] leading-tight font-medium text-mx-fg md:text-[38px]">
               {movie.title}
             </h1>
 
             {movie.tagline && (
-              <p className="mt-1 text-[13.5px] text-mx-fg-subtle italic">
+              <p className="mt-1 text-[13.5px] text-mx-fg-subtle italic md:mt-2 md:text-[15px]">
                 {movie.tagline}
               </p>
             )}
 
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-mx-fg-faint">
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-mx-fg-faint md:mt-4 md:gap-x-4 md:text-[14px]">
               {formattedRating && (
                 <span className="flex items-center gap-1.5">
                   <IconStarFilled
-                    className="size-3.5 text-mx-accent"
+                    className="size-3.5 text-mx-accent md:size-4"
                     aria-hidden="true"
                   />
-                  <span className="font-medium text-mx-fg tabular-nums">
+                  <span className="font-medium text-mx-fg tabular-nums md:text-[17px]">
                     {formattedRating}
                   </span>
                   <span>{DETAIL_COPY.ratingScale}</span>
@@ -128,11 +133,11 @@ export default async function MoviePage({ params }: MoviePageProps) {
             </div>
 
             {movie.genres.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-2">
+              <ul className="mt-3 flex flex-wrap gap-2 md:mt-4 md:gap-2.5">
                 {movie.genres.map((genre) => (
                   <li
                     key={genre.id}
-                    className="inline-flex h-7 items-center rounded-full border-[0.5px] border-mx-border bg-mx-chip px-3 text-[12.5px] text-mx-fg-muted"
+                    className="inline-flex h-7 items-center rounded-full border-[0.5px] border-mx-border bg-mx-chip px-3 text-[12.5px] text-mx-fg-muted md:h-9 md:px-[15px] md:text-[13px]"
                   >
                     {genre.name}
                   </li>
@@ -146,17 +151,17 @@ export default async function MoviePage({ params }: MoviePageProps) {
           Status is hard-coded until the user-movies module exists; it is a prop
           so wiring the real source later is a one-line change here.
         */}
-        <div className="mt-6">
+        <div className="mt-6 md:mt-8">
           <MovieActions tmdbId={movie.tmdbId} status={null} isSignedIn={false} />
         </div>
 
-        <section className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6">
-          <h2 className="text-[13px] font-medium text-mx-fg">
+        <section className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6 md:mt-10 md:pt-7">
+          <h2 className="text-[13px] font-medium text-mx-fg md:text-[15px]">
             {DETAIL_COPY.overview}
           </h2>
           <p
             className={cn(
-              'mt-3 max-w-[62ch] text-[13.5px] leading-[1.7]',
+              'mt-3 max-w-[62ch] text-[13.5px] leading-[1.7] md:mt-4 md:max-w-[68ch] md:text-[14.5px]',
               movie.overview ? 'text-mx-fg-muted' : 'text-mx-fg-faint',
             )}
           >
@@ -164,22 +169,24 @@ export default async function MoviePage({ params }: MoviePageProps) {
           </p>
         </section>
 
-        <div className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6">
+        <div className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6 md:mt-10 md:pt-7">
           <TopCast cast={movie.cast} />
         </div>
 
         {details.length > 0 && (
-          <section className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6 pb-10">
-            <h2 className="text-[13px] font-medium text-mx-fg">
+          <section className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6 pb-10 md:mt-10 md:pt-7 md:pb-14">
+            <h2 className="text-[13px] font-medium text-mx-fg md:text-[15px]">
               {DETAIL_COPY.details}
             </h2>
-            <dl className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-x-6 gap-y-5">
+            <dl className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-x-6 gap-y-5 md:mt-5 md:grid-cols-[repeat(auto-fit,minmax(170px,1fr))] md:gap-x-8 md:gap-y-6">
               {details.map((row) => (
                 <div key={row.label}>
-                  <dt className="text-[11.5px] text-mx-fg-faint">
+                  <dt className="text-[11.5px] text-mx-fg-faint md:text-[12px]">
                     {row.label}
                   </dt>
-                  <dd className="mt-1 text-[13px] text-mx-fg">{row.value}</dd>
+                  <dd className="mt-1 text-[13px] text-mx-fg md:text-[14px]">
+                    {row.value}
+                  </dd>
                 </div>
               ))}
             </dl>

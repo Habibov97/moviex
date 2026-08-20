@@ -26,7 +26,7 @@ import { DETAIL_COPY } from "@/lib/constants/discover";
 export type LibraryStatus = null | "watchlist" | "watched";
 
 const buttonBase =
-  "inline-flex h-10 shrink-0 items-center gap-2 rounded-[10px] px-4 text-[13.5px] font-medium outline-none transition-colors focus-visible:border-mx-accent";
+  "inline-flex h-10 shrink-0 items-center gap-2 rounded-[10px] px-4 text-[13.5px] font-medium outline-none transition-colors focus-visible:border-mx-accent md:h-12 md:gap-2.5 md:px-[22px] md:text-[14.5px]";
 
 const outlineButton =
   "border-[0.5px] border-mx-border bg-transparent text-mx-fg-muted hover:text-mx-fg";
@@ -76,7 +76,7 @@ export function MovieActions({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3 font-mx">
+      <div className="flex flex-wrap items-center gap-3 font-mx md:gap-4">
         {status === null && (
           <>
             <button
@@ -150,7 +150,7 @@ export function MovieActions({
           onClick={share}
           aria-label={DETAIL_COPY.share}
           className={cn(
-            "ml-auto flex size-10 shrink-0 items-center justify-center rounded-[10px] border-[0.5px] border-mx-border outline-none transition-colors focus-visible:border-mx-accent",
+            "ml-auto flex size-10 shrink-0 items-center justify-center rounded-[10px] border-[0.5px] border-mx-border outline-none transition-colors focus-visible:border-mx-accent md:size-[46px]",
             copied
               ? "text-mx-success"
               : "text-mx-fg-muted hover:text-mx-fg",
