@@ -23,8 +23,13 @@ export class MovieSummaryDto implements MovieSummary {
   })
   posterUrl!: string | null;
 
-  @ApiProperty({ example: 7.4, description: "TMDB's vote_average, 0–10." })
-  rating!: number;
+  @ApiProperty({
+    example: 7.4,
+    nullable: true,
+    description:
+      "TMDB's vote_average, 0–10. `null` when TMDB has no score, including when vote_count is 0.",
+  })
+  rating!: number | null;
 
   @ApiProperty({
     example: '2025',

@@ -106,12 +106,12 @@ export function LoginRegisterModal({
           id="auth-modal-title"
           className="mt-5 text-[18px] font-medium text-mx-fg"
         >
-          {isLogin ? "Yenidən xoş gəldin" : "Hesab yarat"}
+          {isLogin ? "Welcome back" : "Create an account"}
         </h2>
         <p id="auth-modal-description" className="mt-1 text-[13px] text-mx-fg-subtle">
           {isLogin
-            ? "Listeni davam etdirmək üçün hesabına daxil ol"
-            : "Öz film kolleksiyanı qurmağa başla"}
+            ? "Sign in to pick up where you left off"
+            : "Start building your movie collection"}
         </p>
 
         {/*
@@ -156,7 +156,7 @@ function LoginForm({ onSwitchMode }: { onSwitchMode: () => void }) {
       <form onSubmit={handleSubmit} className="mt-5" noValidate>
         <div className="mb-3.5">
           <label htmlFor="auth-email" className={labelClass}>
-            E-poçt
+            Email
           </label>
           <div className="relative">
             <IconMail className={inputIconClass} stroke={1.75} />
@@ -182,7 +182,7 @@ function LoginForm({ onSwitchMode }: { onSwitchMode: () => void }) {
 
         <div className="mb-3.5">
           <label htmlFor="auth-password" className={labelClass}>
-            Şifrə
+            Password
           </label>
           <PasswordInput
             id="auth-password"
@@ -219,22 +219,22 @@ function LoginForm({ onSwitchMode }: { onSwitchMode: () => void }) {
                 stroke={2.5}
               />
             </span>
-            Məni xatırla
+            Remember me
           </label>
 
           <button type="button" className={cn("text-[13px]", linkClass)}>
-            Şifrəni unutdun?
+            Forgot password?
           </button>
         </div>
 
         <FormError error={login.error} />
 
-        <SubmitButton isPending={login.isPending}>Daxil ol</SubmitButton>
+        <SubmitButton isPending={login.isPending}>Sign in</SubmitButton>
       </form>
 
       <ModeSwitch
-        prompt="Hesabın yoxdur?"
-        action="Qeydiyyatdan keç"
+        prompt="Don't have an account?"
+        action="Sign up"
         onSwitchMode={onSwitchMode}
       />
     </>
@@ -279,7 +279,7 @@ function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
       <form onSubmit={handleSubmit} className="mt-5" noValidate>
         <div className="mb-3.5">
           <label htmlFor="auth-name" className={labelClass}>
-            Ad
+            Name
           </label>
           <div className="relative">
             <IconUser className={inputIconClass} stroke={1.75} />
@@ -304,7 +304,7 @@ function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
 
         <div className="mb-3.5">
           <label htmlFor="auth-email" className={labelClass}>
-            E-poçt
+            Email
           </label>
           <div className="relative">
             <IconMail className={inputIconClass} stroke={1.75} />
@@ -328,7 +328,7 @@ function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
 
         <div className="mb-3.5">
           <label htmlFor="auth-password" className={labelClass}>
-            Şifrə
+            Password
           </label>
           <PasswordInput
             id="auth-password"
@@ -367,7 +367,7 @@ function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
 
         <div className="mb-4">
           <label htmlFor="auth-confirm-password" className={labelClass}>
-            Şifrə təkrarı
+            Confirm password
           </label>
           <div className="relative">
             <IconLock className={inputIconClass} stroke={1.75} />
@@ -403,15 +403,15 @@ function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
 
         <FormError error={register.error} />
 
-        <SubmitButton isPending={register.isPending}>Hesab yarat</SubmitButton>
+        <SubmitButton isPending={register.isPending}>Create account</SubmitButton>
 
         <p className="mt-3 text-center text-[12px] text-mx-fg-faint">
-          Davam etməklə şərtləri qəbul etmiş olursan
+          By continuing you agree to the terms
         </p>
       </form>
 
       <ModeSwitch
-        prompt="Artıq hesabın var?"
+        prompt="Already have an account?"
         action="Daxil ol"
         onSwitchMode={onSwitchMode}
       />
@@ -455,7 +455,7 @@ function PasswordInput({
       <button
         type="button"
         onClick={onToggleVisible}
-        aria-label={visible ? "Şifrəni gizlət" : "Şifrəni göstər"}
+        aria-label={visible ? "Hide password" : "Show password"}
         className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-mx-fg-faint outline-none transition-colors hover:text-mx-fg-muted focus-visible:text-mx-fg-muted"
       >
         {visible ? (
@@ -499,7 +499,7 @@ function ModeSwitch({
     <>
       <div className="my-4 flex items-center gap-3">
         <span className="h-px flex-1 bg-mx-border" />
-        <span className="text-[12px] text-mx-fg-faint">və ya</span>
+        <span className="text-[12px] text-mx-fg-faint">or</span>
         <span className="h-px flex-1 bg-mx-border" />
       </div>
 
@@ -528,7 +528,7 @@ function FormError({ error }: { error: Error | null }) {
 
   return (
     <p role="alert" className="mb-3 text-[12px] text-mx-accent">
-      {error.message || "Nəsə səhv getdi, yenidən yoxla"}
+      {error.message || "Something went wrong, please try again"}
     </p>
   );
 }
@@ -540,7 +540,7 @@ function getPasswordStrength(password: string) {
   }
 
   if (!passwordSchema.safeParse(password).success) {
-    return { score: 1, label: "Zəif", color: "var(--mx-strength-weak)" };
+    return { score: 1, label: "Weak", color: "var(--mx-strength-weak)" };
   }
 
   const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((pattern) =>
@@ -548,10 +548,10 @@ function getPasswordStrength(password: string) {
   ).length;
 
   if (variety >= 3 || password.length >= 12) {
-    return { score: 3, label: "Güclü", color: "var(--mx-strength-strong)" };
+    return { score: 3, label: "Strong", color: "var(--mx-strength-strong)" };
   }
 
-  return { score: 2, label: "Orta", color: "var(--mx-strength-medium)" };
+  return { score: 2, label: "Medium", color: "var(--mx-strength-medium)" };
 }
 
 function toFieldErrors(

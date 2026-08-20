@@ -2,28 +2,26 @@
 
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { IconLayoutGrid, IconLayoutList } from "@tabler/icons-react";
-import type { DiscoverFilters, Genre } from "@moviex/shared-types";
+import type { Genre, MovieSortId } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { YearFilterPopover } from "@/components/discover/YearFilterPopover";
+import { RatingFilterPopover } from "@/components/discover/RatingFilterPopover";
+import { SortDropdown } from "@/components/discover/SortDropdown";
+import { ViewToggle } from "@/components/discover/ViewToggle";
 import {
   ALL_GENRE_LABEL,
-  DEFAULT_DISCOVER_FILTERS,
   DEFAULT_VIEW_MODE,
   DISCOVER_COPY,
   DISCOVER_LOCALE,
   GENRE_SEARCH_PARAM,
   PAGE_SEARCH_PARAM,
-  SORT_OPTIONS,
-  VIEW_MODES,
   VISIBLE_GENRE_COUNT,
   type ViewModeId,
 } from "@/lib/constants/discover";
 
-const VIEW_MODE_ICONS = {
-  grid: IconLayoutGrid,
-  list: IconLayoutList,
-} satisfies Record<ViewModeId, typeof IconLayoutGrid>;
+/** Ties the filter row's heading to its group for assistive tech. */
+const FILTERS_HEADING_ID = "discover-filters-heading";
 
 /** Shared chip geometry — the two variants differ only in surface and radius. */
 const chipBase =
@@ -33,18 +31,24 @@ export type DiscoverHeroProps = {
   /**
    * The live TMDB genre list, fetched server-side. No default value: there is
    * no hard-coded genre list to fall back to, and an empty array simply renders
-   * the "Tümü" chip on its own.
+   * the "All" chip on its own.
    */
   genres: Genre[];
   /**
    * Currently selected TMDB genre id, read from the `genre` search param by the
-   * page. `null` means "Tümü". The URL is the source of truth, so this arrives
+   * page. `null` means "All". The URL is the source of truth, so this arrives
    * as a prop rather than living in local state.
    */
   selectedGenreId: number | null;
   /** TMDB's total match count for the active filter. */
   resultCount: number;
-  onFiltersChange?: (filters: DiscoverFilters) => void;
+  /** Applied release-year range, parsed from the URL by the page. */
+  yearFrom: number;
+  yearTo: number;
+  /** Applied minimum score, or `null` for "Any rating". */
+  minRating: number | null;
+  /** Active result ordering, parsed from the URL by the page. */
+  sort: MovieSortId;
   onViewModeChange?: (viewMode: ViewModeId) => void;
   className?: string;
 };
@@ -53,7 +57,10 @@ export function DiscoverHero({
   genres,
   selectedGenreId,
   resultCount,
-  onFiltersChange,
+  yearFrom,
+  yearTo,
+  minRating,
+  sort,
   onViewModeChange,
   className,
 }: DiscoverHeroProps) {
@@ -61,11 +68,6 @@ export function DiscoverHero({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Genre lives in the URL; year/rating/sort are still local, exactly as they
-  // were — their panels are not designed yet.
-  const [filters, setFilters] = useState<DiscoverFilters>(
-    DEFAULT_DISCOVER_FILTERS,
-  );
   const [viewMode, setViewMode] = useState<ViewModeId>(DEFAULT_VIEW_MODE);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -85,7 +87,7 @@ export function DiscoverHero({
   const hiddenCount = genres.length - shownGenres.length;
 
   /**
-   * Writes the selection to the URL rather than to state. `null` (the "Tümü"
+   * Writes the selection to the URL rather than to state. `null` (the "All"
    * chip) drops the param entirely instead of writing an "all" sentinel, so a
    * cleared filter leaves a clean URL. Any other params are preserved.
    */
@@ -109,13 +111,6 @@ export function DiscoverHero({
 
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    onFiltersChange?.({ ...filters, genreId });
-  };
-
-  const updateFilters = (patch: Partial<DiscoverFilters>) => {
-    const next = { ...filters, ...patch };
-    setFilters(next);
-    onFiltersChange?.({ ...next, genreId: selectedGenreId });
   };
 
   const selectViewMode = (next: ViewModeId) => {
@@ -123,8 +118,6 @@ export function DiscoverHero({
     onViewModeChange?.(next);
   };
 
-  const sortLabel =
-    SORT_OPTIONS.find((option) => option.id === filters.sort)?.label ?? "";
   const formattedCount = new Intl.NumberFormat(DISCOVER_LOCALE).format(
     resultCount,
   );
@@ -196,49 +189,33 @@ export function DiscoverHero({
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      {/*
+        Its own labelled group, set off from the genre chips above — without the
+        heading the two rows read as one long block of pills.
+      */}
+      <h2
+        id={FILTERS_HEADING_ID}
+        className="mt-5 text-[12px] font-medium text-mx-fg-subtle"
+      >
+        {DISCOVER_COPY.filtersLabel}
+      </h2>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <div
           role="group"
-          aria-label={DISCOVER_COPY.filtersLabel}
+          aria-labelledby={FILTERS_HEADING_ID}
           className="flex flex-wrap items-center gap-2"
         >
-          <FilterChip onClick={() => updateFilters({})}>
-            {DISCOVER_COPY.yearRange(filters.yearFrom, filters.yearTo)}
-          </FilterChip>
-          <FilterChip onClick={() => updateFilters({})}>
-            {DISCOVER_COPY.minRating(filters.minRating)}
-          </FilterChip>
-          <FilterChip onClick={() => updateFilters({})}>{sortLabel}</FilterChip>
+          <YearFilterPopover from={yearFrom} to={yearTo} />
+          <RatingFilterPopover minRating={minRating} />
+          <SortDropdown sort={sort} />
         </div>
 
-        <div
-          role="group"
-          aria-label={DISCOVER_COPY.viewLabel}
-          className="ml-auto inline-flex h-7 shrink-0 items-center gap-0.5 rounded-full border-[0.5px] border-mx-border-subtle bg-mx-chip-alt p-0.5"
-        >
-          {VIEW_MODES.map((mode) => {
-            const Icon = VIEW_MODE_ICONS[mode.id];
-            const isSelected = mode.id === viewMode;
-
-            return (
-              <button
-                key={mode.id}
-                type="button"
-                aria-pressed={isSelected}
-                aria-label={mode.label}
-                onClick={() => selectViewMode(mode.id)}
-                className={cn(
-                  "flex size-6 items-center justify-center rounded-full outline-none transition-colors",
-                  isSelected
-                    ? "bg-mx-avatar text-mx-fg"
-                    : "text-mx-fg-faint hover:text-mx-fg-muted",
-                )}
-              >
-                <Icon className="size-3.5" stroke={1.75} />
-              </button>
-            );
-          })}
-        </div>
+        <ViewToggle
+          value={viewMode}
+          onChange={selectViewMode}
+          className="ml-auto"
+        />
       </div>
     </section>
   );
@@ -271,33 +248,6 @@ function GenreChip({
       )}
     >
       {label}
-    </button>
-  );
-}
-
-/**
- * Presentational for now — the reference shows no dropdown affordance and the
- * panels are not designed yet. Unlike the genre chips, these do not write to
- * the URL.
- */
-function FilterChip({
-  children,
-  onClick,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      // TODO: open the matching filter panel
-      onClick={onClick}
-      className={cn(
-        chipBase,
-        "rounded-[8px] border-[0.5px] border-mx-border-subtle bg-mx-chip-alt text-mx-fg-muted hover:text-mx-fg",
-      )}
-    >
-      {children}
     </button>
   );
 }

@@ -3,13 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconMenu2, IconSearch, IconUser, IconX } from "@tabler/icons-react";
+import { IconMenu2, IconUser, IconX } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { LoginRegisterModal } from "@/components/auth/LoginRegisterModal";
 import { BrandMark } from "@/components/layout/BrandMark";
+import { SearchTypeahead } from "@/components/search/SearchTypeahead";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { NAV_LINKS, type NavLink } from "@/lib/constants/navigation";
+import type { Genre } from "@moviex/shared-types";
 
 function initialsOf(name: string) {
   return name
@@ -24,11 +26,13 @@ function initialsOf(name: string) {
 export type NavbarProps = {
   /** When present the avatar shows initials instead of the sign-in icon. */
   user?: { name: string };
+  /** Passed to the typeahead so result rows can name their genre. */
+  genres?: Genre[];
   /** App routes, not catalogue data — static, so the default is the whole story. */
   links?: NavLink[];
 };
 
-export function Navbar({ user, links = NAV_LINKS }: NavbarProps) {
+export function Navbar({ user, genres, links = NAV_LINKS }: NavbarProps) {
   const pathname = usePathname();
   const [authOpen, setAuthOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -45,7 +49,7 @@ export function Navbar({ user, links = NAV_LINKS }: NavbarProps) {
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
-            aria-label={menuOpen ? "Menyunu bağla" : "Menyunu aç"}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             className="flex size-9 shrink-0 items-center justify-center rounded-[10px] text-mx-fg-subtle outline-none transition-colors hover:text-mx-fg focus-visible:text-mx-fg md:hidden"
           >
@@ -59,12 +63,12 @@ export function Navbar({ user, links = NAV_LINKS }: NavbarProps) {
           <Link
             href="/"
             className="inline-flex shrink-0 outline-none"
-            aria-label="MovieX ana səhifə"
+            aria-label="MovieX home"
           >
             <BrandMark />
           </Link>
 
-          <nav className="hidden shrink-0 items-center gap-5 md:flex" aria-label="Əsas menyu">
+          <nav className="hidden shrink-0 items-center gap-5 md:flex" aria-label="Main menu">
             {links.map((link) => (
               <Link
                 key={link.href}
@@ -82,33 +86,18 @@ export function Navbar({ user, links = NAV_LINKS }: NavbarProps) {
             ))}
           </nav>
 
-          <form
-            role="search"
-            onSubmit={(event) => {
-              event.preventDefault();
-              // TODO: connect to film search
-            }}
-            className="relative min-w-0 flex-1"
-          >
-            <IconSearch
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-mx-fg-faint"
-              stroke={1.75}
-            />
-            <input
-              type="search"
-              name="q"
-              placeholder="Film ara…"
-              aria-label="Film ara"
-              className="h-9 w-full rounded-[10px] md:h-8 border-[0.5px] border-mx-border-subtle bg-mx-field-raised pr-3 pl-9 text-[13px] text-mx-fg outline-none transition-colors placeholder:text-mx-fg-faint focus:border-mx-accent [&::-webkit-search-cancel-button]:hidden"
-            />
-          </form>
+          {/*
+            Owns its own input state, so typing re-renders the search box and
+            its dropdown rather than the whole navbar.
+          */}
+          <SearchTypeahead genres={genres} />
 
           <ThemeToggle />
 
           <button
             type="button"
             onClick={() => setAuthOpen(true)}
-            aria-label={user ? user.name : "Daxil ol və ya qeydiyyatdan keç"}
+            aria-label={user ? user.name : "Sign in or create an account"}
             aria-haspopup="dialog"
             className="flex size-9 shrink-0 items-center justify-center rounded-full md:size-8 border-[0.5px] border-mx-avatar-border bg-mx-avatar text-[13px] font-medium text-mx-avatar-fg outline-none transition-colors hover:bg-mx-avatar-hover focus-visible:border-mx-accent"
           >
@@ -123,7 +112,7 @@ export function Navbar({ user, links = NAV_LINKS }: NavbarProps) {
         {menuOpen && (
           <nav
             className="border-t-[0.5px] border-mx-border-subtle px-4 py-2 md:hidden"
-            aria-label="Mobil menyu"
+            aria-label="Mobile menu"
           >
             {links.map((link) => (
               <Link

@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import type { MovieSummary, MovieUserState } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { StatusTag } from "@/components/discover/StatusTag";
-import { posterTone } from "@/components/discover/MovieCard";
-import { DISCOVER_COPY } from "@/lib/constants/discover";
+import { posterTone } from "@/lib/poster-tone";
+import { DISCOVER_COPY, movieHref } from "@/lib/constants/discover";
 
 type RowAction = {
   label: string;
@@ -24,9 +25,9 @@ const ADD_ACTION: RowAction = {
 /**
  * Every row has an action — no state leaves the button slot empty.
  *
- * Only a film already in Listem swaps `Ekle` for the quieter `İzledim`, which
- * is the one step available from there. A watched film keeps `Ekle`: Listem and
- * İzlediklerim are separate lists, so having seen a film does not put it in the
+ * Only a film already in the list swaps `Add` for the quieter `Watched`, which
+ * is the one step available from there. A watched film keeps `Add`: the list and
+ * Watched are separate lists, so having seen a film does not put it in the
  * list. There is no rating action in this flow.
  */
 const ROW_ACTIONS = {
@@ -72,16 +73,29 @@ export function MovieRow({
   className,
 }: MovieRowProps) {
   const action = ROW_ACTIONS[movie.userState ?? "none"];
+  // `null` for a title TMDB has no score for — see DISCOVER_COPY.rating.
+  const formattedRating = DISCOVER_COPY.rating(movie.rating);
   // No runtime: TMDB's discover endpoint doesn't return it, so the meta line
   // is just "year · genre" until a details call fills it in.
 
   return (
     <article
       className={cn(
-        "flex items-center gap-3 px-4 py-5 transition-colors hover:bg-mx-chip sm:gap-5 sm:px-6",
+        "relative flex items-center gap-3 px-4 py-5 transition-colors hover:bg-mx-chip sm:gap-5 sm:px-6",
         className,
       )}
     >
+      {/*
+        Stretched over the row, beneath the action button — one tab stop, and
+        the button below stops its own click from reaching it.
+      */}
+      <Link
+        href={movieHref(movie.tmdbId)}
+        className="absolute inset-0 z-0 outline-none focus-visible:ring-1 focus-visible:ring-mx-accent"
+      >
+        <span className="sr-only">{movie.title}</span>
+      </Link>
+
       {/* Decorative: the rank restates list order, which the markup already carries. */}
       <span
         aria-hidden="true"
@@ -129,19 +143,31 @@ export function MovieRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-4 sm:gap-5">
+          {/*
+            Unlike the card, this keeps its slot when unrated — it is a column
+            in a row, and dropping it would shunt the action button left and
+            break alignment down the list. A muted dash holds the position.
+          */}
           <span
-            className="text-[16px] font-semibold text-mx-fg tabular-nums"
+            className={cn(
+              "text-[16px] font-semibold tabular-nums",
+              formattedRating === null ? "text-mx-fg-faint" : "text-mx-fg",
+            )}
             aria-label={DISCOVER_COPY.ratingLabel(movie.rating)}
           >
-            {DISCOVER_COPY.rating(movie.rating)}
+            {formattedRating ?? DISCOVER_COPY.notRated}
           </span>
 
           <button
             type="button"
-            onClick={() => onAction?.(movie)}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onAction?.(movie);
+            }}
             aria-label={action.ariaLabel(movie.title)}
             className={cn(
-              "inline-flex h-10 items-center justify-center rounded-[10px] border-[0.5px] text-[14px] font-medium outline-none transition-colors focus-visible:border-mx-accent",
+              "relative z-10 inline-flex h-10 items-center justify-center rounded-[10px] border-[0.5px] text-[14px] font-medium outline-none transition-colors focus-visible:border-mx-accent",
               actionWidth,
               action.className,
             )}

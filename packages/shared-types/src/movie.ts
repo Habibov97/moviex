@@ -1,3 +1,5 @@
+import type { Genre } from './genre';
+
 /**
  * The catalogue contract the discover screens are built against.
  *
@@ -30,8 +32,16 @@ export type MovieSummary = {
    * to its skeleton tone rather than requesting a broken URL.
    */
   posterUrl: string | null;
-  /** TMDB's `vote_average`, 0–10; the UI renders it with a single decimal. */
-  rating: number;
+  /**
+   * TMDB's `vote_average`, 0–10, rendered with a single decimal.
+   *
+   * `null` when TMDB has no score for the title — either the field is missing
+   * outright, or `vote_count` is 0, in which case a `vote_average` of `0` means
+   * "unrated" rather than "rated zero". Nullable for the same reason as
+   * `releaseYear`: TMDB's catalogue is not uniformly populated, and every
+   * render site has to handle the gap.
+   */
+  rating: number | null;
   /**
    * Four-digit year as a string, sliced from TMDB's `release_date`. `null` for
    * unreleased or undated entries, which TMDB returns with an empty date.
@@ -54,22 +64,85 @@ export type MovieSummary = {
   userState?: MovieUserState | null;
 };
 
-/** A page of discover results, mirroring TMDB's pagination. */
-export type DiscoverMoviesResponse = {
+/**
+ * A page of movie results, mirroring TMDB's pagination.
+ *
+ * Shared by `/tmdb/discover` and `/tmdb/search` — they differ in how results
+ * are chosen, not in what a page of them looks like, so the frontend reuses the
+ * same card, grid and pagination components for both.
+ */
+export type PaginatedMoviesResponse = {
   results: MovieSummary[];
   page: number;
   totalPages: number;
   totalResults: number;
 };
 
-export type MovieSortId = 'popularity' | 'rating' | 'release-date' | 'title';
+/** @deprecated Use {@link PaginatedMoviesResponse}; search returns it too. */
+export type DiscoverMoviesResponse = PaginatedMoviesResponse;
+
+/**
+ * Our own sort vocabulary, kept deliberately separate from TMDB's `sort_by`
+ * strings — these are what appear in the URL, and the TMDB value is looked up
+ * from them at request time (see `SORT_OPTIONS` in `apps/web`).
+ */
+export type MovieSortId = 'popularity' | 'rating' | 'newest' | 'oldest';
 
 /** Query shape the discover endpoint will accept. */
 export type DiscoverFilters = {
-  /** TMDB genre id, or `null` for "Tümü" — no genre filter applied. */
+  /** TMDB genre id, or `null` for "All" — no genre filter applied. */
   genreId: number | null;
   yearFrom: number;
   yearTo: number;
   minRating: number;
   sort: MovieSortId;
+};
+
+/** One credited performer, from TMDB's `credits.cast`. */
+export type CastMember = {
+  id: number;
+  name: string;
+  character: string;
+  /** Full headshot URL, or `null` when TMDB has no `profile_path`. */
+  profileUrl: string | null;
+};
+
+/** A YouTube trailer/teaser, from TMDB's `videos.results`. */
+export type MovieTrailer = {
+  /** YouTube video id — build the embed as `youtube.com/embed/{key}`. */
+  key: string;
+  name: string;
+};
+
+/**
+ * A single movie's full detail, assembled from TMDB's `/movie/{id}` plus its
+ * `credits` and `videos` sub-resources in one `append_to_response` request.
+ *
+ * Almost everything optional is genuinely nullable in TMDB's data — see the
+ * nullable-fields note in CLAUDE.md. `rating` follows the same
+ * `voteCount === 0 → null` rule as `MovieSummary`.
+ */
+export type MovieDetail = {
+  tmdbId: number;
+  title: string;
+  originalTitle: string;
+  tagline: string | null;
+  overview: string | null;
+  posterUrl: string | null;
+  /** Wider crop than the poster — used as the hero band background. */
+  backdropUrl: string | null;
+  rating: number | null;
+  voteCount: number | null;
+  releaseDate: string | null;
+  releaseYear: string | null;
+  /** Minutes. TMDB reports `0` for unknown runtimes, normalised to `null`. */
+  runtime: number | null;
+  /** ISO 639-1 code, e.g. `en`. */
+  originalLanguage: string | null;
+  status: string | null;
+  genres: Genre[];
+  cast: CastMember[];
+  /** Every crew member with `job === 'Director'`; usually one, sometimes two. */
+  directors: string[];
+  trailer: MovieTrailer | null;
 };

@@ -28,6 +28,45 @@
   }
 }
 
+@layer components {
+  /*
+   * Dual-range slider thumbs. Native range thumbs can only be styled through
+   * these vendor pseudo-elements, which Tailwind utilities cannot reach — so
+   * this is the one place filter styling lives in CSS rather than classes.
+   *
+   * The input itself is `pointer-events: none` so the two stacked ranges do not
+   * block each other; only the thumbs take pointer events.
+   */
+  .mx-range {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .mx-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+    height: 14px;
+    width: 14px;
+    border-radius: 9999px;
+    background: var(--mx-slider-thumb);
+    border: 2px solid var(--mx-accent);
+    cursor: pointer;
+  }
+
+  .mx-range::-moz-range-thumb {
+    pointer-events: auto;
+    height: 14px;
+    width: 14px;
+    border-radius: 9999px;
+    background: var(--mx-slider-thumb);
+    border: 2px solid var(--mx-accent);
+    cursor: pointer;
+  }
+}
+
 .imgDark {
   display: none;
 }
@@ -102,6 +141,30 @@
   --color-mx-page-arrow-disabled: var(--mx-page-arrow-disabled);
   --color-mx-page-ellipsis: var(--mx-page-ellipsis);
   --color-mx-page-meta: var(--mx-page-meta);
+  /*
+   * Filter popovers. The panel/inputs reuse `card`/`field`, but a slider has no
+   * existing equivalent, and the selected-option wash is an accent tint rather
+   * than a surface step.
+   */
+  --color-mx-slider-track: var(--mx-slider-track);
+  --color-mx-slider-thumb: var(--mx-slider-thumb);
+  --color-mx-option-selected: var(--mx-option-selected);
+  /* Highlighted typeahead row (keyboard or hover). */
+  --color-mx-typeahead-active: var(--mx-typeahead-active);
+  /*
+   * Movie detail hero. These sit on TMDB artwork, so they are the same in both
+   * themes — the backdrop is the ground, not the page.
+   */
+  --color-mx-hero-overlay: var(--mx-hero-overlay);
+  --color-mx-hero-pill: var(--mx-hero-pill);
+  --color-mx-poster-edge: var(--mx-poster-edge);
+  /* Library-state buttons: amber for "in your list", green for "watched". */
+  --color-mx-state-list-bg: var(--mx-state-list-bg);
+  --color-mx-state-list-border: var(--mx-state-list-border);
+  --color-mx-state-list-fg: var(--mx-state-list-fg);
+  --color-mx-state-watched-bg: var(--mx-state-watched-bg);
+  --color-mx-state-watched-border: var(--mx-state-watched-border);
+  --color-mx-state-watched-fg: var(--mx-state-watched-fg);
 
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
@@ -191,11 +254,38 @@
   --mx-poster-fg: #fafafa;
   --mx-tag-watched: #0f6f57;
   --mx-tag-listed: #864e0c;
+  /* Accent tint behind a selected option row; identical in both themes. */
+  --mx-option-selected: rgba(226, 75, 74, 0.12);
+  /*
+   * Values-only, no `.dark` override: all of these sit on movie artwork or are
+   * accent/state tints, so the page theme does not change them.
+   *
+   * The overlay is not decoration. TMDB backdrops are often bright, which makes
+   * white button text unreadable, and a film's backdrop and poster come from
+   * the same palette — without it the poster's top half dissolves into the
+   * backdrop it overlaps.
+   */
+  --mx-hero-overlay: rgba(0, 0, 0, 0.42);
+  --mx-hero-pill: rgba(8, 8, 10, 0.72);
+  /* A light hairline, never the page background: the poster overlaps the
+     backdrop, so it must separate from *that*, not from the page. */
+  --mx-poster-edge: rgba(255, 255, 255, 0.18);
+  --mx-poster-shadow: rgba(0, 0, 0, 0.65);
+  --mx-state-list-bg: rgba(133, 79, 11, 0.18);
+  --mx-state-list-border: #854f0b;
+  --mx-state-list-fg: #faeeda;
+  --mx-state-watched-bg: rgba(15, 110, 86, 0.2);
+  --mx-state-watched-border: #0f6e56;
+  --mx-state-watched-fg: #e1f5ee;
   /* Pagination — light: the dark values inverted around the surface. */
   --mx-page-arrow: #3f3f46;
   --mx-page-arrow-disabled: #d4d4d8;
   --mx-page-ellipsis: #a1a1aa;
   --mx-page-meta: #71717a;
+  /* Filter popovers — light. */
+  --mx-slider-track: #e4e4e7;
+  --mx-slider-thumb: #ffffff;
+  --mx-typeahead-active: #f4f4f5;
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -268,6 +358,10 @@
   --mx-page-arrow-disabled: #3f3f46;
   --mx-page-ellipsis: #52525b;
   --mx-page-meta: #5f5f68;
+  /* Filter popovers — dark: measured off `moviex-rating-year-filter.png`. */
+  --mx-slider-track: #27272c;
+  --mx-slider-thumb: #ffffff;
+  --mx-typeahead-active: #1c1c21;
 
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

@@ -1,10 +1,22 @@
-import type { DiscoverMoviesResponse, Genre } from "@moviex/shared-types";
+import type {
+  Genre,
+  MovieDetail,
+  PaginatedMoviesResponse,
+} from "@moviex/shared-types";
 
 /**
- * Base URL of our own NestJS API. `API_URL` is server-only (no `NEXT_PUBLIC_`
- * prefix) because every call in this file runs in a Server Component.
+ * Base URL of our own NestJS API.
+ *
+ * Two variables on purpose: `getSearchResults` is called from the navbar
+ * typeahead, which runs in the **browser**, where a server-only `API_URL` is
+ * `undefined`. Next inlines `NEXT_PUBLIC_API_URL` into the client bundle, so
+ * that one has to be set for the typeahead to reach the API in any deployed
+ * environment; `API_URL` still covers the Server Component calls.
  */
-const API_URL = process.env.API_URL ?? "http://localhost:3000";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.API_URL ??
+  "http://localhost:3000";
 
 /** Genres change rarely — a day-old list is fine. */
 const GENRES_REVALIDATE_SECONDS = 86_400;
@@ -43,6 +55,11 @@ export type DiscoverMoviesArgs = {
   /** TMDB `sort_by` value. */
   sort?: string;
   page?: number;
+  /** Release-year bounds. Sent only when they narrow the full span. */
+  yearFrom?: number | null;
+  yearTo?: number | null;
+  /** Minimum TMDB score, or `null` for no rating floor. */
+  minRating?: number | null;
 };
 
 /**
@@ -60,10 +77,16 @@ export async function getDiscoverMovies({
   genreId,
   sort = "popularity.desc",
   page,
-}: DiscoverMoviesArgs = {}): Promise<DiscoverMoviesResponse> {
+  yearFrom,
+  yearTo,
+  minRating,
+}: DiscoverMoviesArgs = {}): Promise<PaginatedMoviesResponse> {
   const params = new URLSearchParams({ sort });
   if (genreId != null) params.set("genre", String(genreId));
   if (page != null) params.set("page", String(page));
+  if (yearFrom != null) params.set("yearFrom", String(yearFrom));
+  if (yearTo != null) params.set("yearTo", String(yearTo));
+  if (minRating != null) params.set("minRating", String(minRating));
 
   const response = await fetch(`${API_URL}/tmdb/discover?${params}`, {
     cache: "no-store",
@@ -75,5 +98,71 @@ export async function getDiscoverMovies({
     );
   }
 
-  return (await response.json()) as DiscoverMoviesResponse;
+  return (await response.json()) as PaginatedMoviesResponse;
+}
+
+export type SearchMoviesArgs = {
+  query: string;
+  page?: number;
+};
+
+/**
+ * Relevance-ranked search results, via our API.
+ *
+ * Only `q` and `page` are sent: TMDB's search endpoint supports nothing else,
+ * and our API rejects unknown params outright — so leftover genre/rating/sort
+ * params sitting in the browser URL must not be forwarded here.
+ *
+ * Same policy as {@link getDiscoverMovies}: `no-store`, and failures throw.
+ */
+export async function getSearchResults({
+  query,
+  page,
+}: SearchMoviesArgs): Promise<PaginatedMoviesResponse> {
+  const params = new URLSearchParams({ q: query });
+  if (page != null) params.set("page", String(page));
+
+  const response = await fetch(`${API_URL}/tmdb/search?${params}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `GET /tmdb/search responded ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return (await response.json()) as PaginatedMoviesResponse;
+}
+
+/** A movie's details change rarely; an hour-old copy is fine. */
+const MOVIE_DETAIL_REVALIDATE_SECONDS = 3600;
+
+/**
+ * One movie's full detail, via our API.
+ *
+ * Cached for an hour — unlike search and discover, which are `no-store`
+ * because their results depend on a query and shift with TMDB popularity. A
+ * single movie is a stable resource, so re-fetching it per request would be
+ * pure waste.
+ *
+ * Returns `null` on 404 so the page can render `notFound()` rather than a 500;
+ * anything else throws.
+ */
+export async function getMovieDetail(
+  tmdbId: number,
+): Promise<MovieDetail | null> {
+  const response = await fetch(`${API_URL}/tmdb/${tmdbId}`, {
+    next: { revalidate: MOVIE_DETAIL_REVALIDATE_SECONDS },
+  });
+
+  if (response.status === 404) return null;
+
+  if (!response.ok) {
+    throw new Error(
+      `GET /tmdb/${tmdbId} responded ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return (await response.json()) as MovieDetail;
 }

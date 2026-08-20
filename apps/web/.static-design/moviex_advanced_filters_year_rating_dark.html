@@ -1,0 +1,91 @@
+<div style="background:#0b0b0d;border-radius:12px;padding:28px 20px;font-family:var(--font-sans)">
+
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">MovieX üçün genişləndirilmiş filtr paneli dizaynı: il aralığı üçün ikili slider popover-i və minimum reytinq üçün ulduzlu tez seçim popover-i.</h2>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px">
+  <div style="display:flex;align-items:center;gap:7px;background:#17171b;border:1px solid #E24B4A;border-radius:8px;padding:7px 12px;font-size:12px;color:#fafafa"><i class="ti ti-calendar" style="font-size:14px;color:#E24B4A" aria-hidden="true"></i>2015 – 2026<i class="ti ti-chevron-up" style="font-size:12px;color:#71717a;margin-left:2px" aria-hidden="true"></i></div>
+  <div style="display:flex;align-items:center;gap:7px;background:#17171b;border:0.5px solid rgba(255,255,255,0.08);border-radius:8px;padding:7px 12px;font-size:12px;color:#a1a1aa"><i class="ti ti-star" style="font-size:14px;color:#71717a" aria-hidden="true"></i>Reytinq<i class="ti ti-chevron-down" style="font-size:12px;color:#71717a;margin-left:2px" aria-hidden="true"></i></div>
+  <div style="display:flex;align-items:center;gap:7px;background:#17171b;border:0.5px solid rgba(255,255,255,0.08);border-radius:8px;padding:7px 12px;font-size:12px;color:#a1a1aa"><i class="ti ti-arrows-sort" style="font-size:14px;color:#71717a" aria-hidden="true"></i>Popularity<i class="ti ti-chevron-down" style="font-size:12px;color:#71717a;margin-left:2px" aria-hidden="true"></i></div>
+  <div style="flex:1"></div>
+  <span style="font-size:11.5px;color:#E24B4A;padding:7px 4px;cursor:pointer">Clear all</span>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:16px">
+
+<div style="width:280px;background:#131316;border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;padding:18px">
+  <p style="margin:0 0 4px;font-size:12.5px;font-weight:500;color:#fafafa">Release year</p>
+  <p style="margin:0 0 16px;font-size:11px;color:#71717a">Pick a range between 1950 and 2026</p>
+
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
+    <div style="flex:1;background:#0e0e11;border:0.5px solid rgba(255,255,255,0.1);border-radius:7px;padding:7px 10px;text-align:center;font-size:12.5px;color:#fafafa">2015</div>
+    <span style="font-size:11px;color:#52525b">to</span>
+    <div style="flex:1;background:#0e0e11;border:0.5px solid rgba(255,255,255,0.1);border-radius:7px;padding:7px 10px;text-align:center;font-size:12.5px;color:#fafafa">2026</div>
+  </div>
+
+  <div style="position:relative;height:4px;background:#27272c;border-radius:2px;margin:0 8px 10px">
+    <div style="position:absolute;left:28%;right:0%;top:0;bottom:0;background:#E24B4A;border-radius:2px"></div>
+    <div style="position:absolute;left:calc(28% - 7px);top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#fafafa;border:2px solid #E24B4A"></div>
+    <div style="position:absolute;left:calc(100% - 7px);top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#fafafa;border:2px solid #E24B4A"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:9.5px;color:#4a4a52;margin-bottom:16px">
+    <span>1950</span><span>2026</span>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">
+    <span style="font-size:10.5px;color:#a1a1aa;border:0.5px solid rgba(255,255,255,0.1);border-radius:999px;padding:4px 10px">This year</span>
+    <span style="font-size:10.5px;color:#a1a1aa;border:0.5px solid rgba(255,255,255,0.1);border-radius:999px;padding:4px 10px">Last 5 years</span>
+    <span style="font-size:10.5px;color:#fafafa;background:#E24B4A;border-radius:999px;padding:4px 10px">Last 10 years</span>
+    <span style="font-size:10.5px;color:#a1a1aa;border:0.5px solid rgba(255,255,255,0.1);border-radius:999px;padding:4px 10px">Classics</span>
+  </div>
+
+  <div style="display:flex;gap:8px">
+    <span style="flex:1;text-align:center;font-size:12px;color:#a1a1aa;border:0.5px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px 0">Reset</span>
+    <span style="flex:1;text-align:center;font-size:12px;font-weight:500;color:#2C0808;background:#E24B4A;border-radius:8px;padding:8px 0">Apply</span>
+  </div>
+</div>
+
+<div style="width:260px;background:#131316;border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;padding:18px">
+  <p style="margin:0 0 4px;font-size:12.5px;font-weight:500;color:#fafafa">Minimum rating</p>
+  <p style="margin:0 0 16px;font-size:11px;color:#71717a">Show movies rated at least this high</p>
+
+  <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:#0e0e11;border:0.5px solid rgba(255,255,255,0.08)">
+      <span style="font-size:12px;color:#a1a1aa">Any rating</span>
+      <span style="width:16px;height:16px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.18);display:inline-block"></span>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:#0e0e11;border:0.5px solid rgba(255,255,255,0.08)">
+      <span style="display:flex;align-items:center;gap:4px">
+        <i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star" style="font-size:12px;color:#3f3f46" aria-hidden="true"></i>
+        <span style="font-size:11px;color:#a1a1aa;margin-left:4px">7+</span>
+      </span>
+      <span style="width:16px;height:16px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.18);display:inline-block"></span>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:rgba(226,75,74,0.12);border:1px solid #E24B4A">
+      <span style="display:flex;align-items:center;gap:4px">
+        <i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-half-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i>
+        <span style="font-size:11px;color:#fafafa;margin-left:4px;font-weight:500">8+</span>
+      </span>
+      <span style="width:16px;height:16px;border-radius:50%;border:5px solid #E24B4A;background:#E24B4A;display:inline-block"></span>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:#0e0e11;border:0.5px solid rgba(255,255,255,0.08)">
+      <span style="display:flex;align-items:center;gap:4px">
+        <i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i><i class="ti ti-star-filled" style="font-size:12px;color:#EF9F27" aria-hidden="true"></i>
+        <span style="font-size:11px;color:#a1a1aa;margin-left:4px">9+</span>
+      </span>
+      <span style="width:16px;height:16px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.18);display:inline-block"></span>
+    </div>
+
+  </div>
+
+  <div style="display:flex;gap:8px">
+    <span style="flex:1;text-align:center;font-size:12px;color:#a1a1aa;border:0.5px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px 0">Reset</span>
+    <span style="flex:1;text-align:center;font-size:12px;font-weight:500;color:#2C0808;background:#E24B4A;border-radius:8px;padding:8px 0">Apply</span>
+  </div>
+</div>
+
+</div>
+</div>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { Genre, MovieSummary } from "@moviex/shared-types";
+import type { Genre, MovieSortId, MovieSummary } from "@moviex/shared-types";
 
+import { useLibraryActions } from "@/hooks/use-library-actions";
 import { DiscoverHero } from "@/components/discover/DiscoverHero";
 import { MovieGrid } from "@/components/discover/MovieGrid";
 import { MovieList } from "@/components/discover/MovieList";
@@ -15,12 +16,19 @@ import {
 export type DiscoverSectionProps = {
   /** Fetched server-side from `GET /tmdb/genres` and passed straight through. */
   genres: Genre[];
-  /** Parsed from the `genre` search param by the page. `null` is "Tümü". */
+  /** Parsed from the `genre` search param by the page. `null` is "All". */
   selectedGenreId: number | null;
   /** The current page of `GET /tmdb/discover` results. */
   movies: MovieSummary[];
   /** TMDB's total match count for the active filter, shown in the hero. */
   resultCount: number;
+  /** Applied release-year range, parsed from the URL by the page. */
+  yearFrom: number;
+  yearTo: number;
+  /** Applied minimum score, or `null` for "Any rating". */
+  minRating: number | null;
+  /** Active result ordering, parsed from the URL by the page. */
+  sort: MovieSortId;
 };
 
 /**
@@ -38,8 +46,16 @@ export function DiscoverSection({
   selectedGenreId,
   movies,
   resultCount,
+  yearFrom,
+  yearTo,
+  minRating,
+  sort,
 }: DiscoverSectionProps) {
   const [viewMode, setViewMode] = useState<ViewModeId>(DEFAULT_VIEW_MODE);
+
+  // Same gate the detail page uses: signed out opens the auth modal, signed in
+  // hits the placeholder handler. TODO lives in the hook, not here.
+  const { runCardAction, authModal } = useLibraryActions();
 
   return (
     <>
@@ -47,6 +63,10 @@ export function DiscoverSection({
         genres={genres}
         selectedGenreId={selectedGenreId}
         resultCount={resultCount}
+        yearFrom={yearFrom}
+        yearTo={yearTo}
+        minRating={minRating}
+        sort={sort}
         onViewModeChange={setViewMode}
       />
       {/*
@@ -58,11 +78,21 @@ export function DiscoverSection({
       */}
       <div id={RESULTS_ANCHOR_ID} className="scroll-mt-16">
         {viewMode === "list" ? (
-          <MovieList movies={movies} genres={genres} />
+          <MovieList
+            movies={movies}
+            genres={genres}
+            onMovieAction={runCardAction}
+          />
         ) : (
-          <MovieGrid movies={movies} genres={genres} />
+          <MovieGrid
+            movies={movies}
+            genres={genres}
+            onAddMovie={runCardAction}
+          />
         )}
       </div>
+
+      {authModal}
     </>
   );
 }

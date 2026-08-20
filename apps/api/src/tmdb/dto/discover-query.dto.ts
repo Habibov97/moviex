@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  Max,
+  Min,
+} from 'class-validator';
+
+/** Earliest year the UI offers; anything below is a malformed request. */
+export const EARLIEST_YEAR = 1950;
 
 /**
  * TMDB refuses any page above this with a 400, which would otherwise surface
@@ -43,4 +53,25 @@ export class DiscoverQueryDto {
   @Min(1)
   @Max(TMDB_MAX_PAGE)
   page?: number;
+
+  /** Release-year bounds, inclusive. Forwarded as a primary_release_date pair. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(EARLIEST_YEAR)
+  yearFrom?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(EARLIEST_YEAR)
+  yearTo?: number;
+
+  /** Minimum TMDB score. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  minRating?: number;
 }

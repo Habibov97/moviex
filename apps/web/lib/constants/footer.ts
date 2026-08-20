@@ -2,7 +2,7 @@ import type { NavLink } from './navigation';
 
 /**
  * Footer content. Separate from `NAV_LINKS`: the footer's product column is not
- * the primary nav (it lists İstatistikler and omits İzlediklerim), so the two
+ * the primary nav (it lists Statistics and omits Watched), so the two
  * are deliberately not the same array.
  */
 
@@ -14,32 +14,33 @@ export type FooterColumn = {
 // TODO: only `/` exists so far — the rest 404 until their routes are built.
 export const FOOTER_COLUMNS: FooterColumn[] = [
   {
-    title: 'Ürün',
+    title: 'Product',
     links: [
-      { href: '/', label: 'Keşfet' },
-      { href: '/listem', label: 'Listem' },
-      { href: '/istatistikler', label: 'İstatistikler' },
+      { href: '/', label: 'Discover' },
+      { href: '/listem', label: 'My list' },
+      { href: '/istatistikler', label: 'Statistics' },
     ],
   },
   {
-    title: 'Hakkında',
+    title: 'About',
     links: [
-      { href: '/gizlilik', label: 'Gizlilik' },
-      { href: '/sartlar', label: 'Şartlar' },
-      { href: '/iletisim', label: 'İletişim' },
+      { href: '/gizlilik', label: 'Privacy' },
+      { href: '/sartlar', label: 'Terms' },
+      { href: '/iletisim', label: 'Contact' },
     ],
   },
 ];
 
 export const FOOTER_COPY = {
   /**
-   * The reference reads "…izlediklerini puanla…", but rating is deliberately not
-   * part of the product (see the movie list flow in CLAUDE.md), so the middle
-   * clause promises the action that actually exists.
+   * The reference's middle clause promised rating, which is deliberately not
+   * part of the product (see the movie list flow in CLAUDE.md), so it promises
+   * the action that actually exists.
    */
-  tagline: 'İzleyeceklerini takip et, izlediklerini işaretle, koleksiyonunu büyüt.',
-  navLabel: 'Alt menyu',
+  tagline:
+    'Track what you want to watch, mark what you have seen, and grow your collection.',
+  navLabel: 'Footer',
   copyright: (year: number) => `© ${year} MovieX`,
   author: 'Created by Najaf Habibov',
-  attribution: 'Film verileri TMDB tarafından sağlanmaktadır',
+  attribution: 'Movie data provided by TMDB',
 } as const;

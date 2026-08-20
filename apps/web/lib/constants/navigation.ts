@@ -9,7 +9,7 @@ export type NavLink = {
  * and is simply passed to `<Navbar />`.
  */
 export const NAV_LINKS: NavLink[] = [
-  { href: '/', label: 'Keşfet' },
-  { href: '/listem', label: 'Listem' },
-  { href: '/izlediklerim', label: 'İzlediklerim' },
+  { href: '/', label: 'Discover' },
+  { href: '/listem', label: 'My list' },
+  { href: '/izlediklerim', label: 'Watched' },
 ];

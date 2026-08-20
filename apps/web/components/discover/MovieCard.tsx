@@ -1,30 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import type { MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { StatusTag } from "@/components/discover/StatusTag";
-import { DISCOVER_COPY } from "@/lib/constants/discover";
-
-/**
- * Poster skeleton tones, in the order the design reference cycles through them.
- * Full class strings on purpose — Tailwind only sees classes it can read in the
- * source, so `bg-mx-poster-${n}` would compile to nothing.
- */
-export const POSTER_TONES = [
-  "bg-mx-poster-1",
-  "bg-mx-poster-2",
-  "bg-mx-poster-3",
-  "bg-mx-poster-4",
-  "bg-mx-poster-5",
-  "bg-mx-poster-6",
-  "bg-mx-poster-7",
-  "bg-mx-poster-8",
-] as const;
-
-export function posterTone(index: number) {
-  return POSTER_TONES[index % POSTER_TONES.length];
-}
+import { DISCOVER_COPY, movieHref } from "@/lib/constants/discover";
+import { posterTone } from "@/lib/poster-tone";
 
 /** Poster geometry shared with the skeleton, so the two never drift apart. */
 const posterBase =
@@ -50,8 +32,11 @@ export function MovieCard({
   onAdd,
   className,
 }: MovieCardProps) {
+  // `null` for a title TMDB has no score for — see DISCOVER_COPY.rating.
+  const formattedRating = DISCOVER_COPY.rating(movie.rating);
+
   return (
-    <article className={cn("group font-mx", className)}>
+    <article className={cn("group relative font-mx", className)}>
       <div className={cn(posterBase, posterTone(toneIndex))}>
         {/*
           Layered over the tone rather than replacing it, so a missing or
@@ -79,27 +64,53 @@ export function MovieCard({
         <div className="absolute inset-x-0 top-0 flex items-start gap-2 p-2.5">
           <StatusTag state={movie.userState} />
 
-          <span
-            className="ml-auto inline-flex h-6 shrink-0 items-center rounded-[6px] bg-mx-poster-badge px-2 text-[12px] font-medium text-mx-poster-fg tabular-nums"
-            aria-label={DISCOVER_COPY.ratingLabel(movie.rating)}
-          >
-            {DISCOVER_COPY.rating(movie.rating)}
-          </span>
+          {/*
+            Unrated titles drop the badge entirely rather than showing a dash:
+            it floats over artwork with nothing to align to, so an empty-looking
+            pill would read as a rendering fault.
+          */}
+          {formattedRating !== null && (
+            <span
+              className="ml-auto inline-flex h-6 shrink-0 items-center rounded-[6px] bg-mx-poster-badge px-2 text-[12px] font-medium text-mx-poster-fg tabular-nums"
+              aria-label={DISCOVER_COPY.ratingLabel(movie.rating)}
+            >
+              {formattedRating}
+            </span>
+          )}
         </div>
 
         {/*
           Revealed on hover, on keyboard focus, and permanently on devices with
           no hover at all — otherwise the action would be invisible on touch.
         */}
+        {/*
+          Sits above the card-wide link (z-10) and stops the click there, so
+          adding to a list never also navigates to the detail page.
+        */}
         <button
           type="button"
-          onClick={() => onAdd?.(movie)}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onAdd?.(movie);
+          }}
           aria-label={DISCOVER_COPY.addLabel(movie.title)}
-          className="absolute inset-x-2.5 bottom-2.5 flex h-8 items-center justify-center rounded-[8px] bg-mx-accent text-[13px] font-medium text-mx-on-accent opacity-0 outline-none transition-[opacity,background-color] duration-200 group-hover:opacity-100 hover:bg-mx-accent-hover focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+          className="absolute inset-x-2.5 bottom-2.5 z-10 flex h-8 items-center justify-center rounded-[8px] bg-mx-accent text-[13px] font-medium text-mx-on-accent opacity-0 outline-none transition-[opacity,background-color] duration-200 group-hover:opacity-100 hover:bg-mx-accent-hover focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
         >
           {DISCOVER_COPY.add}
         </button>
       </div>
+
+      {/*
+        A single stretched link over the whole card keeps one tab stop and one
+        accessible name, rather than making the poster and title separate links.
+      */}
+      <Link
+        href={movieHref(movie.tmdbId)}
+        className="absolute inset-0 z-0 outline-none focus-visible:ring-1 focus-visible:ring-mx-accent"
+      >
+        <span className="sr-only">{movie.title}</span>
+      </Link>
 
       <h3 className="mt-2.5 truncate text-[15px] font-medium text-mx-fg">
         {movie.title}

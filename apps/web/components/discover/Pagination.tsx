@@ -85,7 +85,7 @@ export function Pagination({
   /**
    * Rebuilds the query string with `page` replaced, preserving every other
    * param. Page 1 drops the param instead of writing `?page=1`, matching how
-   * the "Tümü" genre chip clears rather than writes a default.
+   * the "All" genre chip clears rather than writes a default.
    *
    * `pathname` is always included, never omitted when the query comes out
    * empty: a bare `"#results"` href is a *fragment-only* URL, which resolves
