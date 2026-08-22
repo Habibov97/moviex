@@ -1,4 +1,5 @@
 import type { Genre } from './genre';
+import type { UserMovieStatus } from './user-movie';
 
 /**
  * The catalogue contract the discover screens are built against.
@@ -12,8 +13,12 @@ import type { Genre } from './genre';
 /**
  * How the signed-in user has already engaged with a film. Absent (or `null`)
  * means neither — the card then shows no status tag.
+ *
+ * Aliased to `UserMovieStatus` on purpose: cards, the detail page and the
+ * `user-movies` table all speak one vocabulary (`watchlist` | `watched`).
+ * Two near-identical enums is how a mapping bug gets written later.
  */
-export type MovieUserState = 'watched' | 'listed';
+export type MovieUserState = UserMovieStatus;
 
 /**
  * A single film as the discover grid and list render it.

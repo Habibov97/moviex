@@ -11,7 +11,7 @@ import { DISCOVER_COPY } from "@/lib/constants/discover";
  */
 const STATUS_TAGS = {
   watched: { label: DISCOVER_COPY.watched, className: "bg-mx-tag-watched" },
-  listed: { label: DISCOVER_COPY.listed, className: "bg-mx-tag-listed" },
+  watchlist: { label: DISCOVER_COPY.listed, className: "bg-mx-tag-listed" },
 } satisfies Record<MovieUserState, { label: string; className: string }>;
 
 export type StatusTagProps = {

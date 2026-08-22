@@ -14,6 +14,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useLibraryActions } from "@/hooks/use-library-actions";
+import { useMovieStatuses } from "@/hooks/use-user-movies";
 import { DETAIL_COPY } from "@/lib/constants/discover";
 
 /**
@@ -32,29 +33,42 @@ const outlineButton =
   "border-[0.5px] border-mx-border bg-transparent text-mx-fg-muted hover:text-mx-fg";
 
 export type MovieActionsProps = {
-  /** Identifies the movie the placeholder handlers will act on. */
-  tmdbId: number;
   /**
-   * Drives which of the three layouts renders. A prop, not internal state, so
-   * swapping in the real user-movies data later changes the source and nothing
-   * else.
+   * The snapshot stored alongside the entry — the API denormalises title,
+   * poster and year so "My List" needs no TMDB call per row.
+   */
+  movie: {
+    tmdbId: number;
+    title: string;
+    posterUrl: string | null;
+    releaseYear: string | null;
+    /** First genre name, stored on the entry for My List's top-genre tally. */
+    primaryGenre?: string | null;
+  };
+  /**
+   * Overrides the looked-up status. Normally omitted — the component reads the
+   * real one from `useMovieStatuses` — but kept for previews and tests.
    */
   status?: LibraryStatus;
-  /** When false every button opens the auth modal instead of acting. */
-  isSignedIn?: boolean;
   /** Rendered beside the Watched button; already formatted. */
   watchedOn?: string | null;
 };
 
 export function MovieActions({
-  tmdbId,
-  status = null,
-  isSignedIn = false,
+  movie,
+  status: statusOverride,
   watchedOn = null,
 }: MovieActionsProps) {
   const [copied, setCopied] = useState(false);
 
-  // Same gate and same placeholder handlers the cards use — see the hook.
+  // A one-id batch lookup: same query key shape as the grids, so this shares
+  // the cache and re-renders when any mutation invalidates the root key.
+  const { statuses } = useMovieStatuses([movie.tmdbId]);
+  const status: LibraryStatus =
+    statusOverride ?? statuses.get(movie.tmdbId) ?? null;
+
+  // Same gate and same placeholder handlers the cards use — the hook reads
+  // real session state from `useCurrentUser`, so no `isSignedIn` prop.
   const {
     requireAuth,
     addToList,
@@ -62,7 +76,7 @@ export function MovieActions({
     markWatched,
     moveBackToList,
     authModal,
-  } = useLibraryActions({ isSignedIn });
+  } = useLibraryActions();
 
   const share = async () => {
     try {
@@ -81,7 +95,7 @@ export function MovieActions({
           <>
             <button
               type="button"
-              onClick={() => requireAuth(() => addToList({ tmdbId }))}
+              onClick={() => requireAuth(() => addToList(movie))}
               className={cn(
                 buttonBase,
                 "bg-mx-accent text-mx-on-accent hover:bg-mx-accent-hover",
@@ -90,7 +104,7 @@ export function MovieActions({
               <IconBookmark className="size-4" stroke={1.75} />
               {DETAIL_COPY.addToList}
             </button>
-            <MarkWatchedButton onClick={() => requireAuth(() => markWatched({ tmdbId }))} />
+            <MarkWatchedButton onClick={() => requireAuth(() => markWatched(movie))} />
           </>
         )}
 
@@ -106,14 +120,14 @@ export function MovieActions({
               {DETAIL_COPY.inYourList}
               <button
                 type="button"
-                onClick={() => requireAuth(() => removeFromList({ tmdbId }))}
+                onClick={() => requireAuth(() => removeFromList(movie))}
                 aria-label={DETAIL_COPY.removeFromList}
                 className="-mr-1 ml-1 flex size-5 items-center justify-center rounded-full outline-none transition-colors hover:bg-mx-state-list-border focus-visible:bg-mx-state-list-border"
               >
                 <IconX className="size-3.5" stroke={2} />
               </button>
             </span>
-            <MarkWatchedButton onClick={() => requireAuth(() => markWatched({ tmdbId }))} />
+            <MarkWatchedButton onClick={() => requireAuth(() => markWatched(movie))} />
           </>
         )}
 
@@ -130,7 +144,7 @@ export function MovieActions({
             </span>
             <button
               type="button"
-              onClick={() => requireAuth(() => moveBackToList({ tmdbId }))}
+              onClick={() => requireAuth(() => moveBackToList(movie))}
               className={cn(buttonBase, outlineButton)}
             >
               <IconRotate className="size-4" stroke={1.75} />

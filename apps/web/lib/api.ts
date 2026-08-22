@@ -13,10 +13,40 @@ import type {
  * that one has to be set for the typeahead to reach the API in any deployed
  * environment; `API_URL` still covers the Server Component calls.
  */
-const API_URL =
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   process.env.API_URL ??
   "http://localhost:3000";
+
+/** Local alias so the rest of this file reads as before. */
+const API_URL = API_BASE_URL;
+
+/*
+ * Dev-only guard for the failure this exists to prevent.
+ *
+ * The session is a `SameSite=Lax` cookie. If the browser is on one host and
+ * `NEXT_PUBLIC_API_URL` points at another — `localhost` vs a LAN IP — the
+ * request is *cross-site*, so the cookie is neither stored nor sent, and
+ * `/auth/me` answers 401 forever. Login still returns 200, which is what makes
+ * it so confusing: the app looks logged out with no error anywhere.
+ *
+ * The two hosts must match. Warn loudly rather than fail silently.
+ */
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
+  try {
+    const apiHost = new URL(API_BASE_URL).hostname;
+    if (apiHost !== window.location.hostname) {
+      console.warn(
+        `[moviex] NEXT_PUBLIC_API_URL host "${apiHost}" does not match the ` +
+          `browser host "${window.location.hostname}". The auth cookie is ` +
+          `SameSite=Lax, so it will not be sent cross-site and you will ` +
+          `appear permanently signed out. Use the same host for both.`,
+      );
+    }
+  } catch {
+    // A malformed URL is not worth crashing the app over.
+  }
+}
 
 /** Genres change rarely — a day-old list is fine. */
 const GENRES_REVALIDATE_SECONDS = 86_400;

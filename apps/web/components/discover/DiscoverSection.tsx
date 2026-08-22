@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Genre, MovieSortId, MovieSummary } from "@moviex/shared-types";
 
 import { useLibraryActions } from "@/hooks/use-library-actions";
+import { useMovieStatuses } from "@/hooks/use-user-movies";
 import { DiscoverHero } from "@/components/discover/DiscoverHero";
 import { MovieGrid } from "@/components/discover/MovieGrid";
 import { MovieList } from "@/components/discover/MovieList";
@@ -55,7 +56,20 @@ export function DiscoverSection({
 
   // Same gate the detail page uses: signed out opens the auth modal, signed in
   // hits the placeholder handler. TODO lives in the hook, not here.
-  const { runCardAction, authModal } = useLibraryActions();
+  const { runCardAction, authModal } = useLibraryActions({ genres });
+
+  /*
+   * One batch lookup for every movie on screen, not one per card. Mutations
+   * invalidate the `['user-movies']` root key, so a change made on a detail
+   * page shows up here without a manual refresh.
+   */
+  const { statuses } = useMovieStatuses(movies.map((movie) => movie.tmdbId));
+
+  // The saved status is the card's badge; TMDB never supplies `userState`.
+  const withStatus = movies.map((movie) => ({
+    ...movie,
+    userState: statuses.get(movie.tmdbId) ?? null,
+  }));
 
   return (
     <>
@@ -79,13 +93,13 @@ export function DiscoverSection({
       <div id={RESULTS_ANCHOR_ID} className="scroll-mt-16">
         {viewMode === "list" ? (
           <MovieList
-            movies={movies}
+            movies={withStatus}
             genres={genres}
             onMovieAction={runCardAction}
           />
         ) : (
           <MovieGrid
-            movies={movies}
+            movies={withStatus}
             genres={genres}
             onAddMovie={runCardAction}
           />

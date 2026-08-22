@@ -6,25 +6,27 @@ import { z } from 'zod';
  * these schemas rather than re-implementing them.
  */
 
-export const NAME_MIN_LENGTH = 2;
+/** Matches `RegisterDto`'s `@MinLength(4)` on `userName`; if these drift, a
+ *  name passes client validation and then 400s server-side. */
+export const NAME_MIN_LENGTH = 4;
 export const NAME_MAX_LENGTH = 50;
 export const PASSWORD_MIN_LENGTH = 8;
 
 export const nameSchema = z
   .string()
   .trim()
-  .min(NAME_MIN_LENGTH, `Ad ən azı ${NAME_MIN_LENGTH} simvol olmalıdır`)
-  .max(NAME_MAX_LENGTH, `Ad ${NAME_MAX_LENGTH} simvoldan uzun ola bilməz`);
+  .min(NAME_MIN_LENGTH, `Name must be at least ${NAME_MIN_LENGTH} characters`)
+  .max(NAME_MAX_LENGTH, `Name must be ${NAME_MAX_LENGTH} characters or fewer`);
 
 export const emailSchema = z
   .string()
   .trim()
-  .min(1, 'E-poçt ünvanını daxil et')
-  .pipe(z.email('Düzgün e-poçt ünvanı daxil et'));
+  .min(1, 'Enter your email address')
+  .pipe(z.email('Enter a valid email address'));
 
 export const passwordSchema = z
   .string()
-  .min(PASSWORD_MIN_LENGTH, `Şifrə ən azı ${PASSWORD_MIN_LENGTH} simvol olmalıdır`);
+  .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
 
 export const loginSchema = z.object({
   email: emailSchema,
@@ -37,10 +39,10 @@ export const registerSchema = z
     name: nameSchema,
     email: emailSchema,
     password: passwordSchema,
-    confirmPassword: z.string().min(1, 'Şifrəni təkrar daxil et'),
+    confirmPassword: z.string().min(1, 'Re-enter your password'),
   })
   .refine((values) => values.password === values.confirmPassword, {
-    message: 'Şifrələr uyğun gəlmir',
+    message: 'Passwords do not match',
     path: ['confirmPassword'],
   });
 

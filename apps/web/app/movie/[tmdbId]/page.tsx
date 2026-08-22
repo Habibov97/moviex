@@ -148,11 +148,21 @@ export default async function MoviePage({ params }: MoviePageProps) {
         </div>
 
         {/*
-          Status is hard-coded until the user-movies module exists; it is a prop
-          so wiring the real source later is a one-line change here.
+          Both auth state and saved status are real now: the actions hook reads
+          `useCurrentUser`, and `MovieActions` reads this movie's status from
+          the batch lookup. The snapshot below is what gets denormalised into
+          the `user_movies` row.
         */}
         <div className="mt-6 md:mt-8">
-          <MovieActions tmdbId={movie.tmdbId} status={null} isSignedIn={false} />
+          <MovieActions
+            movie={{
+              tmdbId: movie.tmdbId,
+              title: movie.title,
+              posterUrl: movie.posterUrl,
+              releaseYear: movie.releaseYear,
+              primaryGenre: movie.genres[0]?.name ?? null,
+            }}
+          />
         </div>
 
         <section className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6 md:mt-10 md:pt-7">

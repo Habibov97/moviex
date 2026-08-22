@@ -151,6 +151,8 @@
   --color-mx-option-selected: var(--mx-option-selected);
   /* Highlighted typeahead row (keyboard or hover). */
   --color-mx-typeahead-active: var(--mx-typeahead-active);
+  /* Scrim over a saved card's poster while its hover actions show. */
+  --color-mx-card-overlay: var(--mx-card-overlay);
   /*
    * Movie detail hero. These sit on TMDB artwork, so they are the same in both
    * themes — the backdrop is the ground, not the page.
@@ -267,6 +269,8 @@
    */
   --mx-hero-overlay: rgba(0, 0, 0, 0.42);
   --mx-hero-pill: rgba(8, 8, 10, 0.72);
+  /* Same family as the hero pill, opaque enough for buttons to read on it. */
+  --mx-card-overlay: rgba(8, 8, 10, 0.78);
   /* A light hairline, never the page background: the poster overlaps the
      backdrop, so it must separate from *that*, not from the page. */
   --mx-poster-edge: rgba(255, 255, 255, 0.18);

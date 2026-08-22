@@ -1,9 +1,16 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { MovieSummary } from "@moviex/shared-types";
+import type { Genre, MovieSummary } from "@moviex/shared-types";
 
 import { LoginRegisterModal } from "@/components/auth/LoginRegisterModal";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import {
+  snapshotOf,
+  useAddUserMovie,
+  useRemoveUserMovie,
+  useUpdateUserMovieStatus,
+} from "@/hooks/use-user-movies";
 
 /**
  * The one place a library action is gated on being signed in.
@@ -19,58 +26,106 @@ import { LoginRegisterModal } from "@/components/auth/LoginRegisterModal";
  * state per surface, not a second modal component.
  */
 export function useLibraryActions({
-  isSignedIn = false,
-}: { isSignedIn?: boolean } = {}) {
+  /**
+   * Live genre list, used only to resolve a movie's primary genre **name** for
+   * the stored snapshot — `MovieSummary` carries ids, and `user_movies` stores
+   * a name so My List can tally a top genre without a TMDB call.
+   */
+  genres = [],
+}: { genres?: Genre[] } = {}) {
   const [authOpen, setAuthOpen] = useState(false);
+  // Real session state now — no longer a prop defaulting to "logged out".
+  const { isSignedIn, isLoading: isAuthLoading } = useCurrentUser();
 
   /**
-   * Signed-out users see the buttons exactly as a signed-in user does —
-   * enabled, full-colour — and hit the auth modal on click. Hiding or disabling
-   * them would remove the very affordance that motivates signing up.
+   * Three-way, not two.
+   *
+   * - **Auth still loading:** do nothing. Treating "unknown" as "logged out"
+   *   would flash the login modal at a user who is in fact signed in, for as
+   *   long as `/auth/me` takes to resolve.
+   * - **Confirmed logged out:** open the modal. Signed-out users still see the
+   *   buttons enabled and full-colour — hiding or disabling them would remove
+   *   the very affordance that motivates signing up.
+   * - **Signed in:** run the action for real.
    */
   const requireAuth = useCallback(
     (action: () => void) => {
+      if (isAuthLoading) return;
+
       if (!isSignedIn) {
         setAuthOpen(true);
         return;
       }
+
       action();
     },
-    [isSignedIn],
+    [isAuthLoading, isSignedIn],
   );
 
-  // TODO: connect to user-movies module
+  const add = useAddUserMovie();
+  const updateStatus = useUpdateUserMovieStatus();
+  const removeEntry = useRemoveUserMovie();
+
+  /*
+   * All four reach the API only via `requireAuth`, so they never fire for a
+   * signed-out user. Each mutation invalidates the `['user-movies']` root key,
+   * which is what makes a badge on a Discover card update after the same movie
+   * was changed from its detail page.
+   */
+  type SavableMovie = Parameters<typeof snapshotOf>[0];
+
+  const genreNames = new Map(genres.map((genre) => [genre.id, genre.name]));
+  const primaryGenreOf = (movie: SavableMovie & { genreIds?: number[] }) =>
+    movie.genreIds?.map((id) => genreNames.get(id)).find(Boolean) ?? null;
+
   const addToList = useCallback(
-    (_movie: MovieSummary | { tmdbId: number }) => {},
-    [],
+    (movie: SavableMovie) =>
+      add.mutate({
+        ...snapshotOf({ ...movie, primaryGenre: primaryGenreOf(movie) }),
+        status: "watchlist",
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [add, genres],
   );
-  // TODO: connect to user-movies module
+
   const removeFromList = useCallback(
-    (_movie: MovieSummary | { tmdbId: number }) => {},
-    [],
+    (movie: { tmdbId: number }) => removeEntry.mutate(movie.tmdbId),
+    [removeEntry],
   );
-  // TODO: connect to user-movies module
+
+  /**
+   * POST, not PATCH: this is reachable from a card for a movie that may not be
+   * saved yet, and PATCH 404s on a missing entry. POST is idempotent, so it
+   * covers both "not saved" and "already on the watchlist".
+   */
   const markWatched = useCallback(
-    (_movie: MovieSummary | { tmdbId: number }) => {},
-    [],
+    (movie: SavableMovie) =>
+      add.mutate({
+        ...snapshotOf({ ...movie, primaryGenre: primaryGenreOf(movie) }),
+        status: "watched",
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [add, genres],
   );
-  // TODO: connect to user-movies module
+
+  /** Only offered on an entry that exists, so PATCH is safe here. */
   const moveBackToList = useCallback(
-    (_movie: MovieSummary | { tmdbId: number }) => {},
-    [],
+    (movie: { tmdbId: number }) =>
+      updateStatus.mutate({ tmdbId: movie.tmdbId, status: "watchlist" }),
+    [updateStatus],
   );
 
   /**
    * What a card's single action button does, gated.
    *
-   * Mirrors `ROW_ACTIONS` in `MovieRow`: a film already in the list offers
-   * "Mark as watched", everything else offers "Add". Kept here rather than at
-   * each call site so the branch matches the label the user actually sees.
+   * Mirrors `ROW_ACTIONS` in `MovieRow`: a film already on the watchlist
+   * offers "Mark as watched", everything else offers "Add". Kept here rather
+   * than at each call site so the branch matches the label the user sees.
    */
   const runCardAction = useCallback(
     (movie: MovieSummary) => {
       requireAuth(() => {
-        if (movie.userState === "listed") markWatched(movie);
+        if (movie.userState === "watchlist") markWatched(movie);
         else addToList(movie);
       });
     },
@@ -86,6 +141,11 @@ export function useLibraryActions({
   );
 
   return {
+    /** Lets a caller show a subtle pending state while auth resolves. */
+    isAuthLoading,
+    /** True while any library write is in flight. */
+    isMutating: add.isPending || updateStatus.isPending || removeEntry.isPending,
+    isSignedIn,
     requireAuth,
     runCardAction,
     addToList,

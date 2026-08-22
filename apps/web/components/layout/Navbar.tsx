@@ -3,38 +3,25 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconMenu2, IconUser, IconX } from "@tabler/icons-react";
+import { IconMenu2, IconX } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
-import { LoginRegisterModal } from "@/components/auth/LoginRegisterModal";
 import { BrandMark } from "@/components/layout/BrandMark";
 import { SearchTypeahead } from "@/components/search/SearchTypeahead";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { NAV_LINKS, type NavLink } from "@/lib/constants/navigation";
 import type { Genre } from "@moviex/shared-types";
 
-function initialsOf(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0] ?? "")
-    .join("")
-    .toUpperCase();
-}
-
 export type NavbarProps = {
-  /** When present the avatar shows initials instead of the sign-in icon. */
-  user?: { name: string };
   /** Passed to the typeahead so result rows can name their genre. */
   genres?: Genre[];
   /** App routes, not catalogue data — static, so the default is the whole story. */
   links?: NavLink[];
 };
 
-export function Navbar({ user, genres, links = NAV_LINKS }: NavbarProps) {
+export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
   const pathname = usePathname();
-  const [authOpen, setAuthOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const isActive = (href: string) =>
@@ -107,19 +94,8 @@ export function Navbar({ user, genres, links = NAV_LINKS }: NavbarProps) {
 
             <ThemeToggle />
 
-            <button
-              type="button"
-              onClick={() => setAuthOpen(true)}
-              aria-label={user ? user.name : "Sign in or create an account"}
-              aria-haspopup="dialog"
-              className="flex size-9 shrink-0 items-center justify-center rounded-full md:size-8 border-[0.5px] border-mx-avatar-border bg-mx-avatar text-[13px] font-medium text-mx-avatar-fg outline-none transition-colors hover:bg-mx-avatar-hover focus-visible:border-mx-accent"
-            >
-              {user ? (
-                initialsOf(user.name)
-              ) : (
-                <IconUser className="size-4.5" stroke={1.75} />
-              )}
-            </button>
+            {/* Real session state lives in UserMenu — see useCurrentUser. */}
+            <UserMenu />
           </div>
         </div>
 
@@ -154,17 +130,6 @@ export function Navbar({ user, genres, links = NAV_LINKS }: NavbarProps) {
         )}
 
       </header>
-
-      {/*
-        Rendered outside <header> on purpose: the header is sticky, and a
-        transform/filter added to it later would trap the modal's fixed
-        positioning inside it.
-      */}
-      <LoginRegisterModal
-        isOpen={authOpen}
-        onClose={() => setAuthOpen(false)}
-        defaultMode="login"
-      />
     </>
   );
 }

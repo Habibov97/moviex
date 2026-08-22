@@ -5,6 +5,7 @@ import { IconSparkles } from "@tabler/icons-react";
 import type { Genre, MovieSummary } from "@moviex/shared-types";
 
 import { useLibraryActions } from "@/hooks/use-library-actions";
+import { useMovieStatuses } from "@/hooks/use-user-movies";
 import { MovieGrid } from "@/components/discover/MovieGrid";
 import { MovieList } from "@/components/discover/MovieList";
 import { ViewToggle } from "@/components/discover/ViewToggle";
@@ -38,7 +39,20 @@ export function SearchResults({
   const [viewMode, setViewMode] = useState<ViewModeId>(DEFAULT_VIEW_MODE);
 
   // Identical gate to Discover and the detail page — same hook, same TODO.
-  const { runCardAction, authModal } = useLibraryActions();
+  const { runCardAction, authModal } = useLibraryActions({ genres });
+
+  /*
+   * One batch lookup for every movie on screen, not one per card. Mutations
+   * invalidate the `['user-movies']` root key, so a change made on a detail
+   * page shows up here without a manual refresh.
+   */
+  const { statuses } = useMovieStatuses(movies.map((movie) => movie.tmdbId));
+
+  // The saved status is the card's badge; TMDB never supplies `userState`.
+  const withStatus = movies.map((movie) => ({
+    ...movie,
+    userState: statuses.get(movie.tmdbId) ?? null,
+  }));
 
   const formattedTotal = new Intl.NumberFormat(DISCOVER_LOCALE).format(
     totalResults,
@@ -72,13 +86,13 @@ export function SearchResults({
       <div id={RESULTS_ANCHOR_ID} className="scroll-mt-16">
         {viewMode === "list" ? (
           <MovieList
-            movies={movies}
+            movies={withStatus}
             genres={genres}
             onMovieAction={runCardAction}
           />
         ) : (
           <MovieGrid
-            movies={movies}
+            movies={withStatus}
             genres={genres}
             onAddMovie={runCardAction}
           />

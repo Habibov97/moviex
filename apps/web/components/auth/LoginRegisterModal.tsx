@@ -17,7 +17,8 @@ import {
 } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
-import { useLoginMutation, useRegisterMutation } from "@/hooks/use-auth";
+import { AuthError, useLoginMutation, useSignupMutation } from "@/hooks/use-auth";
+import { AUTH_COPY } from "@/lib/constants/errors";
 
 type AuthMode = "login" | "register";
 
@@ -50,12 +51,25 @@ export function LoginRegisterModal({
 }: LoginRegisterModalProps) {
   const [mode, setMode] = useState<AuthMode>(defaultMode);
   const [wasOpen, setWasOpen] = useState(isOpen);
+  /*
+   * Set only by the register -> login fallback (see `RegisterForm`), so the
+   * user does not retype an address they just entered. Cleared on every
+   * reopen along with the mode.
+   */
+  const [handoff, setHandoff] = useState<{ email: string; notice: string } | null>(
+    null,
+  );
 
   // Adjusting state during render (React's documented alternative to an effect):
   // every reopen starts from the parent's chosen view.
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
-    if (isOpen) setMode(defaultMode);
+    if (isOpen) {
+      setMode(defaultMode);
+      // Closing clears the handoff too, so a later open never shows a stale
+      // "Account created" notice.
+      setHandoff(null);
+    }
   }
 
   // The only side effect the modal needs: Esc to close + body scroll lock,
@@ -119,17 +133,45 @@ export function LoginRegisterModal({
           errors and the mutation state reset themselves — no reset effect.
         */}
         {isLogin ? (
-          <LoginForm key="login" onSwitchMode={() => setMode("register")} />
+          <LoginForm
+            key="login"
+            initialEmail={handoff?.email ?? ""}
+            notice={handoff?.notice ?? null}
+            onSuccess={onClose}
+            onSwitchMode={() => {
+              setHandoff(null);
+              setMode("register");
+            }}
+          />
         ) : (
-          <RegisterForm key="register" onSwitchMode={() => setMode("login")} />
+          <RegisterForm
+            key="register"
+            onSuccess={onClose}
+            onNeedsLogin={(email) => {
+              setHandoff({ email, notice: AUTH_COPY.accountCreated });
+              setMode("login");
+            }}
+            onSwitchMode={() => setMode("login")}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function LoginForm({ onSwitchMode }: { onSwitchMode: () => void }) {
-  const [email, setEmail] = useState("");
+function LoginForm({
+  initialEmail,
+  notice,
+  onSuccess,
+  onSwitchMode,
+}: {
+  /** Pre-filled after a successful signup whose auto-login could not run. */
+  initialEmail: string;
+  notice: string | null;
+  onSuccess: () => void;
+  onSwitchMode: () => void;
+}) {
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -148,7 +190,9 @@ function LoginForm({ onSwitchMode }: { onSwitchMode: () => void }) {
     }
 
     setErrors({});
-    login.mutate(result.data);
+    // The cookie is set by the response; `useLoginMutation` invalidates
+    // ['auth','me'] on success, so closing is all that is left to do here.
+    login.mutate(result.data, { onSuccess });
   };
 
   return (
@@ -227,9 +271,17 @@ function LoginForm({ onSwitchMode }: { onSwitchMode: () => void }) {
           </button>
         </div>
 
+        {/* Shown once, after a signup whose auto-login could not complete. */}
+        {notice && !login.error && (
+          <p role="status" className="mb-3 text-[12px] text-mx-success">
+            {notice}
+          </p>
+        )}
         <FormError error={login.error} />
 
-        <SubmitButton isPending={login.isPending}>Sign in</SubmitButton>
+        <SubmitButton isPending={login.isPending}>
+          {login.isPending ? AUTH_COPY.signingIn : "Sign in"}
+        </SubmitButton>
       </form>
 
       <ModeSwitch
@@ -241,7 +293,16 @@ function LoginForm({ onSwitchMode }: { onSwitchMode: () => void }) {
   );
 }
 
-function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
+function RegisterForm({
+  onSuccess,
+  onNeedsLogin,
+  onSwitchMode,
+}: {
+  onSuccess: () => void;
+  /** Auto-login failed — hand the email to the login view instead. */
+  onNeedsLogin: (email: string) => void;
+  onSwitchMode: () => void;
+}) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -249,7 +310,20 @@ function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  const register = useRegisterMutation();
+  const signup = useSignupMutation();
+  const login = useLoginMutation();
+
+  /*
+   * Option (b): sign the user straight in after creating the account, so they
+   * never retype credentials they just chose. `/auth/signup` deliberately sets
+   * no cookie, so this second call is what actually establishes the session.
+   *
+   * If that follow-up fails — rare, but a wrong-password race or a blip would
+   * do it — fall back to option (a): switch to the login view with the email
+   * pre-filled and an "Account created" notice, rather than leaving the user
+   * with an account they appear not to have.
+   */
+  const isPending = signup.isPending || login.isPending;
 
   const strength = getPasswordStrength(password);
   const confirmMatches =
@@ -271,7 +345,18 @@ function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
     }
 
     setErrors({});
-    register.mutate(result.data);
+
+    signup.mutate(result.data, {
+      onSuccess: () => {
+        login.mutate(
+          { email: result.data.email, password: result.data.password, rememberMe: false },
+          {
+            onSuccess,
+            onError: () => onNeedsLogin(result.data.email),
+          },
+        );
+      },
+    });
   };
 
   return (
@@ -401,9 +486,12 @@ function RegisterForm({ onSwitchMode }: { onSwitchMode: () => void }) {
           <FieldError message={errors.confirmPassword} />
         </div>
 
-        <FormError error={register.error} />
+        {/* Either half of the signup -> login chain can fail. */}
+        <FormError error={signup.error ?? login.error} />
 
-        <SubmitButton isPending={register.isPending}>Create account</SubmitButton>
+        <SubmitButton isPending={isPending}>
+          {isPending ? AUTH_COPY.creatingAccount : "Create account"}
+        </SubmitButton>
 
         <p className="mt-3 text-center text-[12px] text-mx-fg-faint">
           By continuing you agree to the terms
@@ -523,12 +611,22 @@ function FieldError({ message }: { message?: string }) {
   );
 }
 
+/**
+ * Only `AuthError` messages are rendered — those are curated in `use-auth.ts`.
+ * Anything else (a thrown TypeError, an upstream string) falls back to generic
+ * copy, so raw error text and stack detail can never reach the UI.
+ */
 function FormError({ error }: { error: Error | null }) {
   if (!error) return null;
 
+  const message =
+    error instanceof AuthError && error.message
+      ? error.message
+      : AUTH_COPY.genericError;
+
   return (
     <p role="alert" className="mb-3 text-[12px] text-mx-accent">
-      {error.message || "Something went wrong, please try again"}
+      {message}
     </p>
   );
 }

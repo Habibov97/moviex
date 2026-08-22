@@ -33,7 +33,7 @@ const ADD_ACTION: RowAction = {
 const ROW_ACTIONS = {
   none: ADD_ACTION,
   watched: ADD_ACTION,
-  listed: {
+  watchlist: {
     label: DISCOVER_COPY.markWatched,
     ariaLabel: DISCOVER_COPY.markWatchedLabel,
     className:

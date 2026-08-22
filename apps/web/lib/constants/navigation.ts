@@ -10,6 +10,6 @@ export type NavLink = {
  */
 export const NAV_LINKS: NavLink[] = [
   { href: '/', label: 'Discover' },
-  { href: '/listem', label: 'My list' },
+  { href: '/my-list', label: 'My list' },
   { href: '/izlediklerim', label: 'Watched' },
 ];

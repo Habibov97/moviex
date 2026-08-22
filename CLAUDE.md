@@ -68,7 +68,7 @@ Always review a generated migration's SQL before running it — `migration:gener
 
 - **Config**: `@nestjs/config` is global (`ConfigModule.forRoot({ isGlobal: true, load: configs })` in `app.module.ts`), loading `src/config/{app,database,jwt}.config.ts` via `registerAs`. Feature code injects typed config directly with `@Inject(xConfig.KEY)` / `ConfigType<typeof xConfig>` rather than calling `ConfigService.get('SOME_KEY')` with string literals — follow this pattern for new config (see `AuthService`'s `jwtConfig` injection). Note `database.config.ts` (namespace `'db'`) is currently unused — `TypeOrmModule.forRootAsync` reads `DATABASE_URL` straight off `ConfigService` instead.
 - **Auth is hand-rolled, not Passport-based.** There is no `@nestjs/passport` or `@nestjs/jwt` in this project by design. `AuthService` calls the `jsonwebtoken` package directly (`jwt.sign` / `jwt.verify`), using `jwt.config.ts` (`JWT_SECRET`, `JWT_EXPIRES_IN`) as the single source of truth for signing options. Passwords are hashed with `bcrypt` before insert; `password` has no DB-level uniqueness constraint.
-- **Auth is cookie-based, not bearer.** The access token is delivered as an **httpOnly `access_token` cookie** set by `POST /auth/login`; it is deliberately _not_ in the response body, so frontend JavaScript never holds the raw token. `Authorization: Bearer` is no longer accepted anywhere. The cookie name and its attributes live once in `src/auth/auth.constants.ts` (`ACCESS_TOKEN_COOKIE`, `accessTokenCookieOptions()`) — login, logout and the guard all import from there, and login/logout must pass **identical** attributes or the browser won't treat clear-cookie as matching the set cookie. `main.ts` registers `cookieParser()` (without it `req.cookies` is undefined and every guarded route 401s) and credentialed CORS against `FRONTEND_URL` — a wildcard origin is invalid with `credentials: true` and silently breaks cookies.
+- **Auth is cookie-based, not bearer.** The access token is delivered as an **httpOnly `access_token` cookie** set by `POST /auth/login`; it is deliberately _not_ in the response body, so frontend JavaScript never holds the raw token. `Authorization: Bearer` is no longer accepted anywhere. The cookie name and its attributes live once in `src/auth/auth.constants.ts` (`ACCESS_TOKEN_COOKIE`, `accessTokenCookieOptions()`) — login, logout and the guard all import from there, and login/logout must pass **identical** attributes or the browser won't treat clear-cookie as matching the set cookie. `main.ts` registers `cookieParser()` (without it `req.cookies` is undefined and every guarded route 401s) and credentialed CORS against `FRONTEND_URLS` — a wildcard origin is invalid with `credentials: true` and silently breaks cookies. See the LAN-testing section for that variable's format.
 - **Route protection**: `src/auth/guards/jwt-auth.guard.ts` (`JwtAuthGuard`) is a plain `CanActivate` that reads the token from `req.cookies[ACCESS_TOKEN_COOKIE]`, verifies it via `jwt.verify` (injected `jwtConfig`) and attaches the decoded payload to `request.user` (typed via the `src/auth/types/express.d.ts` module augmentation). Pull the current user in a handler with the `@CurrentUser()` decorator (`src/auth/decorators/current-user.decorator.ts`). Protect a route with `@UseGuards(JwtAuthGuard) @ApiCookieAuth('access-token')` — the `'access-token'` name must match the scheme registered in `main.ts`'s `DocumentBuilder.addCookieAuth(..., 'access-token')`. There is no "Authorize" button to paste a token into: sign in via `POST /auth/login` from the docs page itself and, because Swagger UI is same-origin, the browser carries the cookie on every later "Try it out" call.
 - **No refresh tokens, no server-side session.** The JWT has a fixed expiry (`JWT_EXPIRES_IN`) and that is the whole lifetime. `POST /auth/logout` only clears the browser's cookie — the token stays cryptographically valid until it expires, since there is no denylist. Don't add refresh-token machinery without a deliberate decision to.
 - **Entities** live in `src/entity/*.entity.ts` and must be registered in the owning feature module's `TypeOrmModule.forFeature([...])` for runtime DI (`autoLoadEntities: true` picks these up for the app; the CLI's `data-source.ts` finds them independently via its own glob — the two are separate registration paths, see the migrations section above).
@@ -86,6 +86,89 @@ Always review a generated migration's SQL before running it — `migration:gener
 - **TanStack Query** is wired up in `app/providers.tsx` (`QueryClientProvider`, client created inside `useState` so SSR requests don't share a cache). Server-state calls belong in hooks like `hooks/use-auth.ts` (`useLoginMutation` / `useRegisterMutation`), not inline in components. Note it only covers async/server state — DOM concerns (scroll lock, key listeners, focus) are still plain effects.
 - **UI copy is English, and lives in `*_COPY` constants.** English is the base language of the app — there is no Turkish/Azerbaijani copy left, and new strings should not reintroduce any. Each feature keeps its strings in one object (`DISCOVER_COPY` in `lib/constants/discover.ts`, `FOOTER_COPY` in `lib/constants/footer.ts`); add a key there rather than inlining a literal in JSX. The exceptions already in the tree are `aria-label`s on one-off layout controls (Navbar, ThemeToggle) — fine to leave inline, but still English. Numbers format through `DISCOVER_LOCALE` (`'en-US'`), so grouping matches the copy; keep the two in step if the language ever changes. **No i18n library** — `next-intl` is a deliberate later step, so don't wire up translation machinery ad hoc.
 - **Shared types**: import domain types _and validation_ from `@moviex/shared-types` rather than redefining them locally. The package ships raw TS source (`exports` → `./src/index.ts`), so `next.config.js` lists it in `transpilePackages`. `src/auth.ts` holds the zod schemas both apps validate against (`loginSchema`, `registerSchema`, plus the `passwordSchema` / `PASSWORD_MIN_LENGTH` pieces the UI reuses — e.g. the strength meter parses against the same `min(8)` rule instead of duplicating it).
+
+## My List (`/my-list`)
+
+- **Route is `/my-list`**; the navbar and footer links were updated from the old Turkish `/listem` placeholder, which never had a page behind it.
+- **Auth protection is client-side**, because no route-level guard pattern exists in this app: `MyListView` reads `useCurrentUser` and `router.replace(DISCOVER_HREF)` once auth resolves. The redirect is gated on `isAuthLoading` — firing it while auth is *unknown* would bounce a signed-in user out on every cold load. If a middleware-based guard is ever added, this is the place to switch over.
+- **One combined query, filtered client-side.** `GET /user-movies` with **no** status filter, under `['user-movies','list','all']`. Both tabs, all three stats and the sort derive from that one array. Per-status requests would mean two caches to invalidate and a stats bar that can disagree with the tab above it — and every mutation already invalidates the `['user-movies']` root, so this updates for free.
+- **Sorting is client-side** for the same reason: the whole list is already in memory. Note the "Rating" sort option is a **stub** — `user_movies` stores no rating (there is no rating feature) so it falls back to recency rather than appearing broken.
+- **`primaryGenre`** is the one column added for this page: a single genre **name** snapshotted at save time, alongside `title`/`posterUrl`/`releaseYear`. Enough to tally a "top genre" across both tabs without a TMDB call or a relation table; `—` when nothing saved carries one. The name is resolved client-side from the live genre list (`useLibraryActions({ genres })`), since `MovieSummary` carries genre **ids**.
+- **Cards here are not Discover cards.** No permanent overlay button on the face — actions appear on hover (`[@media(hover:none)]:hidden`), with a `⋯` menu as the touch-device counterpart (`[@media(hover:hover)]:hidden`). The watched badge is the one thing that stays visible.
+- The page renders **client-side only**: `useSearchParams` (tab + sort) opts the subtree out of static prerendering, so its HTML is empty and everything renders after hydration. Expected for a per-user page — but it means `curl` shows nothing; check it in a browser.
+
+## `user-movies`: saved lists
+
+A movie is either on the **watchlist** or **watched**. There is no rating and no review — `UserMovieStatus` is the whole model, and `MovieUserState` is now an alias of it so cards, the detail page and the table all speak one vocabulary.
+
+**Endpoints** (all behind `JwtAuthGuard`; `userId` always comes from the token, never the body):
+
+| Route | Notes |
+|---|---|
+| `POST /user-movies` | **Idempotent** — creates, or updates status + snapshot if the pair exists. A double-clicked Add never 409s. |
+| `PATCH /user-movies/:tmdbId` | Status only. **404 if nothing is saved** — POST is what creates. |
+| `DELETE /user-movies/:tmdbId` | 204, or 404 if nothing is saved. |
+| `GET /user-movies?status=` | The caller's list, newest-updated first. Backs the future "My List" page. |
+| `GET /user-movies/status?tmdbIds=1,2,3` | **Batch lookup** — see below. |
+
+- **Snapshot fields are denormalised on purpose.** `title` / `posterUrl` / `releaseYear` are stored on the row, sent by the client from whatever card it acted on. The client already holds them, so saving costs no TMDB round trip, and "My List" renders from our own database instead of one TMDB call per saved row. Accepted trade-off: a retitled or re-postered film keeps its values until a later write refreshes them (every `POST` does).
+- **`watchedAt`** is stamped entering `watched` and cleared leaving it. An existing timestamp is preserved on re-save, so re-adding a watched film does not move the date.
+- **Batch status, never N requests.** `useMovieStatuses(tmdbIds)` issues one `/user-movies/status` call for everything on screen. Ids with no entry are **omitted** from the response — `map.get(id) === undefined` *is* "not in list", so nothing is encoded for the common case. Disabled while signed out.
+- **One root query key: `['user-movies']`.** Every list and status query nests under it, so each mutation invalidates that single key and every visible badge updates — including a Discover card reflecting a change made on a detail page. Add new queries under the same root rather than inventing sibling keys.
+- The unique constraint is `(userId, tmdbId)`; the index is `(userId, status)`, which is exactly what the batch lookup and the status-filtered list query on.
+- **"Mark as watched" uses POST, not PATCH.** It is reachable from a card for a movie that may not be saved yet, and PATCH 404s on a missing entry; POST covers both cases. PATCH is only used for "Move back to list", where the entry is known to exist.
+
+## Auth submit: endpoints, field mapping, and register → login
+
+`LoginRegisterModal` submits through `hooks/use-auth.ts`. Several details are easy to get wrong because the brief-level names do not match the API:
+
+- **The route is `POST /auth/signup`, not `/auth/register`.**
+- **`RegisterDto` wants `userName`, not `name`**, and the API's global `forbidNonWhitelisted` means any extra property is a **400**. So the signup body is exactly `{ userName, email, password }` — `confirmPassword` is client-side only — and the login body is exactly `{ email, password }`. Sending `rememberMe` returns `400 "property rememberMe should not exist"`; it is a UI concern and never goes on the wire.
+- **A duplicate account returns `404` ("User already exists"), not `409`.** Match on the status the backend actually returns.
+- `NAME_MIN_LENGTH` in `@moviex/shared-types` is **4**, aligned with `RegisterDto`'s `@MinLength(4)`. If those drift, a name passes client validation and then 400s server-side.
+
+**Register does not sign anyone in** — `/auth/signup` deliberately sets no cookie. The modal uses **approach (b)**: on signup success it immediately chains a `/auth/login` with the same credentials, so the user never retypes what they just chose, then closes like a normal login. If that follow-up call fails it falls back to **(a)**: switch to the login view with the email pre-filled and an "Account created — sign in below" notice, rather than leaving someone holding an account they appear not to have.
+
+Only `AuthError` messages (curated in `use-auth.ts`) are rendered; anything else falls back to generic copy, so raw upstream text and stack detail never reach the UI. `useLoginMutation` invalidates `['auth','me']` on success — that, not a reload, is what flips the navbar and the gated buttons.
+
+## Client auth state: `useCurrentUser` and the `['auth','me']` key
+
+`hooks/use-current-user.ts` is the **single source of truth** for "is someone signed in, and who". Anything that needs to know — the library-action gate, the navbar account control, and the modal's submit once it lands — reads this hook rather than tracking its own flag or calling `/auth/me` again.
+
+- **Query key is `['auth','me']`** (`CURRENT_USER_QUERY_KEY`). Invalidate it after any change to the session — login, register, logout — and every consumer re-reads. `useLogoutMutation` already does this in `onSettled` (settled, not success: a failed logout leaves the cookie's state unknown, so re-reading is right either way).
+- **A 401 is the logged-out answer, not an error** → the query resolves to `null`, with `retry: false` so React Query doesn't hammer a correct rejection. `staleTime` is 5 minutes.
+- **`credentials: "include"` is mandatory** on every auth call: the token is an httpOnly cookie JS cannot read, so the browser must be told to attach it cross-origin. This is also why the API's CORS has to name the exact origin — see the LAN-testing section.
+- **`/auth/me` returns the decoded JWT payload — `{ sub, email, iat, exp }`, with no name.** `initialsFromEmail()` derives the avatar's initials from the email local part. If real-name initials are wanted, `/auth/me` has to be widened to join the user row; don't invent a name client-side.
+- **Gating is three-way, never two.** `useLibraryActions().requireAuth()` no-ops while auth is *loading*, opens the modal only once logged-out is **confirmed**, and runs the action when signed in. Treating "unknown" as "logged out" flashes the login modal at users who are actually signed in — that is the bug this shape exists to prevent.
+
+## Fetch failures use `error.tsx`, not try/catch
+
+A Server Component that cannot reach the API **throws**, and the route's `error.tsx` catches it — there is no try/catch inside the page components, and adding one would break the pattern (`reset()` only exists on the boundary).
+
+- Boundaries live at `app/error.tsx` (Discover — note Discover **is** the root route, there is no `/discover` segment), `app/search/error.tsx`, and `app/movie/[tmdbId]/error.tsx`. The root one also covers any future child segment that has no boundary of its own. None of them catch errors thrown by `app/layout.tsx` itself — that needs `global-error.tsx`.
+- All three render the shared `components/shared/ErrorState.tsx`; only the heading differs (`ERROR_COPY` in `lib/constants/errors.ts`). Add a heading there rather than a second copy of the markup.
+- **"Try again" calls the boundary's `reset()`**, which re-renders the segment and re-runs the fetch. Not `window.location.reload()`, which would discard client state and reload every other segment.
+- The error is `console.error`'d in a `useEffect`; **`error.message` is never rendered** — it can carry internal hostnames and stack detail.
+- **This is not the empty state.** `DISCOVER_COPY.empty` and `SearchEmptyState` mean "the request succeeded and matched nothing"; the boundary means "we could not reach the server". Keep them distinct, or a user sees "no movies match your filter" when the API is simply down.
+- Worth knowing when testing: in a production build a thrown Server Component error returns a **500 with an empty HTML shell**, and the boundary renders on the client after hydration. `curl` will not show the styled message — check it in a browser.
+
+## Testing on a phone / LAN device
+
+Both ends need pointing at the dev machine's LAN IP; changing only one leaves requests blocked or unroutable. Find the IP with `ipconfig getifaddr en0` (macOS) or `hostname -I` (Linux).
+
+**Mind the ports:** the **API is on 3000**, the **web app on 3001**. `FRONTEND_URLS` lists *frontend* origins (`:3001`); `API_URL` / `NEXT_PUBLIC_API_URL` point at the *API* (`:3000`). Mixing them up is the usual reason "it works on localhost but not on the phone".
+
+1. **`apps/api/.env` — `FRONTEND_URLS`**: a comma-separated list of allowed CORS origins, e.g. `http://localhost:3001,http://192.168.1.10:3001`. Both stay valid at once, so adding the phone does not break localhost. `main.ts` passes a validation function (not a static string) to `enableCors` in development; a request with no `Origin` header (curl, health checks) is allowed, an unlisted origin gets no allow-header and the browser blocks it. **Production is unchanged and still strict**: it pins to the *first* entry only, and logs a warning if more are supplied. `FRONTEND_URL` (singular) is still read as a fallback.
+2. **`apps/web/.env` — `NEXT_PUBLIC_API_URL`**: must be the LAN IP, e.g. `http://192.168.1.10:3000`. A phone cannot resolve `localhost` to your machine, and the typeahead and every auth call fetch from the **browser**, so they use this public variable rather than the server-only `API_URL`. **`NEXT_PUBLIC_*` is inlined at build time — restart the dev server after changing it**, or the old value stays compiled into the client bundle.
+
+> **The API host must match the host the browser is on.** This is not a preference — it is what makes auth work at all. The session is a `SameSite=Lax` cookie, so a browser at `http://localhost:3001` calling an API at `http://192.168.31.53:3000` is a **cross-site** request: the cookie is never stored or sent, `/auth/me` answers 401 forever, and the whole app looks signed out — while `POST /auth/login` still returns 200 with a `Set-Cookie` header, which is exactly what makes this so hard to spot. It cost a full debugging pass once.
+>
+> - Working on the dev machine → `NEXT_PUBLIC_API_URL=http://localhost:3000`, browse `http://localhost:3001`.
+> - Testing from a phone → `NEXT_PUBLIC_API_URL=http://<LAN-IP>:3000`, and open the frontend at `http://<LAN-IP>:3001` too — **not** `localhost`.
+>
+> `lib/api.ts` warns in the console (dev only) when the two hosts disagree, so the next occurrence is loud rather than silent.
+
+`.env.example` in both apps documents the full set. `apps/web/.gitignore` negates its `.env*` rule with `!.env.example` so the template stays committable while real env files do not.
 
 ## Genres come from TMDB — never hard-code them
 
