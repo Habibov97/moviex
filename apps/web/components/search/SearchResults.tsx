@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { IconSparkles } from "@tabler/icons-react";
 import type { Genre, MovieSummary } from "@moviex/shared-types";
 
@@ -11,8 +12,6 @@ import { MovieList } from "@/components/discover/MovieList";
 import { ViewToggle } from "@/components/discover/ViewToggle";
 import {
   DEFAULT_VIEW_MODE,
-  DISCOVER_COPY,
-  DISCOVER_LOCALE,
   RESULTS_ANCHOR_ID,
   type ViewModeId,
 } from "@/lib/constants/discover";
@@ -36,6 +35,7 @@ export function SearchResults({
   genres,
   totalResults,
 }: SearchResultsProps) {
+  const t = useTranslations("search");
   const [viewMode, setViewMode] = useState<ViewModeId>(DEFAULT_VIEW_MODE);
 
   // Identical gate to Discover and the detail page — same hook, same TODO.
@@ -54,15 +54,11 @@ export function SearchResults({
     userState: statuses.get(movie.tmdbId) ?? null,
   }));
 
-  const formattedTotal = new Intl.NumberFormat(DISCOVER_LOCALE).format(
-    totalResults,
-  );
-
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 border-b-[0.5px] border-mx-border-subtle px-4 pb-4 font-mx sm:px-6">
         <p className="text-[13.5px] text-mx-fg-muted">
-          {DISCOVER_COPY.moviesFound(formattedTotal)}
+          {t("moviesFound", { count: totalResults })}
         </p>
         <span aria-hidden="true" className="text-mx-fg-faint">
           ·
@@ -73,7 +69,7 @@ export function SearchResults({
         */}
         <p className="flex items-center gap-1.5 text-[13.5px] text-mx-fg-faint">
           <IconSparkles className="size-3.5" stroke={1.75} aria-hidden="true" />
-          {DISCOVER_COPY.sortedByRelevance}
+          {t("sortedByRelevance")}
         </p>
 
         <ViewToggle

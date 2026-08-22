@@ -1,13 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { Genre, MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { MovieRow, MovieRowSkeleton } from "@/components/discover/MovieRow";
-import {
-  DISCOVER_COPY,
-  SKELETON_CARD_COUNT,
-} from "@/lib/constants/discover";
+import { SKELETON_CARD_COUNT } from "@/lib/constants/discover";
 
 /**
  * List view of the discover results — the same data and the same props as
@@ -39,6 +37,7 @@ export function MovieList({
   onMovieAction,
   className,
 }: MovieListProps) {
+  const t = useTranslations("discover");
   const genreNames = new Map(genres.map((genre) => [genre.id, genre.name]));
 
   /**
@@ -51,7 +50,7 @@ export function MovieList({
 
   return (
     <section
-      aria-label={DISCOVER_COPY.listLabel}
+      aria-label={t("listLabel")}
       aria-busy={isLoading || undefined}
       className={cn(
         "w-full border-b-[0.5px] border-mx-border-subtle bg-mx-bg px-4 py-6 font-mx sm:px-6",
@@ -63,11 +62,11 @@ export function MovieList({
           {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
             <MovieRowSkeleton key={index} toneIndex={index} />
           ))}
-          <span className="sr-only">{DISCOVER_COPY.loading}</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : movies.length === 0 ? (
         <p className="py-10 text-center text-[14px] text-mx-fg-subtle">
-          {DISCOVER_COPY.empty}
+          {t("empty")}
         </p>
       ) : (
         <ol className={SHELL_CLASSNAME}>

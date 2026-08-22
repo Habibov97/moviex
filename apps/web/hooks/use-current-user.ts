@@ -73,8 +73,8 @@ export function useCurrentUser() {
 }
 
 /**
- * Clears the session cookie server-side, then invalidates the auth query so
- * every consumer re-reads it and the UI flips immediately.
+ * Clears the session cookie server-side, then **drops every cached query**, so
+ * nothing the previous account fetched can be read by whoever signs in next.
  */
 export function useLogoutMutation() {
   const queryClient = useQueryClient();
@@ -92,9 +92,29 @@ export function useLogoutMutation() {
       }
     },
     onSettled: () => {
-      // Settled, not success: if the request failed we still do not know the
-      // cookie's state, so re-reading is the safe move either way.
-      void queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY });
+      /*
+       * Settled, not success: if the request failed we still do not know the
+       * cookie's state, so discarding is the safe move either way.
+       *
+       * `removeQueries()` with no filter **deletes** every cached query rather
+       * than marking them stale. `invalidateQueries` — which is all this used
+       * to do, and only for the auth key — leaves the data in place, so the
+       * next account rendered the previous one's list straight from cache.
+       *
+       * Deliberately `removeQueries()` and not `queryClient.clear()`: `clear()`
+       * also wipes the *mutation* cache, and this runs from inside a mutation
+       * that is still settling — including the one whose `isPending` the logout
+       * button is reading. Same outcome for cached data, no reaching under our
+       * own feet.
+       *
+       * Nothing here is expensive to lose: Discover and Search render from
+       * Server Components, so the only other cached queries are the navbar
+       * typeahead's, which refetch on the next keystroke.
+       *
+       * Consumers hold live observers, so `['auth','me']` is immediately
+       * refetched, answers 401, and the UI flips to signed-out on its own.
+       */
+      queryClient.removeQueries();
     },
   });
 }

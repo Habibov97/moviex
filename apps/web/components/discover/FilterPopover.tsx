@@ -1,10 +1,28 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { useTranslations } from "next-intl";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
-import { DISCOVER_COPY } from "@/lib/constants/discover";
+
+/**
+ * React warns when `useLayoutEffect` runs during server rendering, and every
+ * client component in this app is server-rendered for the initial HTML. The
+ * measurement below has to happen before paint, so it stays a layout effect in
+ * the browser and degrades to `useEffect` on the server, where it never runs.
+ */
+const useIsomorphicLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/** Breathing room kept between a flipped panel and the viewport edge. */
+const VIEWPORT_MARGIN = 8;
 
 /**
  * Trigger chip + floating panel, with the open/close plumbing both filter
@@ -18,6 +36,11 @@ import { DISCOVER_COPY } from "@/lib/constants/discover";
  *
  * Closing by outside-click or Escape simply unmounts the panel; because the
  * draft lives in the caller and is reseeded on open, that discards it.
+ *
+ * The panel is **edge-collision aware**: it hangs from the trigger's left edge
+ * unless that would overflow the viewport, in which case it flips to the right.
+ * Fixing it here covers every caller at once — Discover's year, rating and sort
+ * chips and My List's sort control are all this same shell.
  */
 export type FilterPopoverProps = {
   /** Chip text, e.g. "2015 – 2026" or "Rating". */
@@ -42,13 +65,47 @@ export function FilterPopover({
   children,
 }: FilterPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
+  /**
+   * Which edge of the trigger the panel hangs from. Left by default; flipped
+   * to the right only when left-aligning would run past the viewport.
+   */
+  const [align, setAlign] = useState<"left" | "right">("left");
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
   const setOpen = (open: boolean) => {
+    /*
+     * Reset before every open so the measurement below always runs against the
+     * default alignment. A panel left flipped from a previous open would
+     * measure as fitting and could never flip back after a resize.
+     */
+    if (open) setAlign("left");
     setIsOpen(open);
     onOpenChange?.(open);
   };
+
+  /*
+   * Edge collision. The panel is a fixed width anchored to the trigger, so one
+   * sitting near the right edge — My List's sort control lives at `ml-auto`,
+   * and Discover's filter row wraps it there on a narrow screen — used to open
+   * straight off the side of the window.
+   *
+   * Measured rather than guessed: each caller sets its own panel width via
+   * `panelClassName`, so the only reliable number is the rendered one. This
+   * runs before paint, so the flip is never visible.
+   */
+  useIsomorphicLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    // `clientWidth` of the root element excludes the scrollbar, which is the
+    // edge the panel actually has to clear.
+    const limit = document.documentElement.clientWidth - VIEWPORT_MARGIN;
+    if (panel.getBoundingClientRect().right > limit) setAlign("right");
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -100,11 +157,16 @@ export function FilterPopover({
 
       {isOpen && (
         <div
+          ref={panelRef}
           id={panelId}
           role="dialog"
           aria-label={label}
           className={cn(
-            "absolute top-full left-0 z-30 mt-2 rounded-[12px] border-[0.5px] border-mx-border bg-mx-card p-[18px] shadow-lg",
+            "absolute top-full z-30 mt-2 rounded-[12px] border-[0.5px] border-mx-border bg-mx-card p-[18px] shadow-lg",
+            // Last resort for a viewport narrower than the panel itself, where
+            // neither edge can hold it — clamp instead of overflowing.
+            "max-w-[calc(100vw-1rem)]",
+            align === "right" ? "right-0" : "left-0",
             panelClassName,
           )}
         >
@@ -123,6 +185,8 @@ export function PopoverActions({
   onReset: () => void;
   onApply: () => void;
 }) {
+  const t = useTranslations("discover");
+
   return (
     <div className="mt-4 flex items-center gap-2">
       <button
@@ -130,14 +194,14 @@ export function PopoverActions({
         onClick={onReset}
         className="h-9 flex-1 rounded-[8px] border-[0.5px] border-mx-border bg-transparent text-[13px] text-mx-fg-muted outline-none transition-colors hover:text-mx-fg focus-visible:border-mx-accent"
       >
-        {DISCOVER_COPY.reset}
+        {t("reset")}
       </button>
       <button
         type="button"
         onClick={onApply}
         className="h-9 flex-1 rounded-[8px] bg-mx-accent text-[13px] font-medium text-mx-on-accent outline-none transition-colors hover:bg-mx-accent-hover focus-visible:border-mx-accent"
       >
-        {DISCOVER_COPY.apply}
+        {t("apply")}
       </button>
     </div>
   );

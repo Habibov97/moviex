@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { IconPlugConnectedX, IconRefresh } from "@tabler/icons-react";
-
-import { ERROR_COPY } from "@/lib/constants/errors";
 
 export type ErrorStateProps = {
   /** Page-specific wording; the body text is the same everywhere. */
@@ -23,9 +22,12 @@ export type ErrorStateProps = {
  * `lib/api.ts` cannot reach the API.
  *
  * Shared by every `error.tsx` so the treatment stays identical; only the
- * heading differs per route.
+ * heading differs per route, which is why the title arrives as a prop already
+ * translated by the boundary.
  */
 export function ErrorState({ title, error, reset }: ErrorStateProps) {
+  const t = useTranslations("errors");
+
   useEffect(() => {
     // The user gets the friendly copy; the real cause goes to the console so a
     // failure is still diagnosable. `error.message` is never rendered — it can
@@ -45,7 +47,7 @@ export function ErrorState({ title, error, reset }: ErrorStateProps) {
       <h1 className="mt-5 text-[15px] font-medium text-mx-fg">{title}</h1>
 
       <p className="mt-2 max-w-[320px] text-[12.5px] leading-[1.6] text-mx-fg-subtle">
-        {ERROR_COPY.body}
+        {t("body")}
       </p>
 
       <button
@@ -54,7 +56,7 @@ export function ErrorState({ title, error, reset }: ErrorStateProps) {
         className="mt-6 inline-flex items-center gap-2 rounded-[8px] bg-mx-accent px-5 py-[9px] text-[12px] font-medium text-mx-on-accent outline-none transition-colors hover:bg-mx-accent-hover focus-visible:underline"
       >
         <IconRefresh className="size-4" stroke={1.75} aria-hidden="true" />
-        {ERROR_COPY.tryAgain}
+        {t("tryAgain")}
       </button>
     </div>
   );

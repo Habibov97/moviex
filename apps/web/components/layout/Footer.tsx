@@ -1,17 +1,21 @@
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 
 import { cn } from "@/lib/utils";
+import { Link } from "@/i18n/navigation";
 import { BrandMark } from "@/components/layout/BrandMark";
-import { FOOTER_COLUMNS, FOOTER_COPY } from "@/lib/constants/footer";
+import { FOOTER_COLUMNS } from "@/lib/constants/footer";
 
 export type FooterProps = {
   className?: string;
 };
 
-export function Footer({ className }: FooterProps) {
+export async function Footer({ className }: FooterProps) {
+  const t = await getTranslations("footer");
+
   // Server component, so this is baked in at build time rather than drifting
   // per-visitor — fine for a copyright line, and it avoids a hydration mismatch.
-  const year = new Date().getFullYear();
+  // Passed as a string so it renders "2026", not a grouped "2,026".
+  const year = String(new Date().getFullYear());
 
   return (
     <footer
@@ -25,18 +29,18 @@ export function Footer({ className }: FooterProps) {
           <div className="min-w-0">
             <BrandMark size="lg" />
             <p className="mt-5 max-w-sm text-[16px] leading-[1.65] text-mx-fg-subtle">
-              {FOOTER_COPY.tagline}
+              {t("tagline")}
             </p>
           </div>
 
           <nav
-            aria-label={FOOTER_COPY.navLabel}
+            aria-label={t("navLabel")}
             className="grid shrink-0 grid-cols-2 gap-x-16 gap-y-10 sm:gap-x-24"
           >
             {FOOTER_COLUMNS.map((column) => (
-              <div key={column.title}>
+              <div key={column.titleKey}>
                 <h2 className="text-[15px] font-semibold tracking-tight text-mx-fg">
-                  {column.title}
+                  {t(column.titleKey)}
                 </h2>
                 <ul className="mt-5 space-y-4">
                   {column.links.map((link) => (
@@ -45,7 +49,7 @@ export function Footer({ className }: FooterProps) {
                         href={link.href}
                         className="text-[15px] text-mx-fg-subtle outline-none transition-colors hover:text-mx-fg focus-visible:text-mx-fg"
                       >
-                        {link.label}
+                        {t(link.messageKey)}
                       </Link>
                     </li>
                   ))}
@@ -62,14 +66,14 @@ export function Footer({ className }: FooterProps) {
             balanced ends the reference draws.
           */}
           <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span>{FOOTER_COPY.copyright(year)}</span>
+            <span>{t("copyright", { year })}</span>
             <span aria-hidden="true" className="text-mx-border">
               ·
             </span>
-            <span className="text-mx-fg-subtle">{FOOTER_COPY.author}</span>
+            <span className="text-mx-fg-subtle">{t("author")}</span>
           </p>
 
-          <p>{FOOTER_COPY.attribution}</p>
+          <p>{t("attribution")}</p>
         </div>
       </div>
     </footer>

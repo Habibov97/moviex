@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   IconStar,
   IconStarFilled,
@@ -15,7 +16,6 @@ import {
   PopoverHeader,
 } from "@/components/discover/FilterPopover";
 import {
-  DISCOVER_COPY,
   MIN_RATING_SEARCH_PARAM,
   RATING_OPTIONS,
 } from "@/lib/constants/discover";
@@ -41,6 +41,7 @@ export type RatingFilterPopoverProps = {
 };
 
 export function RatingFilterPopover({ minRating }: RatingFilterPopoverProps) {
+  const t = useTranslations("discover");
   const applyFilters = useApplyFilters();
 
   // Draft only — see YearFilterPopover; discarded unless "Apply" is clicked.
@@ -50,8 +51,8 @@ export function RatingFilterPopover({ minRating }: RatingFilterPopoverProps) {
     <FilterPopover
       label={
         minRating === null
-          ? DISCOVER_COPY.ratingChip
-          : DISCOVER_COPY.ratingChipValue(minRating)
+          ? t("ratingChip")
+          : t("ratingChipValue", { value: minRating })
       }
       icon={<IconStar className="size-3.5" stroke={1.75} />}
       isActive={minRating !== null}
@@ -63,12 +64,12 @@ export function RatingFilterPopover({ minRating }: RatingFilterPopoverProps) {
       {(close) => (
         <>
           <PopoverHeader
-            title={DISCOVER_COPY.ratingTitle}
-            subtitle={DISCOVER_COPY.ratingSubtitle}
+            title={t("ratingTitle")}
+            subtitle={t("ratingSubtitle")}
           />
 
           {/* Radio semantics: exactly one threshold is active at a time. */}
-          <div role="radiogroup" aria-label={DISCOVER_COPY.ratingTitle}>
+          <div role="radiogroup" aria-label={t("ratingTitle")}>
             <div className="flex flex-col gap-2">
               {RATING_OPTIONS.map((option) => {
                 const isSelected = draft === option;
@@ -88,7 +89,7 @@ export function RatingFilterPopover({ minRating }: RatingFilterPopoverProps) {
                     )}
                   >
                     {option === null ? (
-                      <span>{DISCOVER_COPY.anyRating}</span>
+                      <span>{t("anyRating")}</span>
                     ) : (
                       <>
                         <span aria-hidden="true" className="flex items-center gap-0.5">
@@ -114,7 +115,7 @@ export function RatingFilterPopover({ minRating }: RatingFilterPopoverProps) {
                             );
                           })}
                         </span>
-                        <span>{DISCOVER_COPY.ratingChipValue(option)}</span>
+                        <span>{t("ratingChipValue", { value: option })}</span>
                       </>
                     )}
 

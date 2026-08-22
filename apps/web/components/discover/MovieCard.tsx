@@ -1,11 +1,16 @@
 "use client";
 
-import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import type { MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { Link } from "@/i18n/navigation";
 import { StatusTag } from "@/components/discover/StatusTag";
-import { DISCOVER_COPY, movieHref } from "@/lib/constants/discover";
+import {
+  RATING_NUMBER_FORMAT,
+  movieHref,
+  movieMeta,
+} from "@/lib/constants/discover";
 import { posterTone } from "@/lib/poster-tone";
 
 /** Poster geometry shared with the skeleton, so the two never drift apart. */
@@ -15,7 +20,7 @@ const posterBase =
 export type MovieCardProps = {
   movie: MovieSummary;
   /**
-   * Resolved from the category list by the caller — the card never owns a genre
+   * Resolved from the genre list by the caller — the card never owns a genre
    * label of its own.
    */
   genreLabel?: string;
@@ -32,8 +37,18 @@ export function MovieCard({
   onAdd,
   className,
 }: MovieCardProps) {
-  // `null` for a title TMDB has no score for — see DISCOVER_COPY.rating.
-  const formattedRating = DISCOVER_COPY.rating(movie.rating);
+  const t = useTranslations("discover");
+  const format = useFormatter();
+
+  /*
+   * `null` for a title TMDB has no score for. Formatted through next-intl
+   * rather than `toFixed`, so Russian gets "8,4" — the decimal separator is
+   * part of the locale, not part of the number.
+   */
+  const formattedRating =
+    movie.rating === null
+      ? null
+      : format.number(movie.rating, RATING_NUMBER_FORMAT);
 
   return (
     <article className={cn("group relative font-mx", className)}>
@@ -72,7 +87,7 @@ export function MovieCard({
           {formattedRating !== null && (
             <span
               className="ml-auto inline-flex h-6 shrink-0 items-center rounded-[6px] bg-mx-poster-badge px-2 text-[12px] font-medium text-mx-poster-fg tabular-nums"
-              aria-label={DISCOVER_COPY.ratingLabel(movie.rating)}
+              aria-label={t("ratingLabel", { value: formattedRating })}
             >
               {formattedRating}
             </span>
@@ -94,10 +109,10 @@ export function MovieCard({
             event.stopPropagation();
             onAdd?.(movie);
           }}
-          aria-label={DISCOVER_COPY.addLabel(movie.title)}
+          aria-label={t("addLabel", { title: movie.title })}
           className="absolute inset-x-2.5 bottom-2.5 z-10 flex h-8 items-center justify-center rounded-[8px] bg-mx-accent text-[13px] font-medium text-mx-on-accent opacity-0 outline-none transition-[opacity,background-color] duration-200 group-hover:opacity-100 hover:bg-mx-accent-hover focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
         >
-          {DISCOVER_COPY.add}
+          {t("add")}
         </button>
       </div>
 
@@ -116,7 +131,7 @@ export function MovieCard({
         {movie.title}
       </h3>
       <p className="mt-0.5 truncate text-[13px] text-mx-fg-faint">
-        {DISCOVER_COPY.movieMeta(movie.releaseYear, genreLabel)}
+        {movieMeta(movie.releaseYear, genreLabel)}
       </p>
     </article>
   );

@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
+import { Link, usePathname } from "@/i18n/navigation";
 import { BrandMark } from "@/components/layout/BrandMark";
 import { SearchTypeahead } from "@/components/search/SearchTypeahead";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { NAV_LINKS, type NavLink } from "@/lib/constants/navigation";
 import type { Genre } from "@moviex/shared-types";
 
@@ -21,6 +22,12 @@ export type NavbarProps = {
 };
 
 export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
+  const t = useTranslations("nav");
+  /*
+   * The locale-aware `usePathname` — it answers `/my-list`, never
+   * `/tr/my-list`, so these comparisons stay written against plain routes and
+   * do not have to know a prefix exists.
+   */
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -41,7 +48,7 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-label={menuOpen ? t("closeMenu") : t("openMenu")}
             aria-expanded={menuOpen}
             className="flex size-9 shrink-0 items-center justify-center rounded-[10px] text-mx-fg-subtle outline-none transition-colors hover:text-mx-fg focus-visible:text-mx-fg md:hidden"
           >
@@ -55,12 +62,12 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
           <Link
             href="/"
             className="inline-flex shrink-0 outline-none"
-            aria-label="MovieX home"
+            aria-label={t("home")}
           >
             <BrandMark />
           </Link>
 
-          <nav className="hidden shrink-0 items-center gap-5 md:flex" aria-label="Main menu">
+          <nav className="hidden shrink-0 items-center gap-5 md:flex" aria-label={t("mainMenu")}>
             {links.map((link) => (
               <Link
                 key={link.href}
@@ -73,17 +80,17 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
                     : "text-mx-fg-subtle hover:text-mx-fg focus-visible:text-mx-fg",
                 )}
               >
-                {link.label}
+                {t(link.messageKey)}
               </Link>
             ))}
           </nav>
 
           {/*
-            One right-hand cluster: search, theme, account. `flex-1` +
+            One right-hand cluster: search, language, theme, account. `flex-1` +
             `justify-end` pins it to the right edge on mobile, where search is
             only an icon and nothing else would push these across. On `md` and
-            up the search input inside grows to fill the gap, so the toggle and
-            avatar stay hard right while the logo holds the left.
+            up the search input inside grows to fill the gap, so the controls
+            stay hard right while the logo holds the left.
           */}
           <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
             {/*
@@ -91,6 +98,13 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
               its dropdown rather than the whole navbar.
             */}
             <SearchTypeahead genres={genres} />
+
+            {/*
+              Hidden below `md` and shown in the mobile menu instead: at 320px
+              the row already only just fits the hamburger, wordmark and three
+              36px controls, and a ~62px pill tips it into overflow.
+            */}
+            <LanguageSwitcher className="hidden md:block" />
 
             <ThemeToggle />
 
@@ -102,7 +116,7 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
         {menuOpen && (
           <nav
             className="border-t-[0.5px] border-mx-border-subtle px-4 py-2 md:hidden"
-            aria-label="Mobile menu"
+            aria-label={t("mobileMenu")}
           >
             {links.map((link) => (
               <Link
@@ -117,7 +131,7 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
                     : "text-mx-fg-subtle hover:text-mx-fg focus-visible:text-mx-fg",
                 )}
               >
-                {link.label}
+                {t(link.messageKey)}
                 {isActive(link.href) && (
                   <span
                     className="ml-2 h-[1.5px] w-4 bg-mx-accent"
@@ -126,6 +140,11 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
                 )}
               </Link>
             ))}
+
+            {/* Same component, just where there is room for it on a phone. */}
+            <div className="mt-2 border-t-[0.5px] border-mx-border-subtle px-2 pt-3 pb-1">
+              <LanguageSwitcher align="left" />
+            </div>
           </nav>
         )}
 

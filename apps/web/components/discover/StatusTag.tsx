@@ -1,18 +1,20 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import type { MovieUserState } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
-import { DISCOVER_COPY } from "@/lib/constants/discover";
 
 /**
- * How the signed-in user's relationship to a film is labelled and coloured.
- * Shared by both result views — the grid card floats it over the poster, the
- * list row sets it beside the title — so the mapping lives in one place and
- * cannot drift between them.
+ * How the signed-in user's relationship to a film is coloured, and which
+ * message names it. Shared by both result views — the grid card floats it over
+ * the poster, the list row sets it beside the title — so the mapping lives in
+ * one place and cannot drift between them.
  */
 const STATUS_TAGS = {
-  watched: { label: DISCOVER_COPY.watched, className: "bg-mx-tag-watched" },
-  watchlist: { label: DISCOVER_COPY.listed, className: "bg-mx-tag-listed" },
-} satisfies Record<MovieUserState, { label: string; className: string }>;
+  watched: { messageKey: "tagWatched", className: "bg-mx-tag-watched" },
+  watchlist: { messageKey: "tagListed", className: "bg-mx-tag-listed" },
+} satisfies Record<MovieUserState, { messageKey: string; className: string }>;
 
 export type StatusTagProps = {
   /** Nothing renders when the film has no state (or the user is signed out). */
@@ -21,9 +23,11 @@ export type StatusTagProps = {
 };
 
 export function StatusTag({ state, className }: StatusTagProps) {
+  const t = useTranslations("discover");
+
   if (!state) return null;
 
-  const { label, className: tone } = STATUS_TAGS[state];
+  const { messageKey, className: tone } = STATUS_TAGS[state];
 
   return (
     <span
@@ -33,7 +37,7 @@ export function StatusTag({ state, className }: StatusTagProps) {
         className,
       )}
     >
-      {label}
+      {t(messageKey)}
     </span>
   );
 }

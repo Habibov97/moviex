@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   IconCheck,
   IconEye,
@@ -11,6 +12,9 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import {
+  NAME_MAX_LENGTH,
+  NAME_MIN_LENGTH,
+  PASSWORD_MIN_LENGTH,
   loginSchema,
   passwordSchema,
   registerSchema,
@@ -18,9 +22,29 @@ import {
 
 import { cn } from "@/lib/utils";
 import { AuthError, useLoginMutation, useSignupMutation } from "@/hooks/use-auth";
-import { AUTH_COPY } from "@/lib/constants/errors";
 
 type AuthMode = "login" | "register";
+
+/**
+ * The zod schemas in `@moviex/shared-types` carry message **keys**, not
+ * English, so both apps can share one set of rules while the wording lives in
+ * the message files. This is the one place that turns a key back into text.
+ *
+ * Every length the messages might interpolate is passed on every call — `t`
+ * ignores parameters a message does not use, so there is no per-key table to
+ * keep in step with the schema.
+ */
+const VALIDATION_VALUES: Record<string, Record<string, number>> = {
+  nameTooShort: { min: NAME_MIN_LENGTH },
+  nameTooLong: { max: NAME_MAX_LENGTH },
+  passwordTooShort: { min: PASSWORD_MIN_LENGTH },
+};
+
+/** `nameTooShort` → "Name must be at least 4 characters", in the active locale. */
+function useValidationMessage() {
+  const t = useTranslations("auth.validation");
+  return (key: string) => t(key, VALIDATION_VALUES[key]);
+}
 
 type FieldName = "name" | "email" | "password" | "confirmPassword";
 
@@ -49,6 +73,7 @@ export function LoginRegisterModal({
   onClose,
   defaultMode = "login",
 }: LoginRegisterModalProps) {
+  const t = useTranslations("auth");
   const [mode, setMode] = useState<AuthMode>(defaultMode);
   const [wasOpen, setWasOpen] = useState(isOpen);
   /*
@@ -120,12 +145,10 @@ export function LoginRegisterModal({
           id="auth-modal-title"
           className="mt-5 text-[18px] font-medium text-mx-fg"
         >
-          {isLogin ? "Welcome back" : "Create an account"}
+          {isLogin ? t("welcomeBack") : t("createAccountTitle")}
         </h2>
         <p id="auth-modal-description" className="mt-1 text-[13px] text-mx-fg-subtle">
-          {isLogin
-            ? "Sign in to pick up where you left off"
-            : "Start building your movie collection"}
+          {isLogin ? t("welcomeBackSubtitle") : t("createAccountSubtitle")}
         </p>
 
         {/*
@@ -148,7 +171,7 @@ export function LoginRegisterModal({
             key="register"
             onSuccess={onClose}
             onNeedsLogin={(email) => {
-              setHandoff({ email, notice: AUTH_COPY.accountCreated });
+              setHandoff({ email, notice: t("accountCreated") });
               setMode("login");
             }}
             onSwitchMode={() => setMode("login")}
@@ -171,6 +194,8 @@ function LoginForm({
   onSuccess: () => void;
   onSwitchMode: () => void;
 }) {
+  const t = useTranslations("auth");
+  const translateValidation = useValidationMessage();
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -185,7 +210,7 @@ function LoginForm({
     const result = loginSchema.safeParse({ email, password, rememberMe });
 
     if (!result.success) {
-      setErrors(toFieldErrors(result.error.issues));
+      setErrors(toFieldErrors(result.error.issues, translateValidation));
       return;
     }
 
@@ -200,7 +225,7 @@ function LoginForm({
       <form onSubmit={handleSubmit} className="mt-5" noValidate>
         <div className="mb-3.5">
           <label htmlFor="auth-email" className={labelClass}>
-            Email
+            {t("emailLabel")}
           </label>
           <div className="relative">
             <IconMail className={inputIconClass} stroke={1.75} />
@@ -226,7 +251,7 @@ function LoginForm({
 
         <div className="mb-3.5">
           <label htmlFor="auth-password" className={labelClass}>
-            Password
+            {t("passwordLabel")}
           </label>
           <PasswordInput
             id="auth-password"
@@ -263,11 +288,11 @@ function LoginForm({
                 stroke={2.5}
               />
             </span>
-            Remember me
+            {t("rememberMe")}
           </label>
 
           <button type="button" className={cn("text-[13px]", linkClass)}>
-            Forgot password?
+            {t("forgotPassword")}
           </button>
         </div>
 
@@ -280,13 +305,13 @@ function LoginForm({
         <FormError error={login.error} />
 
         <SubmitButton isPending={login.isPending}>
-          {login.isPending ? AUTH_COPY.signingIn : "Sign in"}
+          {login.isPending ? t("signingIn") : t("signIn")}
         </SubmitButton>
       </form>
 
       <ModeSwitch
-        prompt="Don't have an account?"
-        action="Sign up"
+        prompt={t("noAccount")}
+        action={t("signUp")}
         onSwitchMode={onSwitchMode}
       />
     </>
@@ -303,6 +328,8 @@ function RegisterForm({
   onNeedsLogin: (email: string) => void;
   onSwitchMode: () => void;
 }) {
+  const t = useTranslations("auth");
+  const translateValidation = useValidationMessage();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -325,7 +352,7 @@ function RegisterForm({
    */
   const isPending = signup.isPending || login.isPending;
 
-  const strength = getPasswordStrength(password);
+  const strength = getPasswordStrength(password, t);
   const confirmMatches =
     confirmPassword.length > 0 && confirmPassword === password;
 
@@ -340,7 +367,7 @@ function RegisterForm({
     });
 
     if (!result.success) {
-      setErrors(toFieldErrors(result.error.issues));
+      setErrors(toFieldErrors(result.error.issues, translateValidation));
       return;
     }
 
@@ -364,7 +391,7 @@ function RegisterForm({
       <form onSubmit={handleSubmit} className="mt-5" noValidate>
         <div className="mb-3.5">
           <label htmlFor="auth-name" className={labelClass}>
-            Name
+            {t("nameLabel")}
           </label>
           <div className="relative">
             <IconUser className={inputIconClass} stroke={1.75} />
@@ -374,7 +401,7 @@ function RegisterForm({
               name="name"
               type="text"
               autoComplete="name"
-              placeholder="Najaf"
+              placeholder={t("namePlaceholder")}
               value={name}
               onChange={(event) => {
                 setName(event.target.value);
@@ -389,7 +416,7 @@ function RegisterForm({
 
         <div className="mb-3.5">
           <label htmlFor="auth-email" className={labelClass}>
-            Email
+            {t("emailLabel")}
           </label>
           <div className="relative">
             <IconMail className={inputIconClass} stroke={1.75} />
@@ -413,7 +440,7 @@ function RegisterForm({
 
         <div className="mb-3.5">
           <label htmlFor="auth-password" className={labelClass}>
-            Password
+            {t("passwordLabel")}
           </label>
           <PasswordInput
             id="auth-password"
@@ -452,7 +479,7 @@ function RegisterForm({
 
         <div className="mb-4">
           <label htmlFor="auth-confirm-password" className={labelClass}>
-            Confirm password
+            {t("confirmPasswordLabel")}
           </label>
           <div className="relative">
             <IconLock className={inputIconClass} stroke={1.75} />
@@ -461,7 +488,7 @@ function RegisterForm({
               name="confirmPassword"
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
-              placeholder="••••••••"
+              placeholder={t("passwordPlaceholder")}
               value={confirmPassword}
               onChange={(event) => {
                 setConfirmPassword(event.target.value);
@@ -490,17 +517,17 @@ function RegisterForm({
         <FormError error={signup.error ?? login.error} />
 
         <SubmitButton isPending={isPending}>
-          {isPending ? AUTH_COPY.creatingAccount : "Create account"}
+          {isPending ? t("creatingAccount") : t("createAccount")}
         </SubmitButton>
 
         <p className="mt-3 text-center text-[12px] text-mx-fg-faint">
-          By continuing you agree to the terms
+          {t("termsNotice")}
         </p>
       </form>
 
       <ModeSwitch
-        prompt="Already have an account?"
-        action="Daxil ol"
+        prompt={t("haveAccount")}
+        action={t("signIn")}
         onSwitchMode={onSwitchMode}
       />
     </>
@@ -526,6 +553,8 @@ function PasswordInput({
   onToggleVisible: () => void;
   invalid: boolean;
 }) {
+  const t = useTranslations("auth");
+
   return (
     <div className="relative">
       <IconLock className={inputIconClass} stroke={1.75} />
@@ -534,7 +563,7 @@ function PasswordInput({
         name={name}
         type={visible ? "text" : "password"}
         autoComplete={autoComplete}
-        placeholder="••••••••"
+        placeholder={t("passwordPlaceholder")}
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
         aria-invalid={invalid}
@@ -543,7 +572,7 @@ function PasswordInput({
       <button
         type="button"
         onClick={onToggleVisible}
-        aria-label={visible ? "Hide password" : "Show password"}
+        aria-label={visible ? t("hidePassword") : t("showPassword")}
         className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-mx-fg-faint outline-none transition-colors hover:text-mx-fg-muted focus-visible:text-mx-fg-muted"
       >
         {visible ? (
@@ -583,11 +612,13 @@ function ModeSwitch({
   action: string;
   onSwitchMode: () => void;
 }) {
+  const t = useTranslations("auth");
+
   return (
     <>
       <div className="my-4 flex items-center gap-3">
         <span className="h-px flex-1 bg-mx-border" />
-        <span className="text-[12px] text-mx-fg-faint">or</span>
+        <span className="text-[12px] text-mx-fg-faint">{t("or")}</span>
         <span className="h-px flex-1 bg-mx-border" />
       </div>
 
@@ -617,12 +648,14 @@ function FieldError({ message }: { message?: string }) {
  * copy, so raw error text and stack detail can never reach the UI.
  */
 function FormError({ error }: { error: Error | null }) {
+  const t = useTranslations("auth");
+
   if (!error) return null;
 
   const message =
     error instanceof AuthError && error.message
       ? error.message
-      : AUTH_COPY.genericError;
+      : t("genericError");
 
   return (
     <p role="alert" className="mb-3 text-[12px] text-mx-accent">
@@ -631,14 +664,18 @@ function FormError({ error }: { error: Error | null }) {
   );
 }
 
-/** Strength is measured against the same `min(8)` zod rule the form validates with. */
-function getPasswordStrength(password: string) {
+/**
+ * Strength is measured against the same `min(8)` zod rule the form validates
+ * with. Takes the translator so the three labels stay in the message files
+ * with everything else; the colours stay `--mx-*` variables so they theme.
+ */
+function getPasswordStrength(password: string, t: (key: string) => string) {
   if (password.length === 0) {
     return { score: 0, label: "", color: "" };
   }
 
   if (!passwordSchema.safeParse(password).success) {
-    return { score: 1, label: "Weak", color: "var(--mx-strength-weak)" };
+    return { score: 1, label: t("strengthWeak"), color: "var(--mx-strength-weak)" };
   }
 
   const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((pattern) =>
@@ -646,21 +683,29 @@ function getPasswordStrength(password: string) {
   ).length;
 
   if (variety >= 3 || password.length >= 12) {
-    return { score: 3, label: "Strong", color: "var(--mx-strength-strong)" };
+    return { score: 3, label: t("strengthStrong"), color: "var(--mx-strength-strong)" };
   }
 
-  return { score: 2, label: "Medium", color: "var(--mx-strength-medium)" };
+  return { score: 2, label: t("strengthMedium"), color: "var(--mx-strength-medium)" };
 }
 
+/**
+ * zod issues → per-field text.
+ *
+ * `issue.message` is a message **key** (see `@moviex/shared-types`), so it is
+ * translated on the way out rather than rendered raw. Only the first issue per
+ * field is kept — a stack of three messages under one input is noise.
+ */
 function toFieldErrors(
   issues: readonly { path: PropertyKey[]; message: string }[],
+  translate: (key: string) => string,
 ) {
   const errors: FormErrors = {};
 
   for (const issue of issues) {
     const field = issue.path[0] as FieldName | undefined;
     if (field && !errors[field]) {
-      errors[field] = issue.message;
+      errors[field] = translate(issue.message);
     }
   }
 

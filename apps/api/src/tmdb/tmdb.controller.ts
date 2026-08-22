@@ -16,6 +16,8 @@ import { GenreDto } from './dto/genre.dto';
 import { DiscoverMoviesResponseDto } from './dto/movie-summary.dto';
 import { DiscoverQueryDto, TMDB_SORT_OPTIONS } from './dto/discover-query.dto';
 import { SearchQueryDto } from './dto/search-query.dto';
+import { LangQueryDto } from './dto/lang-query.dto';
+import { API_LOCALES } from './tmdb-language';
 import { MovieDetailDto } from './dto/movie-detail.dto';
 
 @ApiTags('tmdb')
@@ -32,6 +34,14 @@ export class TmdbController {
       'unchanged. `id` is TMDB\'s own genre id, usable directly as the ' +
       '`with_genres` filter value. Public — no authentication required.',
   })
+  @ApiQuery({
+    name: 'lang',
+    required: false,
+    enum: API_LOCALES,
+    description:
+      "UI locale. Mapped to TMDB's `language` tag (`tr` → `tr-TR`). " +
+      'Defaults to `en`.',
+  })
   @ApiResponse({
     status: 200,
     description: 'The full genre list, in TMDB order.',
@@ -45,8 +55,8 @@ export class TmdbController {
     status: 503,
     description: 'TMDB was unreachable or returned an error.',
   })
-  getGenres(): Promise<Genre[]> {
-    return this.tmdbService.getGenres();
+  getGenres(@Query() query: LangQueryDto): Promise<Genre[]> {
+    return this.tmdbService.getGenres(query.lang);
   }
 
   /** Public — same as genres: catalogue data, no guard. */
@@ -103,6 +113,14 @@ export class TmdbController {
     example: 8,
     description: 'Minimum TMDB score, 0–10. Sent as `vote_average.gte`.',
   })
+  @ApiQuery({
+    name: 'lang',
+    required: false,
+    enum: API_LOCALES,
+    description:
+      "UI locale. Mapped to TMDB's `language` tag (`tr` → `tr-TR`). " +
+      'Defaults to `en`.',
+  })
   @ApiResponse({
     status: 200,
     description: 'A page of discover results.',
@@ -124,6 +142,7 @@ export class TmdbController {
     @Query() query: DiscoverQueryDto,
   ): Promise<PaginatedMoviesResponse> {
     return this.tmdbService.discoverMovies({
+      locale: query.lang,
       genreId: query.genre,
       sortBy: query.sort,
       page: query.page,
@@ -159,6 +178,14 @@ export class TmdbController {
     example: 1,
     description: '1-based page number. Defaults to 1.',
   })
+  @ApiQuery({
+    name: 'lang',
+    required: false,
+    enum: API_LOCALES,
+    description:
+      "UI locale. Mapped to TMDB's `language` tag (`tr` → `tr-TR`). " +
+      'Defaults to `en`.',
+  })
   @ApiResponse({
     status: 200,
     description: 'A page of relevance-ranked results.',
@@ -181,6 +208,7 @@ export class TmdbController {
   ): Promise<PaginatedMoviesResponse> {
     return this.tmdbService.searchMovies({
       query: query.q,
+      locale: query.lang,
       page: query.page,
     });
   }
@@ -210,6 +238,14 @@ export class TmdbController {
     example: 693134,
     description: "TMDB's movie id.",
   })
+  @ApiQuery({
+    name: 'lang',
+    required: false,
+    enum: API_LOCALES,
+    description:
+      "UI locale. Mapped to TMDB's `language` tag (`tr` → `tr-TR`). " +
+      'Defaults to `en`.',
+  })
   @ApiResponse({
     status: 200,
     description: 'The movie.',
@@ -227,7 +263,8 @@ export class TmdbController {
   })
   getMovieDetails(
     @Param('tmdbId', ParseIntPipe) tmdbId: number,
+    @Query() query: LangQueryDto,
   ): Promise<MovieDetail> {
-    return this.tmdbService.getMovieDetails(tmdbId);
+    return this.tmdbService.getMovieDetails(tmdbId, query.lang);
   }
 }

@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { IconArrowLeft, IconPlayerPlayFilled } from "@tabler/icons-react";
 import type { MovieTrailer } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { useRouter } from "@/i18n/navigation";
 import { posterTone } from "@/lib/poster-tone";
 import { TrailerModal } from "@/components/movie/TrailerModal";
-import { DETAIL_COPY, DISCOVER_HREF } from "@/lib/constants/discover";
+import { DISCOVER_HREF } from "@/lib/constants/discover";
 
 /**
  * The 150px hero band: backdrop, darkening overlay, Back and Watch trailer.
@@ -29,6 +30,7 @@ export function MovieBackdrop({
   toneIndex: number;
   trailer: MovieTrailer | null;
 }) {
+  const t = useTranslations("detail");
   const router = useRouter();
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
 
@@ -76,7 +78,7 @@ export function MovieBackdrop({
           stroke={1.75}
           aria-hidden="true"
         />
-        {DETAIL_COPY.back}
+        {t("back")}
       </button>
 
       {/*
@@ -95,7 +97,7 @@ export function MovieBackdrop({
           >
             <IconPlayerPlayFilled className="size-3 text-mx-on-accent md:size-3.5" />
           </span>
-          {DETAIL_COPY.watchTrailer}
+          {t("watchTrailer")}
         </button>
       )}
 

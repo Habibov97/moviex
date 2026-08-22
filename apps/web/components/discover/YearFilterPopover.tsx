@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { IconCalendar } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -11,36 +12,16 @@ import {
   PopoverHeader,
 } from "@/components/discover/FilterPopover";
 import {
-  CLASSICS_UNTIL_YEAR,
   CURRENT_YEAR,
-  DISCOVER_COPY,
   EARLIEST_YEAR,
   YEAR_FROM_SEARCH_PARAM,
+  YEAR_PRESETS,
   YEAR_TO_SEARCH_PARAM,
 } from "@/lib/constants/discover";
 
 type Range = { from: number; to: number };
 
 const FULL_RANGE: Range = { from: EARLIEST_YEAR, to: CURRENT_YEAR };
-
-const PRESETS: ReadonlyArray<{ label: string; range: Range }> = [
-  {
-    label: DISCOVER_COPY.presetThisYear,
-    range: { from: CURRENT_YEAR, to: CURRENT_YEAR },
-  },
-  {
-    label: DISCOVER_COPY.presetLast5,
-    range: { from: CURRENT_YEAR - 5, to: CURRENT_YEAR },
-  },
-  {
-    label: DISCOVER_COPY.presetLast10,
-    range: { from: CURRENT_YEAR - 10, to: CURRENT_YEAR },
-  },
-  {
-    label: DISCOVER_COPY.presetClassics,
-    range: { from: EARLIEST_YEAR, to: CLASSICS_UNTIL_YEAR },
-  },
-];
 
 const clampYear = (value: number) =>
   Math.min(Math.max(value, EARLIEST_YEAR), CURRENT_YEAR);
@@ -55,6 +36,7 @@ export type YearFilterPopoverProps = {
 };
 
 export function YearFilterPopover({ from, to }: YearFilterPopoverProps) {
+  const t = useTranslations("discover");
   const applyFilters = useApplyFilters();
 
   /*
@@ -96,9 +78,13 @@ export function YearFilterPopover({ from, to }: YearFilterPopoverProps) {
   const percent = (year: number) =>
     ((year - EARLIEST_YEAR) / (CURRENT_YEAR - EARLIEST_YEAR)) * 100;
 
+  /*
+   * Years are passed to `t` as strings, not numbers: ICU would otherwise format
+   * them with the locale's grouping separator and render "2 026".
+   */
   return (
     <FilterPopover
-      label={DISCOVER_COPY.yearRange(from, to)}
+      label={t("yearRange", { from: String(from), to: String(to) })}
       icon={<IconCalendar className="size-3.5" stroke={1.75} />}
       isActive={isApplied}
       panelClassName="w-[280px]"
@@ -109,24 +95,27 @@ export function YearFilterPopover({ from, to }: YearFilterPopoverProps) {
       {(close) => (
         <>
           <PopoverHeader
-            title={DISCOVER_COPY.yearTitle}
-            subtitle={DISCOVER_COPY.yearSubtitle(EARLIEST_YEAR, CURRENT_YEAR)}
+            title={t("yearTitle")}
+            subtitle={t("yearSubtitle", {
+              from: String(EARLIEST_YEAR),
+              to: String(CURRENT_YEAR),
+            })}
           />
 
           <div className="flex items-center gap-2">
             <YearInput
-              label={DISCOVER_COPY.yearFromLabel}
+              label={t("yearFromLabel")}
               value={text.from}
-              onChange={(value) => setText((t) => ({ ...t, from: value }))}
+              onChange={(value) => setText((current) => ({ ...current, from: value }))}
               onCommit={() => commitText("from")}
             />
             <span className="shrink-0 text-[11px] text-mx-fg-faint">
-              {DISCOVER_COPY.yearSeparator}
+              {t("yearSeparator")}
             </span>
             <YearInput
-              label={DISCOVER_COPY.yearToLabel}
+              label={t("yearToLabel")}
               value={text.to}
-              onChange={(value) => setText((t) => ({ ...t, to: value }))}
+              onChange={(value) => setText((current) => ({ ...current, to: value }))}
               onCommit={() => commitText("to")}
             />
           </div>
@@ -151,7 +140,7 @@ export function YearFilterPopover({ from, to }: YearFilterPopoverProps) {
               max={CURRENT_YEAR}
               value={draft.from}
               onChange={(event) => setBound("from", Number(event.target.value))}
-              aria-label={DISCOVER_COPY.yearFromLabel}
+              aria-label={t("yearFromLabel")}
               className="mx-range absolute inset-0 w-full"
             />
             <input
@@ -160,7 +149,7 @@ export function YearFilterPopover({ from, to }: YearFilterPopoverProps) {
               max={CURRENT_YEAR}
               value={draft.to}
               onChange={(event) => setBound("to", Number(event.target.value))}
-              aria-label={DISCOVER_COPY.yearToLabel}
+              aria-label={t("yearToLabel")}
               className="mx-range absolute inset-0 w-full"
             />
           </div>
@@ -174,13 +163,13 @@ export function YearFilterPopover({ from, to }: YearFilterPopoverProps) {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {PRESETS.map((preset) => {
+            {YEAR_PRESETS.map((preset) => {
               const isSelected =
                 draft.from === preset.range.from && draft.to === preset.range.to;
 
               return (
                 <button
-                  key={preset.label}
+                  key={preset.id}
                   type="button"
                   aria-pressed={isSelected}
                   onClick={() => seed(preset.range)}
@@ -191,7 +180,7 @@ export function YearFilterPopover({ from, to }: YearFilterPopoverProps) {
                       : "border-mx-border bg-mx-field text-mx-fg-muted hover:text-mx-fg",
                   )}
                 >
-                  {preset.label}
+                  {t(preset.messageKey)}
                 </button>
               );
             })}

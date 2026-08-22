@@ -1,46 +1,36 @@
 import type { NavLink } from './navigation';
 
 /**
- * Footer content. Separate from `NAV_LINKS`: the footer's product column is not
- * the primary nav (it lists Statistics and omits Watched), so the two
- * are deliberately not the same array.
+ * Footer structure. Separate from `NAV_LINKS`: the footer's product column is
+ * not the primary nav (it lists Statistics and omits Watched), so the two are
+ * deliberately not the same array.
+ *
+ * Titles and link labels are keys under the `footer` namespace — no copy here.
  */
 
 export type FooterColumn = {
-  title: string;
+  /** Key under `footer`, e.g. `columnProduct`. */
+  titleKey: string;
   links: NavLink[];
 };
 
-// TODO: only `/` exists so far — the rest 404 until their routes are built.
+// TODO: only `/` and `/my-list` exist so far — the rest 404 until their routes
+// are built.
 export const FOOTER_COLUMNS: FooterColumn[] = [
   {
-    title: 'Product',
+    titleKey: 'columnProduct',
     links: [
-      { href: '/', label: 'Discover' },
-      { href: '/my-list', label: 'My list' },
-      { href: '/istatistikler', label: 'Statistics' },
+      { href: '/', messageKey: 'discover' },
+      { href: '/my-list', messageKey: 'myList' },
+      { href: '/istatistikler', messageKey: 'statistics' },
     ],
   },
   {
-    title: 'About',
+    titleKey: 'columnAbout',
     links: [
-      { href: '/gizlilik', label: 'Privacy' },
-      { href: '/sartlar', label: 'Terms' },
-      { href: '/iletisim', label: 'Contact' },
+      { href: '/gizlilik', messageKey: 'privacy' },
+      { href: '/sartlar', messageKey: 'terms' },
+      { href: '/iletisim', messageKey: 'contact' },
     ],
   },
 ];
-
-export const FOOTER_COPY = {
-  /**
-   * The reference's middle clause promised rating, which is deliberately not
-   * part of the product (see the movie list flow in CLAUDE.md), so it promises
-   * the action that actually exists.
-   */
-  tagline:
-    'Track what you want to watch, mark what you have seen, and grow your collection.',
-  navLabel: 'Footer',
-  copyright: (year: number) => `© ${year} MovieX`,
-  author: 'Created by Najaf Habibov',
-  attribution: 'Movie data provided by TMDB',
-} as const;

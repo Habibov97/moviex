@@ -10,12 +10,18 @@ import {
 import type { ConfigType } from '@nestjs/config';
 import type {
   Genre,
+  Locale,
   MovieDetail,
   MovieSummary,
   MovieTrailer,
   PaginatedMoviesResponse,
 } from '@moviex/shared-types';
 import tmdbConfig from 'src/config/tmdb.config';
+import {
+  DEFAULT_LOCALE,
+  DEFAULT_TMDB_LANGUAGE,
+  toTmdbLanguage,
+} from './tmdb-language';
 
 /** TMDB's `/genre/movie/list` envelope — the array is nested under `genres`. */
 interface TmdbGenreListResponse {
@@ -147,6 +153,8 @@ const DEFAULT_PAGE = 1;
  * omitted field means "no filter" rather than a default value.
  */
 export interface DiscoverMoviesParams {
+  /** Which language to ask TMDB for. Defaults to English. */
+  locale?: Locale;
   genreId?: number;
   sortBy?: string;
   page?: number;
@@ -158,6 +166,8 @@ export interface DiscoverMoviesParams {
 /** `/search/movie` accepts nothing else — see `searchMovies`. */
 export interface SearchMoviesParams {
   query: string;
+  /** Which language to ask TMDB for. Defaults to English. */
+  locale?: Locale;
   page?: number;
 }
 
@@ -177,10 +187,10 @@ export class TmdbService {
    * straight back as the `with_genres` filter value — renaming anything here
    * would force a translation layer on the frontend for no gain.
    */
-  async getGenres(): Promise<Genre[]> {
+  async getGenres(locale: Locale = DEFAULT_LOCALE): Promise<Genre[]> {
     const { genres } = await this.request<TmdbGenreListResponse>(
       '/genre/movie/list',
-      { language: 'en-US' },
+      { language: toTmdbLanguage(locale) },
     );
 
     return genres;
@@ -196,8 +206,10 @@ export class TmdbService {
   async discoverMovies(
     params: DiscoverMoviesParams = {},
   ): Promise<PaginatedMoviesResponse> {
+    const locale = params.locale ?? DEFAULT_LOCALE;
+
     const query: Record<string, string> = {
-      language: 'en-US',
+      language: toTmdbLanguage(locale),
       sort_by: params.sortBy ?? DEFAULT_SORT_BY,
       page: String(params.page ?? DEFAULT_PAGE),
     };
@@ -229,7 +241,9 @@ export class TmdbService {
       query,
     );
 
-    return this.toPaginatedResponse(response);
+    return this.toPaginatedResponse(
+      await this.withEnglishOverviews('/discover/movie', query, response, locale),
+    );
   }
 
   /**
@@ -255,16 +269,26 @@ export class TmdbService {
       throw new BadRequestException('query must not be empty');
     }
 
+    const locale = params.locale ?? DEFAULT_LOCALE;
+    const searchParams: Record<string, string> = {
+      language: toTmdbLanguage(locale),
+      query,
+      page: String(params.page ?? DEFAULT_PAGE),
+    };
+
     const response = await this.request<TmdbPaginatedResponse>(
       '/search/movie',
-      {
-        language: 'en-US',
-        query,
-        page: String(params.page ?? DEFAULT_PAGE),
-      },
+      searchParams,
     );
 
-    return this.toPaginatedResponse(response);
+    return this.toPaginatedResponse(
+      await this.withEnglishOverviews(
+        '/search/movie',
+        searchParams,
+        response,
+        locale,
+      ),
+    );
   }
 
   /**
@@ -276,21 +300,39 @@ export class TmdbService {
  * same data. Any further sub-resource (`images`, `recommendations`, …) should
  * be appended here rather than fetched separately.
  */
-async getMovieDetails(tmdbId: number): Promise<MovieDetail> {
+async getMovieDetails(
+  tmdbId: number,
+  locale: Locale = DEFAULT_LOCALE,
+): Promise<MovieDetail> {
   const result = await this.request<TmdbMovieDetailResult>(
     `/movie/${tmdbId}`,
-    { language: 'en-US', append_to_response: 'credits,videos' },
+    {
+      language: toTmdbLanguage(locale),
+      append_to_response: 'credits,videos',
+    },
     // A bad id is the caller's mistake, not a TMDB outage.
     { notFoundMessage: `No movie with id ${tmdbId}` },
   );
+
+  /*
+   * TMDB's translations are patchy: a film can have a full Russian entry, a
+   * Turkish one with an empty `overview`, and nothing at all in a fourth
+   * language. An empty description reads as a broken page, so the English text
+   * is borrowed for whichever of the two prose fields came back blank.
+   *
+   * `title` needs no such treatment — TMDB already falls back to the original
+   * title itself when there is no localised one.
+   */
+  const fallback = await this.englishProseFor(tmdbId, locale, result);
 
   return {
     tmdbId: result.id,
     title: result.title,
     originalTitle: result.original_title,
-    // TMDB uses "" rather than null for these two.
-    tagline: result.tagline || null,
-    overview: result.overview || null,
+    // TMDB uses "" rather than null for these two, and an untranslated entry
+    // is exactly that empty string — hence the English fallback above.
+    tagline: result.tagline || fallback.tagline,
+    overview: result.overview || fallback.overview,
     posterUrl: result.poster_path
       ? `${TMDB_IMAGE_BASE}${result.poster_path}`
       : null,
@@ -324,7 +366,100 @@ async getMovieDetails(tmdbId: number): Promise<MovieDetail> {
   };
 }
 
-/** The page envelope, shared by discover and search. */
+/**
+   * The English `overview`/`tagline` for one film, fetched **only** when the
+   * localised response left one of them blank.
+   *
+   * One extra upstream request in the uncommon case, none in the common one —
+   * and `append_to_response` is deliberately omitted here, because the credits
+   * and videos already came back with the first call and are language-agnostic.
+   *
+   * A failure degrades to `null` rather than throwing: a missing description is
+   * cosmetic, and taking the whole page down over it would be a worse outcome
+   * than the blank it is trying to avoid.
+   */
+  private async englishProseFor(
+    tmdbId: number,
+    locale: Locale,
+    localised: TmdbMovieDetailResult,
+  ): Promise<{ overview: string | null; tagline: string | null }> {
+    const empty = { overview: null, tagline: null };
+
+    // Already English, or nothing is missing.
+    if (locale === DEFAULT_LOCALE) return empty;
+    if (localised.overview && localised.tagline) return empty;
+
+    try {
+      const english = await this.request<TmdbMovieDetailResult>(
+        `/movie/${tmdbId}`,
+        { language: DEFAULT_TMDB_LANGUAGE },
+      );
+
+      return {
+        overview: english.overview || null,
+        tagline: english.tagline || null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `English fallback for /movie/${tmdbId} failed; leaving the localised fields as-is`,
+        error as Error,
+      );
+      return empty;
+    }
+  }
+
+  /**
+   * Fills blank overviews in a page of results from the English edition of the
+   * **same** query.
+   *
+   * The alternative would be one detail request per row — twenty round trips
+   * for a grid — so this re-runs the identical discover/search call with
+   * `language=en-US` and matches on `id`. The result set is the same because
+   * every other parameter is unchanged; only the prose differs.
+   *
+   * Skipped entirely when the locale is English or when every row already has
+   * a description, so the common case costs nothing. Degrades on failure for
+   * the same reason as `englishProseFor`.
+   */
+  private async withEnglishOverviews(
+    path: string,
+    params: Record<string, string>,
+    response: TmdbPaginatedResponse,
+    locale: Locale,
+  ): Promise<TmdbPaginatedResponse> {
+    if (locale === DEFAULT_LOCALE) return response;
+
+    const missing = response.results.filter((result) => !result.overview);
+    if (missing.length === 0) return response;
+
+    try {
+      const english = await this.request<TmdbPaginatedResponse>(path, {
+        ...params,
+        language: DEFAULT_TMDB_LANGUAGE,
+      });
+
+      const overviews = new Map(
+        english.results.map((result) => [result.id, result.overview]),
+      );
+
+      return {
+        ...response,
+        results: response.results.map((result) =>
+          result.overview
+            ? result
+            : { ...result, overview: overviews.get(result.id) ?? null },
+        ),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `English overview fallback for ${path} failed; ${missing.length} result(s) will have no description`,
+        error as Error,
+      );
+      return response;
+    }
+  }
+
+  /** The page envelope, shared by discover and search. */
   private toPaginatedResponse(
     response: TmdbPaginatedResponse,
   ): PaginatedMoviesResponse {

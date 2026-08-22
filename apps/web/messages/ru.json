@@ -1,0 +1,249 @@
+{
+  "meta": {
+    "title": "MovieX",
+    "description": "Отмечайте, что хотите посмотреть и что уже посмотрели."
+  },
+
+  "nav": {
+    "discover": "Обзор",
+    "myList": "Мой список",
+    "home": "На главную MovieX",
+    "mainMenu": "Главное меню",
+    "mobileMenu": "Мобильное меню",
+    "openMenu": "Открыть меню",
+    "closeMenu": "Закрыть меню",
+    "toggleTheme": "Переключить светлую и тёмную тему"
+  },
+
+  "language": {
+    "label": "Сменить язык",
+    "menuLabel": "Язык"
+  },
+
+  "discover": {
+    "title": "Обзор",
+    "subtitle": "Смотрите популярные фильмы, добавляйте их в список и отмечайте просмотренное",
+    "genresLabel": "Жанры",
+    "filtersLabel": "Фильтры",
+    "allGenres": "Все",
+    "results": "{count, plural, one {# результат} few {# результата} many {# результатов} other {# результата}}",
+    "showMore": "+{count}",
+    "showMoreLabel": "{count, plural, one {Показать ещё # жанр} few {Показать ещё # жанра} many {Показать ещё # жанров} other {Показать ещё # жанра}}",
+    "showLess": "Свернуть",
+
+    "yearRange": "{from} – {to}",
+    "yearTitle": "Год выхода",
+    "yearSubtitle": "Выберите диапазон между {from} и {to}",
+    "yearFromLabel": "С какого года",
+    "yearToLabel": "По какой год",
+    "yearSeparator": "по",
+    "presetThisYear": "Этот год",
+    "presetLast5": "Последние 5 лет",
+    "presetLast10": "Последние 10 лет",
+    "presetClassics": "Классика",
+
+    "ratingChip": "Рейтинг",
+    "ratingChipValue": "{value}+",
+    "ratingTitle": "Минимальный рейтинг",
+    "ratingSubtitle": "Показывать фильмы с рейтингом не ниже указанного",
+    "anyRating": "Любой рейтинг",
+
+    "reset": "Сбросить",
+    "apply": "Применить",
+
+    "sortLabel": "Сортировка",
+    "sort": {
+      "popularity": "Самые популярные",
+      "rating": "С высоким рейтингом",
+      "newest": "Сначала новые",
+      "oldest": "Сначала старые"
+    },
+
+    "viewLabel": "Вид",
+    "view": {
+      "grid": "Сеткой",
+      "list": "Списком"
+    },
+
+    "gridLabel": "Фильмы",
+    "listLabel": "Список фильмов",
+    "loading": "Загрузка фильмов",
+    "empty": "По этому фильтру фильмов не найдено",
+
+    "add": "Добавить",
+    "addLabel": "Добавить «{title}» в список",
+    "markWatched": "Просмотрено",
+    "markWatchedLabel": "Отметить «{title}» просмотренным",
+    "tagWatched": "Просмотрено",
+    "tagListed": "В списке",
+
+    "notRated": "—",
+    "ratingLabel": "Рейтинг {value} из 10",
+    "notRatedLabel": "Ещё нет оценок",
+
+    "paginationLabel": "Постраничная навигация",
+    "previousPage": "Предыдущая страница",
+    "nextPage": "Следующая страница",
+    "goToPage": "Перейти на страницу {page}",
+    "pageSummary": "Страница {page} из {totalPages} — {count, plural, one {# результат} few {# результата} many {# результатов} other {# результата}}"
+  },
+
+  "detail": {
+    "back": "Назад",
+    "watchTrailer": "Смотреть трейлер",
+    "closeTrailer": "Закрыть трейлер",
+    "addToList": "Добавить в список",
+    "inYourList": "В вашем списке",
+    "removeFromList": "Убрать из списка",
+    "markWatched": "Отметить просмотренным",
+    "watched": "Просмотрено",
+    "moveBackToList": "Вернуть в список",
+    "share": "Скопировать ссылку на фильм",
+    "shareCopied": "Ссылка скопирована",
+    "overview": "Описание",
+    "noOverview": "Описание отсутствует",
+    "topCast": "В главных ролях",
+    "viewAll": "Показать всех",
+    "viewFewer": "Свернуть",
+    "details": "Детали",
+    "director": "Режиссёр",
+    "releaseDate": "Дата выхода",
+    "runtime": "Длительность",
+    "originalLanguage": "Язык оригинала",
+    "status": "Статус",
+    "originalTitle": "Оригинальное название",
+    "ratingScale": "/10",
+    "watchedOn": "Просмотрено {date}",
+    "runtimeShortHours": "{hours} ч {minutes} мин",
+    "runtimeShortMinutes": "{minutes} мин",
+    "runtimeLong": "{count, plural, one {# минута} few {# минуты} many {# минут} other {# минуты}}"
+  },
+
+  "search": {
+    "placeholder": "Поиск фильмов…",
+    "label": "Поиск фильмов",
+    "close": "Закрыть поиск",
+    "typeaheadSection": "Фильмы",
+    "typeaheadNoResults": "Ничего не найдено",
+    "typeaheadSearching": "Поиск…",
+    "seeAllResults": "{count, plural, one {Показать # результат} few {Показать все # результата} many {Показать все # результатов} other {Показать все # результата}}",
+    "hintNavigate": "навигация",
+    "hintOpen": "открыть",
+    "resultsFor": "Результаты поиска",
+    "clear": "Очистить поиск",
+    "moviesFound": "{count, plural, one {Найден # фильм} few {Найдено # фильма} many {Найдено # фильмов} other {Найдено # фильма}}",
+    "sortedByRelevance": "Отсортировано по релевантности",
+    "emptyTitle": "Фильмы не найдены",
+    "emptyBody": "По этому запросу ничего не найдено. Проверьте написание, используйте меньше слов или введите оригинальное название.",
+    "browsePopular": "Смотреть популярное",
+    "popularRightNow": "Популярно сейчас"
+  },
+
+  "myList": {
+    "title": "Мой список",
+    "subtitle": "Всё, что вы сохранили и посмотрели",
+    "statWatchlist": "Хочу посмотреть",
+    "statWatched": "Просмотрено",
+    "statTopGenre": "Любимый жанр",
+    "statUnit": "{count, plural, one {фильм} few {фильма} many {фильмов} other {фильма}}",
+    "noGenre": "—",
+    "tabWatchlist": "Хочу посмотреть",
+    "tabWatched": "Просмотрено",
+    "addedOn": "Добавлено {date}",
+    "watchedOn": "Просмотрено {date}",
+    "markWatched": "Просмотрено",
+    "remove": "Удалить",
+    "moreActions": "Другие действия",
+    "emptyWatchlistTitle": "В списке пока пусто",
+    "emptyWatchlistBody": "Сохранённые фильмы появятся здесь. Начните искать — и найдёте, что посмотреть.",
+    "emptyWatchedTitle": "Вы ещё ничего не отметили просмотренным",
+    "emptyWatchedBody": "Как только вы отметите фильм просмотренным, он появится здесь вместе с датой просмотра.",
+    "signInTitle": "Войдите, чтобы увидеть свой список",
+    "signInBody": "Ваш список и просмотренные фильмы сохраняются в вашем аккаунте. Войдите, чтобы посмотреть их.",
+    "noAccount": "Нет аккаунта?",
+    "browseMovies": "Смотреть фильмы",
+    "sort": {
+      "recent": "Недавно добавленные",
+      "title": "По названию А–Я",
+      "year": "По году выхода",
+      "rating": "По рейтингу"
+    }
+  },
+
+  "footer": {
+    "tagline": "Отмечайте, что хотите посмотреть и что уже посмотрели, и пополняйте свою коллекцию.",
+    "navLabel": "Нижнее меню",
+    "copyright": "© {year} MovieX",
+    "author": "Создано Najaf Habibov",
+    "attribution": "Данные о фильмах предоставлены TMDB",
+    "columnProduct": "Продукт",
+    "columnAbout": "О сервисе",
+    "discover": "Обзор",
+    "myList": "Мой список",
+    "statistics": "Статистика",
+    "privacy": "Конфиденциальность",
+    "terms": "Условия",
+    "contact": "Контакты"
+  },
+
+  "errors": {
+    "discoverTitle": "Не удалось загрузить фильмы",
+    "searchTitle": "Не удалось загрузить результаты поиска",
+    "movieTitle": "Не удалось загрузить фильм",
+    "body": "При обращении к нашим серверам произошла ошибка. Проверьте подключение и попробуйте снова.",
+    "tryAgain": "Повторить"
+  },
+
+  "auth": {
+    "signInOrCreate": "Войти или создать аккаунт",
+    "logOut": "Выйти",
+    "loggingOut": "Выходим…",
+
+    "welcomeBack": "С возвращением",
+    "welcomeBackSubtitle": "Войдите, чтобы продолжить с того же места",
+    "createAccountTitle": "Создайте аккаунт",
+    "createAccountSubtitle": "Начните собирать свою коллекцию фильмов",
+
+    "nameLabel": "Имя",
+    "namePlaceholder": "Najaf",
+    "emailLabel": "Эл. почта",
+    "emailPlaceholder": "najaf@example.com",
+    "passwordLabel": "Пароль",
+    "passwordPlaceholder": "••••••••",
+    "confirmPasswordLabel": "Подтвердите пароль",
+    "showPassword": "Показать пароль",
+    "hidePassword": "Скрыть пароль",
+
+    "rememberMe": "Запомнить меня",
+    "forgotPassword": "Забыли пароль?",
+    "signIn": "Войти",
+    "signingIn": "Входим…",
+    "createAccount": "Создать аккаунт",
+    "creatingAccount": "Создаём аккаунт…",
+    "termsNotice": "Продолжая, вы принимаете условия",
+    "or": "или",
+    "noAccount": "Нет аккаунта?",
+    "signUp": "Зарегистрироваться",
+    "haveAccount": "Уже есть аккаунт?",
+
+    "strengthWeak": "Слабый",
+    "strengthMedium": "Средний",
+    "strengthStrong": "Надёжный",
+
+    "invalidCredentials": "Неверная почта или пароль",
+    "emailTaken": "Эта почта уже зарегистрирована — войдите вместо этого",
+    "networkError": "Не удалось связаться с серверами. Проверьте подключение и попробуйте снова.",
+    "genericError": "Что-то пошло не так, попробуйте ещё раз",
+    "accountCreated": "Аккаунт создан — войдите ниже",
+
+    "validation": {
+      "nameTooShort": "Имя должно содержать минимум {min, plural, one {# символ} few {# символа} many {# символов} other {# символа}}",
+      "nameTooLong": "Имя должно содержать не более {max, plural, one {# символа} few {# символов} many {# символов} other {# символов}}",
+      "emailRequired": "Введите адрес эл. почты",
+      "emailInvalid": "Введите корректный адрес эл. почты",
+      "passwordTooShort": "Пароль должен содержать минимум {min, plural, one {# символ} few {# символа} many {# символов} other {# символа}}",
+      "confirmRequired": "Введите пароль ещё раз",
+      "passwordsDoNotMatch": "Пароли не совпадают"
+    }
+  }
+}

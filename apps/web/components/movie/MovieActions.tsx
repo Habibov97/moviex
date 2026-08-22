@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   IconBookmark,
   IconBookmarkFilled,
@@ -15,7 +16,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useLibraryActions } from "@/hooks/use-library-actions";
 import { useMovieStatuses } from "@/hooks/use-user-movies";
-import { DETAIL_COPY } from "@/lib/constants/discover";
 
 /**
  * Where a movie sits in the signed-in user's library.
@@ -59,6 +59,7 @@ export function MovieActions({
   status: statusOverride,
   watchedOn = null,
 }: MovieActionsProps) {
+  const t = useTranslations("detail");
   const [copied, setCopied] = useState(false);
 
   // A one-id batch lookup: same query key shape as the grids, so this shares
@@ -102,7 +103,7 @@ export function MovieActions({
               )}
             >
               <IconBookmark className="size-4" stroke={1.75} />
-              {DETAIL_COPY.addToList}
+              {t("addToList")}
             </button>
             <MarkWatchedButton onClick={() => requireAuth(() => markWatched(movie))} />
           </>
@@ -117,11 +118,11 @@ export function MovieActions({
               )}
             >
               <IconBookmarkFilled className="size-4" />
-              {DETAIL_COPY.inYourList}
+              {t("inYourList")}
               <button
                 type="button"
                 onClick={() => requireAuth(() => removeFromList(movie))}
-                aria-label={DETAIL_COPY.removeFromList}
+                aria-label={t("removeFromList")}
                 className="-mr-1 ml-1 flex size-5 items-center justify-center rounded-full outline-none transition-colors hover:bg-mx-state-list-border focus-visible:bg-mx-state-list-border"
               >
                 <IconX className="size-3.5" stroke={2} />
@@ -140,7 +141,7 @@ export function MovieActions({
               )}
             >
               <IconCircleCheckFilled className="size-4" />
-              {DETAIL_COPY.watched}
+              {t("watched")}
             </span>
             <button
               type="button"
@@ -148,12 +149,12 @@ export function MovieActions({
               className={cn(buttonBase, outlineButton)}
             >
               <IconRotate className="size-4" stroke={1.75} />
-              {DETAIL_COPY.moveBackToList}
+              {t("moveBackToList")}
             </button>
             {watchedOn && (
               <span className="inline-flex items-center gap-1.5 text-[12.5px] text-mx-fg-faint">
                 <IconCheck className="size-3.5" stroke={2} aria-hidden="true" />
-                {DETAIL_COPY.watchedOn(watchedOn)}
+                {t("watchedOn", { date: watchedOn })}
               </span>
             )}
           </>
@@ -162,7 +163,7 @@ export function MovieActions({
         <button
           type="button"
           onClick={share}
-          aria-label={DETAIL_COPY.share}
+          aria-label={t("share")}
           className={cn(
             "ml-auto flex size-10 shrink-0 items-center justify-center rounded-[10px] border-[0.5px] border-mx-border outline-none transition-colors focus-visible:border-mx-accent md:size-[46px]",
             copied
@@ -179,7 +180,7 @@ export function MovieActions({
 
         {/* Polite, so it does not interrupt whatever is being read. */}
         <span role="status" aria-live="polite" className="sr-only">
-          {copied ? DETAIL_COPY.shareCopied : ""}
+          {copied ? t("shareCopied") : ""}
         </span>
       </div>
 
@@ -190,10 +191,12 @@ export function MovieActions({
 
 /** Shared by the "not in list" and "in watchlist" layouts. */
 function MarkWatchedButton({ onClick }: { onClick: () => void }) {
+  const t = useTranslations("detail");
+
   return (
     <button type="button" onClick={onClick} className={cn(buttonBase, outlineButton)}>
       <IconEyeCheck className="size-4" stroke={1.75} />
-      {DETAIL_COPY.markWatched}
+      {t("markWatched")}
     </button>
   );
 }

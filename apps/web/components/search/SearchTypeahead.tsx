@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
   IconArrowRight,
@@ -12,18 +11,19 @@ import {
   IconStar,
   IconX,
 } from "@tabler/icons-react";
-import type { Genre, MovieSummary } from "@moviex/shared-types";
+import type { Genre, Locale, MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { Link, useRouter } from "@/i18n/navigation";
 import { posterTone } from "@/lib/poster-tone";
 import { getSearchResults } from "@/lib/api";
 import {
-  DISCOVER_LOCALE,
-  DISCOVER_COPY,
+  RATING_NUMBER_FORMAT,
   SEARCH_DEBOUNCE_MS,
   SEARCH_MIN_QUERY_LENGTH,
   TYPEAHEAD_RESULT_LIMIT,
   movieHref,
+  movieMeta,
   searchHref,
 } from "@/lib/constants/discover";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -54,6 +54,13 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
  *   entirely local.
  */
 export function SearchTypeahead({ genres = [] }: { genres?: Genre[] }) {
+  const t = useTranslations("search");
+  /*
+   * This is the one search call made from the **browser**, so the locale has
+   * to come from the client context rather than a route param — the API needs
+   * `lang` to ask TMDB for localised titles.
+   */
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -67,9 +74,11 @@ export function SearchTypeahead({ genres = [] }: { genres?: Genre[] }) {
   const isQueryable = debouncedQuery.length > SEARCH_MIN_QUERY_LENGTH - 1;
 
   const { data, isFetching } = useQuery({
-    // Debounced value only — see the note above.
-    queryKey: ["search", debouncedQuery],
-    queryFn: () => getSearchResults({ query: debouncedQuery }),
+    // Debounced value only — see the note above. `locale` is part of the key so
+    // switching language re-fetches rather than showing the previous
+    // language's titles from cache.
+    queryKey: ["search", locale, debouncedQuery],
+    queryFn: () => getSearchResults({ query: debouncedQuery, locale }),
     enabled: isQueryable,
     staleTime: 60_000,
   });
@@ -156,17 +165,14 @@ export function SearchTypeahead({ genres = [] }: { genres?: Genre[] }) {
   };
 
   const showPanel = isOpen && isQueryable;
-  const formattedTotal = new Intl.NumberFormat(DISCOVER_LOCALE).format(
-    data?.totalResults ?? 0,
-  );
 
   const inputProps = {
     type: "search" as const,
     name: "q",
     value: query,
     autoComplete: "off" as const,
-    placeholder: DISCOVER_COPY.searchPlaceholder,
-    "aria-label": DISCOVER_COPY.searchLabel,
+    placeholder: t("placeholder"),
+    "aria-label": t("label"),
     "aria-expanded": showPanel,
     "aria-controls": showPanel ? "search-typeahead" : undefined,
     role: "combobox" as const,
@@ -186,7 +192,7 @@ export function SearchTypeahead({ genres = [] }: { genres?: Genre[] }) {
       activeIndex={activeIndex}
       genreNames={genreNames}
       query={query}
-      formattedTotal={formattedTotal}
+      totalResults={data?.totalResults ?? 0}
       onHover={setActiveIndex}
       onNavigate={close}
     />
@@ -207,7 +213,7 @@ export function SearchTypeahead({ genres = [] }: { genres?: Genre[] }) {
           setIsMobileOpen(true);
           setIsOpen(true);
         }}
-        aria-label={DISCOVER_COPY.searchLabel}
+        aria-label={t("label")}
         aria-expanded={isMobileOpen}
         className="flex size-9 items-center justify-center rounded-[10px] text-mx-fg-subtle outline-none transition-colors hover:text-mx-fg focus-visible:text-mx-fg md:hidden"
       >
@@ -262,7 +268,7 @@ export function SearchTypeahead({ genres = [] }: { genres?: Genre[] }) {
             <button
               type="button"
               onClick={close}
-              aria-label={DISCOVER_COPY.closeSearch}
+              aria-label={t("close")}
               className="flex size-9 shrink-0 items-center justify-center rounded-[10px] text-mx-fg-subtle outline-none transition-colors hover:text-mx-fg focus-visible:text-mx-fg"
             >
               <IconX className="size-5" stroke={1.75} />
@@ -289,7 +295,7 @@ function ResultsPanel({
   activeIndex,
   genreNames,
   query,
-  formattedTotal,
+  totalResults,
   onHover,
   onNavigate,
 }: {
@@ -298,26 +304,26 @@ function ResultsPanel({
   activeIndex: number;
   genreNames: Map<number, string>;
   query: string;
-  formattedTotal: string;
+  totalResults: number;
   onHover: (index: number) => void;
   onNavigate: () => void;
 }) {
+  const t = useTranslations("search");
+
   return (
     <div
       id="search-typeahead"
       role="listbox"
-      aria-label={DISCOVER_COPY.typeaheadSection}
+      aria-label={t("typeaheadSection")}
       className="rounded-[12px] border-[0.5px] border-mx-border bg-mx-card p-2 shadow-lg md:absolute md:top-full md:right-0 md:left-0 md:z-40 md:mt-2"
     >
       <p className="px-2 py-1.5 text-[10.5px] text-mx-page-meta">
-        {DISCOVER_COPY.typeaheadSection}
+        {t("typeaheadSection")}
       </p>
 
       {results.length === 0 ? (
         <p className="px-2 py-2 text-[12.5px] text-mx-fg-faint">
-          {isFetching
-            ? DISCOVER_COPY.typeaheadSearching
-            : DISCOVER_COPY.typeaheadNoResults}
+          {isFetching ? t("typeaheadSearching") : t("typeaheadNoResults")}
         </p>
       ) : (
         <>
@@ -341,7 +347,7 @@ function ResultsPanel({
               onClick={onNavigate}
               className="inline-flex items-center gap-1.5 text-[12.5px] text-mx-accent outline-none transition-colors hover:text-mx-accent-hover focus-visible:underline"
             >
-              {DISCOVER_COPY.seeAllResults(formattedTotal)}
+              {t("seeAllResults", { count: totalResults })}
               <IconArrowRight className="size-3.5" stroke={1.75} />
             </Link>
 
@@ -349,8 +355,8 @@ function ResultsPanel({
               aria-hidden="true"
               className="ml-auto hidden items-center gap-2 text-[11px] text-mx-fg-faint sm:flex"
             >
-              <span>↑ ↓ {DISCOVER_COPY.hintNavigate}</span>
-              <span>⏎ {DISCOVER_COPY.hintOpen}</span>
+              <span>↑ ↓ {t("hintNavigate")}</span>
+              <span>⏎ {t("hintOpen")}</span>
             </span>
           </div>
         </>
@@ -374,8 +380,14 @@ function TypeaheadRow({
   onHover: () => void;
   onNavigate: () => void;
 }) {
-  // `null` for a title TMDB has no score for — see DISCOVER_COPY.rating.
-  const formattedRating = DISCOVER_COPY.rating(movie.rating);
+  const t = useTranslations("discover");
+  const format = useFormatter();
+
+  // `null` for a title TMDB has no score for — see MovieCard.
+  const formattedRating =
+    movie.rating === null
+      ? null
+      : format.number(movie.rating, RATING_NUMBER_FORMAT);
 
   return (
     <Link
@@ -413,7 +425,7 @@ function TypeaheadRow({
           {movie.title}
         </span>
         <span className="block truncate text-[12px] text-mx-fg-faint">
-          {DISCOVER_COPY.movieMeta(movie.releaseYear, genreLabel)}
+          {movieMeta(movie.releaseYear, genreLabel)}
         </span>
       </span>
 
@@ -424,7 +436,7 @@ function TypeaheadRow({
       {formattedRating !== null && (
         <span
           className="flex shrink-0 items-center gap-1 text-[12.5px] text-mx-fg-muted tabular-nums"
-          aria-label={DISCOVER_COPY.ratingLabel(movie.rating)}
+          aria-label={t("ratingLabel", { value: formattedRating })}
         >
           <IconStar className="size-3.5 text-mx-fg-faint" stroke={1.75} />
           {formattedRating}

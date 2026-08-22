@@ -1,24 +1,25 @@
 import { type MovieSortId } from '@moviex/shared-types';
 
 /**
- * Every label, option and default the Discover screen renders.
+ * Structure and defaults for the Discover screens — **no copy**.
  *
- * Copy and UI defaults only — **no catalogue data**. Genres come from
- * `GET /tmdb/genres` and films from `GET /tmdb/discover` (both in `lib/api.ts`),
- * fetched by the page and passed down as props. The only local values are the
- * "All" reset chip, which is not a TMDB genre, and the year/rating/sort
- * defaults, whose filter chips are still stubs.
+ * Every user-visible string now lives in `messages/{en,tr,ru}.json` and is read
+ * through `useTranslations('discover')` / `getTranslations('discover')`. What
+ * stays here is the vocabulary the URL and the API speak: search-param names,
+ * their parsers, and the option ids those parsers produce. An option's *label*
+ * is a message key derived from its `id`, so adding a sort order means adding
+ * one entry here and one key in each message file.
+ *
+ * Still no catalogue data: genres come from `GET /tmdb/genres` and films from
+ * `GET /tmdb/discover`.
  */
-
-/** Locale used for every number the discover screens format. */
-export const DISCOVER_LOCALE = 'en-US';
 
 /**
- * The reset chip. Not a TMDB genre — it clears the filter rather than applying
- * one — so it is rendered separately from the fetched list, and `null` is what
- * "no genre selected" means throughout.
+ * The reset chip's id. Not a TMDB genre — it clears the filter rather than
+ * applying one — so it is rendered separately from the fetched list, and `null`
+ * is what "no genre selected" means throughout. Its label is
+ * `discover.allGenres`.
  */
-export const ALL_GENRE_LABEL = 'All';
 
 /**
  * URL search param carrying the selected TMDB genre id (`?genre=28`). Read by
@@ -69,6 +70,9 @@ export const POPULAR_SUGGESTION_LIMIT = 4;
  * The Discover screen lives at the site root, not `/discover` — `NAV_LINKS`
  * points "Discover" at `/`. Anything that wants to send the user back to
  * browsing should use this rather than hard-coding a path.
+ *
+ * Locale-free: it is always passed to the `Link` / `redirect` / `useRouter`
+ * from `@/i18n/navigation`, which adds the active locale's prefix.
  */
 export const DISCOVER_HREF = '/';
 
@@ -147,6 +151,40 @@ export function parseMinRatingParam(value: string | undefined): number | null {
   return RATING_OPTIONS.includes(parsed) ? parsed : null;
 }
 
+/** The four presets the year popover offers, in the order it renders them. */
+export type YearPresetId = 'thisYear' | 'last5' | 'last10' | 'classics';
+
+/**
+ * `id` doubles as the message key suffix (`discover.presetThisYear`), so a
+ * preset cannot exist without a label in every language.
+ */
+export const YEAR_PRESETS: ReadonlyArray<{
+  id: YearPresetId;
+  messageKey: string;
+  range: { from: number; to: number };
+}> = [
+  {
+    id: 'thisYear',
+    messageKey: 'presetThisYear',
+    range: { from: CURRENT_YEAR, to: CURRENT_YEAR },
+  },
+  {
+    id: 'last5',
+    messageKey: 'presetLast5',
+    range: { from: CURRENT_YEAR - 5, to: CURRENT_YEAR },
+  },
+  {
+    id: 'last10',
+    messageKey: 'presetLast10',
+    range: { from: CURRENT_YEAR - 10, to: CURRENT_YEAR },
+  },
+  {
+    id: 'classics',
+    messageKey: 'presetClassics',
+    range: { from: EARLIEST_YEAR, to: CLASSICS_UNTIL_YEAR },
+  },
+];
+
 /**
  * The orderings the sort dropdown offers.
  *
@@ -154,17 +192,16 @@ export function parseMinRatingParam(value: string | undefined): number | null {
  * apart so the address bar carries `?sort=rating` rather than leaking
  * `vote_average.desc`, and so changing TMDB's vocabulary never breaks a
  * bookmarked link. The API validates the `sortBy` half against its own
- * whitelist.
+ * whitelist. The visible label is `discover.sort.<id>` in the message files.
  */
 export const SORT_OPTIONS: ReadonlyArray<{
   id: MovieSortId;
-  label: string;
   sortBy: string;
 }> = [
-  { id: 'popularity', label: 'Most popular', sortBy: 'popularity.desc' },
-  { id: 'rating', label: 'Highest rated', sortBy: 'vote_average.desc' },
-  { id: 'newest', label: 'Newest first', sortBy: 'primary_release_date.desc' },
-  { id: 'oldest', label: 'Oldest first', sortBy: 'primary_release_date.asc' },
+  { id: 'popularity', sortBy: 'popularity.desc' },
+  { id: 'rating', sortBy: 'vote_average.desc' },
+  { id: 'newest', sortBy: 'primary_release_date.desc' },
+  { id: 'oldest', sortBy: 'primary_release_date.asc' },
 ];
 
 /** Pre-selected, and the one ordering never written to the URL. */
@@ -172,7 +209,9 @@ export const DEFAULT_SORT_ID: MovieSortId = 'popularity';
 
 /** Unknown or absent values fall back to the default rather than erroring. */
 export function parseSortParam(value: string | undefined): MovieSortId {
-  return SORT_OPTIONS.find((option) => option.id === value)?.id ?? DEFAULT_SORT_ID;
+  return (
+    SORT_OPTIONS.find((option) => option.id === value)?.id ?? DEFAULT_SORT_ID
+  );
 }
 
 /** `MovieSortId` → TMDB `sort_by`. The only place the mapping lives. */
@@ -183,204 +222,91 @@ export function sortByFor(id: MovieSortId): string {
   );
 }
 
-export function sortLabelFor(id: MovieSortId): string {
-  return (
-    SORT_OPTIONS.find((option) => option.id === id)?.label ??
-    SORT_OPTIONS[0]!.label
-  );
-}
-
 export type ViewModeId = 'grid' | 'list';
 
-export const VIEW_MODES = [
-  { id: 'grid', label: 'Grid view' },
-  { id: 'list', label: 'List view' },
-] as const satisfies ReadonlyArray<{ id: ViewModeId; label: string }>;
+/** Labels are `discover.view.<id>`. */
+export const VIEW_MODES = ['grid', 'list'] as const satisfies ReadonlyArray<ViewModeId>;
 
 export const DEFAULT_VIEW_MODE: ViewModeId = 'grid';
 
 /** Cards rendered while the first page is still in flight. */
 export const SKELETON_CARD_COUNT = 8;
 
-export const DISCOVER_COPY = {
-  title: 'Discover',
-  subtitle: 'Browse popular movies, add them to your list, mark what you have seen',
-  categoriesLabel: 'Genres',
-  filtersLabel: 'Filters',
-  clearAll: 'Clear all',
-  sortLabel: 'Sort',
-  yearTitle: 'Release year',
-  yearSubtitle: (from: number, to: number) =>
-    `Pick a range between ${from} and ${to}`,
-  yearFromLabel: 'From year',
-  yearToLabel: 'To year',
-  yearSeparator: 'to',
-  presetThisYear: 'This year',
-  presetLast5: 'Last 5 years',
-  presetLast10: 'Last 10 years',
-  presetClassics: 'Classics',
-  ratingChip: 'Rating',
-  ratingChipValue: (value: number) => `${value}+`,
-  ratingTitle: 'Minimum rating',
-  ratingSubtitle: 'Show movies rated at least this high',
-  anyRating: 'Any rating',
-  reset: 'Reset',
-  apply: 'Apply',
-  viewLabel: 'View',
-  results: (formattedCount: string) => `${formattedCount} results`,
-  showMore: (hiddenCount: number) => `+${hiddenCount}`,
-  showMoreLabel: (hiddenCount: number) => `Show ${hiddenCount} more genres`,
-  showLess: 'Show less',
-  yearRange: (from: number, to: number) => `${from} – ${to}`,
-
-  gridLabel: 'Movies',
-  listLabel: 'Movie list',
-  add: 'Add',
-  addLabel: (title: string) => `Add ${title} to your list`,
-  /** Offered on a film already in the list but not yet watched. */
-  markWatched: 'Watched',
-  markWatchedLabel: (title: string) => `Mark ${title} as watched`,
-  watched: 'Watched',
-  listed: 'In list',
-  /** Two digits, so the numbers stay in one column down the list. */
-  rank: (position: number) => String(position).padStart(2, '0'),
-  loading: 'Loading movies',
-  paginationLabel: 'Pagination',
-  previousPage: 'Previous page',
-  nextPage: 'Next page',
-  goToPage: (page: number) => `Go to page ${page}`,
-  pageSummary: (page: number, totalPages: number, results: string) =>
-    `Page ${page} of ${totalPages} — ${results} results`,
-  empty: 'No movies found for this filter',
-
-  // Search
-  searchPlaceholder: 'Search movies…',
-  searchLabel: 'Search movies',
-  closeSearch: 'Close search',
-  typeaheadSection: 'Movies',
-  typeaheadNoResults: 'No results',
-  typeaheadSearching: 'Searching…',
-  seeAllResults: (count: string) => `See all ${count} results`,
-  hintNavigate: 'navigate',
-  hintOpen: 'open',
-  searchResultsFor: 'Search results for',
-  clearSearch: 'Clear search',
-  moviesFound: (count: string) => `${count} movies found`,
-  sortedByRelevance: 'Sorted by relevance',
-  emptyTitle: 'No movies found',
-  emptyBody:
-    'Nothing matched that search. Try checking the spelling, using fewer words, or searching the original title.',
-  browsePopular: 'Browse popular',
-  popularRightNow: 'Popular right now',
-  /**
-   * Always a dot decimal, matching the reference badges ("8.4").
-   *
-   * `null` in, `null` out — TMDB has unrated titles, so callers must branch on
-   * the result rather than assume a string. Returning a placeholder here
-   * instead would force every layout to render one, and a "—" reads badly
-   * inside the card's star badge.
-   */
-  rating: (value: number | null) => (value === null ? null : value.toFixed(1)),
-  /** Shown as a dash in the list column; screen readers get the full phrase. */
-  notRated: '—',
-  ratingLabel: (value: number | null) =>
-    value === null ? 'Not yet rated' : `Rated ${value.toFixed(1)} out of 10`,
-  /**
-   * `releaseYear` is nullable (TMDB has undated entries), so parts are filtered
-   * rather than interpolated — otherwise a missing year renders as "null · …".
-   */
-  movieMeta: (year: string | null, genreLabel?: string) =>
-    [year, genreLabel].filter(Boolean).join(' · '),
-  /**
-   * `166 → "2h 46m"`. The minutes part is kept even at zero (`180 → "3h 0m"`).
-   *
-   * Currently unused: TMDB's `/discover/movie` does not return runtime (that
-   * needs a per-movie details call), so the list row's meta line omits it. Kept
-   * for when the details endpoint lands.
-   */
-  runtime: (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return hours > 0 ? `${hours}h ${rest}m` : `${rest}m`;
-  },
-  /** Same line as `movieMeta`, plus runtime once the catalogue serves it. */
-  movieMetaLong: (
-    year: string | null,
-    genreLabel?: string,
-    runtime?: string,
-  ) => [year, genreLabel, runtime].filter(Boolean).join(' · '),
-} as const;
-
 /** Cast members shown before "View all" expands to the full list. */
 export const VISIBLE_CAST_COUNT = 5;
 
-/** Copy and formatters for the movie detail page. */
-export const DETAIL_COPY = {
-  back: 'Back',
-  watchTrailer: 'Watch trailer',
-  closeTrailer: 'Close trailer',
-  addToList: 'Add to list',
-  inYourList: 'In your list',
-  removeFromList: 'Remove from your list',
-  markWatched: 'Mark as watched',
-  watched: 'Watched',
-  moveBackToList: 'Move back to list',
-  share: 'Copy link to this movie',
-  shareCopied: 'Link copied',
-  overview: 'Overview',
-  noOverview: 'No overview available',
-  topCast: 'Top cast',
-  viewAll: 'View all',
-  viewFewer: 'View fewer',
-  details: 'Details',
-  director: 'Director',
-  releaseDate: 'Release date',
-  runtime: 'Runtime',
-  originalLanguage: 'Original language',
-  status: 'Status',
-  originalTitle: 'Original title',
-  /** The scale shown after the score, e.g. `8.1` `/10`. */
-  ratingScale: '/10',
-  watchedOn: (date: string) => date,
-  /** `166` → `2h 46m`, matching the reference's meta row. */
-  runtimeShort: (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return hours > 0 ? `${hours}h ${rest}m` : `${rest}m`;
-  },
-  /** `166` → `166 minutes`, for the details grid. */
-  runtimeLong: (minutes: number) => `${minutes} minutes`,
+/**
+ * How a score is rendered: always one decimal, matching the reference badges
+ * ("8.4"). Passed to next-intl's `format.number`, **not** `toFixed`, so the
+ * separator follows the locale — Russian writes `8,4`.
+ */
+export const RATING_NUMBER_FORMAT = {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
 } as const;
 
 /**
- * `2024-02-27` → `February 27, 2024`. Returns `null` for a missing or
- * unparseable date so the details grid can skip the row entirely.
+ * Two digits, so the ranks stay in one column down the list. Punctuation, not
+ * copy — every language numbers rows the same way.
  */
-export function formatReleaseDate(isoDate: string | null): string | null {
-  if (!isoDate) return null;
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) return null;
-
-  return new Intl.DateTimeFormat(DISCOVER_LOCALE, {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(parsed);
+export function rankLabel(position: number): string {
+  return String(position).padStart(2, '0');
 }
 
 /**
- * `en` → `English`. Uses `Intl.DisplayNames` rather than a hand-maintained
- * map — TMDB can return any ISO 639-1 code, and a partial map would render
- * raw codes for the long tail.
+ * `year · genre [· runtime]`, dropping whatever is missing.
+ *
+ * The separator is a middle dot in all three languages, so this stays a plain
+ * join rather than a message: `releaseYear` is nullable (TMDB has undated
+ * entries), and interpolating it would render "null · …".
  */
-export function formatLanguage(code: string | null): string | null {
+export function movieMeta(...parts: Array<string | null | undefined>): string {
+  return parts.filter(Boolean).join(' · ');
+}
+
+/**
+ * `2024-02-27` → a `Date`, or `null` for a missing or unparseable value so the
+ * details grid can skip the row entirely.
+ *
+ * Only parsing lives here; the *formatting* is done by next-intl's formatter at
+ * the call site, which knows the active locale.
+ */
+export function parseIsoDate(isoDate: string | null): Date | null {
+  if (!isoDate) return null;
+  const parsed = new Date(isoDate);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/** `2024-02-27` in the details grid: "February 27, 2024" / "27 февраля 2024 г." */
+export const RELEASE_DATE_FORMAT = {
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+  // TMDB dates are plain calendar days; without this a UTC midnight can render
+  // as the previous day west of Greenwich.
+  timeZone: 'UTC',
+} as const;
+
+/** `2026-08-21T…` → `Aug 21`, matching My List's short captions. */
+export const SHORT_DATE_FORMAT = {
+  month: 'short',
+  day: 'numeric',
+} as const;
+
+/**
+ * `en` → `English` / `İngilizce` / `английский`, in the **active** locale.
+ *
+ * Uses `Intl.DisplayNames` rather than a hand-maintained map — TMDB can return
+ * any ISO 639-1 code, and a partial map would render raw codes for the long
+ * tail (and would need translating three times over).
+ */
+export function formatLanguage(
+  code: string | null,
+  locale: string,
+): string | null {
   if (!code) return null;
   try {
-    return (
-      new Intl.DisplayNames([DISCOVER_LOCALE], { type: 'language' }).of(code) ??
-      code
-    );
+    return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code;
   } catch {
     return code;
   }

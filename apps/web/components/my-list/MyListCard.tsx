@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import {
   IconCheck,
   IconDots,
@@ -10,9 +10,13 @@ import {
 import type { UserMovie } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { Link } from "@/i18n/navigation";
 import { posterTone } from "@/lib/poster-tone";
-import { movieHref } from "@/lib/constants/discover";
-import { MY_LIST_COPY, formatListDate } from "@/lib/constants/my-list";
+import {
+  SHORT_DATE_FORMAT,
+  movieHref,
+  parseIsoDate,
+} from "@/lib/constants/discover";
 
 export type MyListCardProps = {
   entry: UserMovie;
@@ -37,6 +41,8 @@ export function MyListCard({
   onMarkWatched,
   onRemove,
 }: MyListCardProps) {
+  const t = useTranslations("myList");
+  const format = useFormatter();
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isWatched = entry.status === "watched";
@@ -64,9 +70,12 @@ export function MyListCard({
   }, [menuOpen]);
 
   // Watchlist shows when it was saved; Watched shows when it was seen.
-  const caption = isWatched
-    ? formatListDate(entry.watchedAt ?? entry.updatedAt)
-    : formatListDate(entry.createdAt);
+  const captionDate = parseIsoDate(
+    isWatched ? (entry.watchedAt ?? entry.updatedAt) : entry.createdAt,
+  );
+  const caption = captionDate
+    ? format.dateTime(captionDate, SHORT_DATE_FORMAT)
+    : null;
 
   return (
     <article ref={containerRef} className="group relative font-mx">
@@ -116,7 +125,7 @@ export function MyListCard({
               className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-mx-accent px-3 text-[12.5px] font-medium text-mx-on-accent outline-none transition-colors hover:bg-mx-accent-hover"
             >
               <IconCheck className="size-3.5" stroke={2} />
-              {MY_LIST_COPY.markWatched}
+              {t("markWatched")}
             </button>
           )}
           <button
@@ -125,7 +134,7 @@ export function MyListCard({
             className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border-[0.5px] border-mx-border bg-transparent px-3 text-[12.5px] font-medium text-mx-poster-fg outline-none transition-colors hover:border-mx-accent"
           >
             <IconTrash className="size-3.5" stroke={1.75} />
-            {MY_LIST_COPY.remove}
+            {t("remove")}
           </button>
         </div>
 
@@ -133,7 +142,7 @@ export function MyListCard({
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          aria-label={MY_LIST_COPY.moreActions}
+          aria-label={t("moreActions")}
           aria-expanded={menuOpen}
           className="absolute top-2 right-2 z-20 flex size-7 items-center justify-center rounded-full bg-mx-hero-pill text-mx-poster-fg outline-none [@media(hover:hover)]:hidden"
         >
@@ -156,7 +165,7 @@ export function MyListCard({
                 className="flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left text-[12.5px] text-mx-fg-muted outline-none transition-colors hover:bg-mx-field hover:text-mx-fg"
               >
                 <IconCheck className="size-3.5" stroke={2} />
-                {MY_LIST_COPY.markWatched}
+                {t("markWatched")}
               </button>
             )}
             <button
@@ -169,7 +178,7 @@ export function MyListCard({
               className="flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left text-[12.5px] text-mx-fg-muted outline-none transition-colors hover:bg-mx-field hover:text-mx-fg"
             >
               <IconTrash className="size-3.5" stroke={1.75} />
-              {MY_LIST_COPY.remove}
+              {t("remove")}
             </button>
           </div>
         )}
@@ -181,8 +190,8 @@ export function MyListCard({
       {caption && (
         <p className="mt-0.5 truncate text-[10.5px] text-mx-page-meta">
           {isWatched
-            ? MY_LIST_COPY.watchedOn(caption)
-            : MY_LIST_COPY.addedOn(caption)}
+            ? t("watchedOn", { date: caption })
+            : t("addedOn", { date: caption })}
         </p>
       )}
     </article>

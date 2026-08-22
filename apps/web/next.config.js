@@ -1,3 +1,11 @@
+import createNextIntlPlugin from "next-intl/plugin";
+
+/**
+ * Points next-intl at `i18n/request.ts` (its default location, passed
+ * explicitly so the wiring is visible here rather than implied).
+ */
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // `@moviex/shared-types` ships raw TS source (see its package.json `exports`),
@@ -16,4 +24,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

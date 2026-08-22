@@ -8,6 +8,8 @@ import {
   Min,
 } from 'class-validator';
 
+import { LangQueryDto } from './lang-query.dto';
+
 /** Earliest year the UI offers; anything below is a malformed request. */
 export const EARLIEST_YEAR = 1950;
 
@@ -35,7 +37,12 @@ export const TMDB_SORT_OPTIONS = [
   'revenue.asc',
 ] as const;
 
-export class DiscoverQueryDto {
+/**
+ * Extends `LangQueryDto`, so `lang` is accepted here too — class-validator
+ * applies inherited decorators, and the global `forbidNonWhitelisted` would
+ * otherwise 400 on it.
+ */
+export class DiscoverQueryDto extends LangQueryDto {
   /** TMDB genre id. Omitted means no genre filter. */
   @IsOptional()
   @Type(() => Number)

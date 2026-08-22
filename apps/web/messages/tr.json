@@ -1,0 +1,249 @@
+{
+  "meta": {
+    "title": "MovieX",
+    "description": "İzlemek istediklerinizi takip edin, izlediklerinizi işaretleyin."
+  },
+
+  "nav": {
+    "discover": "Keşfet",
+    "myList": "Listem",
+    "home": "MovieX ana sayfa",
+    "mainMenu": "Ana menü",
+    "mobileMenu": "Mobil menü",
+    "openMenu": "Menüyü aç",
+    "closeMenu": "Menüyü kapat",
+    "toggleTheme": "Açık ve koyu modu değiştir"
+  },
+
+  "language": {
+    "label": "Dili değiştir",
+    "menuLabel": "Dil"
+  },
+
+  "discover": {
+    "title": "Keşfet",
+    "subtitle": "Popüler filmlere göz atın, listenize ekleyin, izlediklerinizi işaretleyin",
+    "genresLabel": "Türler",
+    "filtersLabel": "Filtreler",
+    "allGenres": "Tümü",
+    "results": "{count, plural, other {# sonuç}}",
+    "showMore": "+{count}",
+    "showMoreLabel": "{count, plural, other {# tür daha göster}}",
+    "showLess": "Daha az göster",
+
+    "yearRange": "{from} – {to}",
+    "yearTitle": "Çıkış yılı",
+    "yearSubtitle": "{from} ile {to} arasında bir aralık seçin",
+    "yearFromLabel": "Başlangıç yılı",
+    "yearToLabel": "Bitiş yılı",
+    "yearSeparator": "ile",
+    "presetThisYear": "Bu yıl",
+    "presetLast5": "Son 5 yıl",
+    "presetLast10": "Son 10 yıl",
+    "presetClassics": "Klasikler",
+
+    "ratingChip": "Puan",
+    "ratingChipValue": "{value}+",
+    "ratingTitle": "En düşük puan",
+    "ratingSubtitle": "En az bu puana sahip filmleri göster",
+    "anyRating": "Tüm puanlar",
+
+    "reset": "Sıfırla",
+    "apply": "Uygula",
+
+    "sortLabel": "Sırala",
+    "sort": {
+      "popularity": "En popüler",
+      "rating": "En yüksek puanlı",
+      "newest": "Önce en yeni",
+      "oldest": "Önce en eski"
+    },
+
+    "viewLabel": "Görünüm",
+    "view": {
+      "grid": "Izgara görünümü",
+      "list": "Liste görünümü"
+    },
+
+    "gridLabel": "Filmler",
+    "listLabel": "Film listesi",
+    "loading": "Filmler yükleniyor",
+    "empty": "Bu filtreye uygun film bulunamadı",
+
+    "add": "Ekle",
+    "addLabel": "{title} filmini listenize ekleyin",
+    "markWatched": "İzledim",
+    "markWatchedLabel": "{title} filmini izlendi olarak işaretleyin",
+    "tagWatched": "İzlendi",
+    "tagListed": "Listede",
+
+    "notRated": "—",
+    "ratingLabel": "10 üzerinden {value} puan",
+    "notRatedLabel": "Henüz puanlanmamış",
+
+    "paginationLabel": "Sayfalama",
+    "previousPage": "Önceki sayfa",
+    "nextPage": "Sonraki sayfa",
+    "goToPage": "{page}. sayfaya git",
+    "pageSummary": "{totalPages} sayfadan {page}. sayfa — {count, plural, other {# sonuç}}"
+  },
+
+  "detail": {
+    "back": "Geri",
+    "watchTrailer": "Fragmanı izle",
+    "closeTrailer": "Fragmanı kapat",
+    "addToList": "Listeme ekle",
+    "inYourList": "Listenizde",
+    "removeFromList": "Listenizden çıkarın",
+    "markWatched": "İzledim olarak işaretle",
+    "watched": "İzlendi",
+    "moveBackToList": "Listeye geri taşı",
+    "share": "Film bağlantısını kopyala",
+    "shareCopied": "Bağlantı kopyalandı",
+    "overview": "Özet",
+    "noOverview": "Özet bulunmuyor",
+    "topCast": "Başrol oyuncuları",
+    "viewAll": "Tümünü gör",
+    "viewFewer": "Daha az gör",
+    "details": "Detaylar",
+    "director": "Yönetmen",
+    "releaseDate": "Vizyon tarihi",
+    "runtime": "Süre",
+    "originalLanguage": "Orijinal dil",
+    "status": "Durum",
+    "originalTitle": "Orijinal adı",
+    "ratingScale": "/10",
+    "watchedOn": "{date} tarihinde izlendi",
+    "runtimeShortHours": "{hours} sa {minutes} dk",
+    "runtimeShortMinutes": "{minutes} dk",
+    "runtimeLong": "{count, plural, other {# dakika}}"
+  },
+
+  "search": {
+    "placeholder": "Film ara…",
+    "label": "Film ara",
+    "close": "Aramayı kapat",
+    "typeaheadSection": "Filmler",
+    "typeaheadNoResults": "Sonuç yok",
+    "typeaheadSearching": "Aranıyor…",
+    "seeAllResults": "{count, plural, other {# sonucun tümünü gör}}",
+    "hintNavigate": "gezin",
+    "hintOpen": "aç",
+    "resultsFor": "Arama sonuçları",
+    "clear": "Aramayı temizle",
+    "moviesFound": "{count, plural, other {# film bulundu}}",
+    "sortedByRelevance": "İlgi düzeyine göre sıralandı",
+    "emptyTitle": "Film bulunamadı",
+    "emptyBody": "Bu aramayla eşleşen bir şey yok. Yazımı kontrol edin, daha az kelime kullanın veya orijinal adıyla aramayı deneyin.",
+    "browsePopular": "Popülerlere göz at",
+    "popularRightNow": "Şu anda popüler"
+  },
+
+  "myList": {
+    "title": "Listem",
+    "subtitle": "Kaydettiğiniz ve izlediğiniz her şey",
+    "statWatchlist": "İzleme listesi",
+    "statWatched": "İzlenenler",
+    "statTopGenre": "En çok tür",
+    "statUnit": "{count, plural, other {film}}",
+    "noGenre": "—",
+    "tabWatchlist": "İzleme listesi",
+    "tabWatched": "İzlenenler",
+    "addedOn": "{date} tarihinde eklendi",
+    "watchedOn": "{date} tarihinde izlendi",
+    "markWatched": "İzledim",
+    "remove": "Kaldır",
+    "moreActions": "Diğer işlemler",
+    "emptyWatchlistTitle": "İzleme listeniz boş",
+    "emptyWatchlistBody": "Kaydettiğiniz filmler burada görünür. İzleyecek bir şey bulmak için keşfetmeye başlayın.",
+    "emptyWatchedTitle": "Henüz hiçbir filmi izlendi olarak işaretlemediniz",
+    "emptyWatchedBody": "Bir filmi izlendi olarak işaretlediğinizde, izlediğiniz tarihle birlikte burada görünür.",
+    "signInTitle": "Listenizi görmek için giriş yapın",
+    "signInBody": "İzleme listeniz ve izlediğiniz filmler hesabınıza kaydedilir. Görmek için giriş yapın.",
+    "noAccount": "Hesabınız yok mu?",
+    "browseMovies": "Filmlere göz at",
+    "sort": {
+      "recent": "Son eklenenler",
+      "title": "Ada göre A–Z",
+      "year": "Çıkış yılı",
+      "rating": "Puan"
+    }
+  },
+
+  "footer": {
+    "tagline": "İzlemek istediklerinizi takip edin, izlediklerinizi işaretleyin ve koleksiyonunuzu büyütün.",
+    "navLabel": "Alt bilgi",
+    "copyright": "© {year} MovieX",
+    "author": "Najaf Habibov tarafından yapıldı",
+    "attribution": "Film verileri TMDB tarafından sağlanmaktadır",
+    "columnProduct": "Ürün",
+    "columnAbout": "Hakkında",
+    "discover": "Keşfet",
+    "myList": "Listem",
+    "statistics": "İstatistikler",
+    "privacy": "Gizlilik",
+    "terms": "Şartlar",
+    "contact": "İletişim"
+  },
+
+  "errors": {
+    "discoverTitle": "Filmler yüklenemedi",
+    "searchTitle": "Arama sonuçları yüklenemedi",
+    "movieTitle": "Bu film yüklenemedi",
+    "body": "Sunucularımıza ulaşırken bir sorun oluştu. Bağlantınızı kontrol edip tekrar deneyin.",
+    "tryAgain": "Tekrar dene"
+  },
+
+  "auth": {
+    "signInOrCreate": "Giriş yapın veya hesap oluşturun",
+    "logOut": "Çıkış yap",
+    "loggingOut": "Çıkış yapılıyor…",
+
+    "welcomeBack": "Tekrar hoş geldiniz",
+    "welcomeBackSubtitle": "Kaldığınız yerden devam etmek için giriş yapın",
+    "createAccountTitle": "Hesap oluşturun",
+    "createAccountSubtitle": "Film koleksiyonunuzu oluşturmaya başlayın",
+
+    "nameLabel": "Ad",
+    "namePlaceholder": "Najaf",
+    "emailLabel": "E-posta",
+    "emailPlaceholder": "najaf@example.com",
+    "passwordLabel": "Parola",
+    "passwordPlaceholder": "••••••••",
+    "confirmPasswordLabel": "Parolayı doğrulayın",
+    "showPassword": "Parolayı göster",
+    "hidePassword": "Parolayı gizle",
+
+    "rememberMe": "Beni hatırla",
+    "forgotPassword": "Parolanızı mı unuttunuz?",
+    "signIn": "Giriş yap",
+    "signingIn": "Giriş yapılıyor…",
+    "createAccount": "Hesap oluştur",
+    "creatingAccount": "Hesap oluşturuluyor…",
+    "termsNotice": "Devam ederek şartları kabul etmiş olursunuz",
+    "or": "veya",
+    "noAccount": "Hesabınız yok mu?",
+    "signUp": "Kayıt ol",
+    "haveAccount": "Zaten hesabınız var mı?",
+
+    "strengthWeak": "Zayıf",
+    "strengthMedium": "Orta",
+    "strengthStrong": "Güçlü",
+
+    "invalidCredentials": "E-posta veya parola hatalı",
+    "emailTaken": "Bu e-posta zaten kayıtlı — bunun yerine giriş yapın",
+    "networkError": "Sunucularımıza ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
+    "genericError": "Bir şeyler ters gitti, lütfen tekrar deneyin",
+    "accountCreated": "Hesap oluşturuldu — aşağıdan giriş yapın",
+
+    "validation": {
+      "nameTooShort": "Ad en az {min, plural, other {# karakter}} olmalıdır",
+      "nameTooLong": "Ad en fazla {max, plural, other {# karakter}} olabilir",
+      "emailRequired": "E-posta adresinizi girin",
+      "emailInvalid": "Geçerli bir e-posta adresi girin",
+      "passwordTooShort": "Parola en az {min, plural, other {# karakter}} olmalıdır",
+      "confirmRequired": "Parolanızı tekrar girin",
+      "passwordsDoNotMatch": "Parolalar eşleşmiyor"
+    }
+  }
+}

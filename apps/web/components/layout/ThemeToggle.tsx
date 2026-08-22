@@ -1,6 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
+import { useTranslations } from "next-intl";
 import { IconMoon, IconSun } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -11,13 +12,14 @@ import { cn } from "@/lib/utils";
  * both icons and the theme class on <html> reveals the right one.
  */
 export function ThemeToggle({ className }: { className?: string }) {
+  const t = useTranslations("nav");
   const { resolvedTheme, setTheme } = useTheme();
 
   return (
     <button
       type="button"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-      aria-label="Toggle light and dark mode"
+      aria-label={t("toggleTheme")}
       className={cn(
         "flex size-9 shrink-0 items-center justify-center rounded-full text-mx-fg-subtle outline-none transition-colors hover:text-mx-fg focus-visible:text-mx-fg md:size-8",
         className,

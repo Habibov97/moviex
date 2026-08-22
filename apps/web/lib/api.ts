@@ -1,8 +1,22 @@
 import type {
   Genre,
+  Locale,
   MovieDetail,
   PaginatedMoviesResponse,
 } from "@moviex/shared-types";
+
+/**
+ * The query param every `/tmdb/*` endpoint takes to pick a language.
+ *
+ * The API maps it to TMDB's own tag (`tr` → `tr-TR`) — see `toTmdbLanguage` in
+ * `@moviex/shared-types`. It is always sent, English included, so a URL's
+ * meaning never depends on a server-side default.
+ *
+ * It also does the caching for free: `lang` is part of the request URL, and
+ * Next keys its `fetch` cache by URL, so each locale gets its own entry rather
+ * than the first visitor's language being served to everyone.
+ */
+const LANG_PARAM = "lang";
 
 /**
  * Base URL of our own NestJS API.
@@ -61,11 +75,14 @@ const GENRES_REVALIDATE_SECONDS = 86_400;
  * optional filter, so an unreachable API should cost the user their genre
  * chips, not the entire Discover page (and, at build time, not the build).
  */
-export async function getGenres(): Promise<Genre[]> {
+export async function getGenres(locale: Locale): Promise<Genre[]> {
   try {
-    const response = await fetch(`${API_URL}/tmdb/genres`, {
-      next: { revalidate: GENRES_REVALIDATE_SECONDS },
-    });
+    const response = await fetch(
+      `${API_URL}/tmdb/genres?${LANG_PARAM}=${locale}`,
+      {
+        next: { revalidate: GENRES_REVALIDATE_SECONDS },
+      },
+    );
 
     if (!response.ok) {
       console.error(`GET /tmdb/genres responded ${response.status}`);
@@ -80,6 +97,8 @@ export async function getGenres(): Promise<Genre[]> {
 }
 
 export type DiscoverMoviesArgs = {
+  /** Language for titles and overviews. Always sent. */
+  locale: Locale;
   /** TMDB genre id, or `null` for no genre filter. */
   genreId?: number | null;
   /** TMDB `sort_by` value. */
@@ -104,14 +123,15 @@ export type DiscoverMoviesArgs = {
  * different and misleading statement.
  */
 export async function getDiscoverMovies({
+  locale,
   genreId,
   sort = "popularity.desc",
   page,
   yearFrom,
   yearTo,
   minRating,
-}: DiscoverMoviesArgs = {}): Promise<PaginatedMoviesResponse> {
-  const params = new URLSearchParams({ sort });
+}: DiscoverMoviesArgs): Promise<PaginatedMoviesResponse> {
+  const params = new URLSearchParams({ sort, [LANG_PARAM]: locale });
   if (genreId != null) params.set("genre", String(genreId));
   if (page != null) params.set("page", String(page));
   if (yearFrom != null) params.set("yearFrom", String(yearFrom));
@@ -133,6 +153,8 @@ export async function getDiscoverMovies({
 
 export type SearchMoviesArgs = {
   query: string;
+  /** Language for titles and overviews. Always sent. */
+  locale: Locale;
   page?: number;
 };
 
@@ -147,9 +169,10 @@ export type SearchMoviesArgs = {
  */
 export async function getSearchResults({
   query,
+  locale,
   page,
 }: SearchMoviesArgs): Promise<PaginatedMoviesResponse> {
-  const params = new URLSearchParams({ q: query });
+  const params = new URLSearchParams({ q: query, [LANG_PARAM]: locale });
   if (page != null) params.set("page", String(page));
 
   const response = await fetch(`${API_URL}/tmdb/search?${params}`, {
@@ -181,10 +204,14 @@ const MOVIE_DETAIL_REVALIDATE_SECONDS = 3600;
  */
 export async function getMovieDetail(
   tmdbId: number,
+  locale: Locale,
 ): Promise<MovieDetail | null> {
-  const response = await fetch(`${API_URL}/tmdb/${tmdbId}`, {
-    next: { revalidate: MOVIE_DETAIL_REVALIDATE_SECONDS },
-  });
+  const response = await fetch(
+    `${API_URL}/tmdb/${tmdbId}?${LANG_PARAM}=${locale}`,
+    {
+      next: { revalidate: MOVIE_DETAIL_REVALIDATE_SECONDS },
+    },
+  );
 
   if (response.status === 404) return null;
 

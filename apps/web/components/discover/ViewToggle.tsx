@@ -1,13 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { IconLayoutGrid, IconLayoutList } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
-import {
-  DISCOVER_COPY,
-  VIEW_MODES,
-  type ViewModeId,
-} from "@/lib/constants/discover";
+import { VIEW_MODES, type ViewModeId } from "@/lib/constants/discover";
 
 const VIEW_MODE_ICONS = {
   grid: IconLayoutGrid,
@@ -28,26 +25,28 @@ export function ViewToggle({
   onChange: (viewMode: ViewModeId) => void;
   className?: string;
 }) {
+  const t = useTranslations("discover");
+
   return (
     <div
       role="group"
-      aria-label={DISCOVER_COPY.viewLabel}
+      aria-label={t("viewLabel")}
       className={cn(
         "inline-flex h-7 shrink-0 items-center gap-0.5 rounded-full border-[0.5px] border-mx-border-subtle bg-mx-chip-alt p-0.5",
         className,
       )}
     >
       {VIEW_MODES.map((mode) => {
-        const Icon = VIEW_MODE_ICONS[mode.id];
-        const isSelected = mode.id === value;
+        const Icon = VIEW_MODE_ICONS[mode];
+        const isSelected = mode === value;
 
         return (
           <button
-            key={mode.id}
+            key={mode}
             type="button"
             aria-pressed={isSelected}
-            aria-label={mode.label}
-            onClick={() => onChange(mode.id)}
+            aria-label={t(`view.${mode}`)}
+            onClick={() => onChange(mode)}
             className={cn(
               "flex size-6 items-center justify-center rounded-full outline-none transition-colors",
               isSelected

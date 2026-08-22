@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
+import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { IconStarFilled } from '@tabler/icons-react';
+import type { Locale } from '@moviex/shared-types';
 
 import { cn } from '@/lib/utils';
 import { posterTone } from '@/lib/poster-tone';
@@ -9,50 +11,59 @@ import { MovieActions } from '@/components/movie/MovieActions';
 import { TopCast } from '@/components/movie/TopCast';
 import { getMovieDetail } from '@/lib/api';
 import {
-  DETAIL_COPY,
-  DISCOVER_COPY,
+  RATING_NUMBER_FORMAT,
+  RELEASE_DATE_FORMAT,
   formatLanguage,
-  formatReleaseDate,
+  parseIsoDate,
 } from '@/lib/constants/discover';
+import { runtimeShort } from '@/lib/runtime';
 
 type MoviePageProps = {
-  params: Promise<{ tmdbId: string }>;
+  params: Promise<{ locale: Locale; tmdbId: string }>;
 };
 
 export default async function MoviePage({ params }: MoviePageProps) {
-  const { tmdbId } = await params;
+  const { locale, tmdbId } = await params;
+  setRequestLocale(locale);
+
   const id = Number(tmdbId);
 
   // A non-numeric segment can't be a TMDB id — 404 without a round trip.
   if (!Number.isInteger(id) || id < 1) notFound();
 
-  // Cached an hour (see lib/api.ts): a movie is a stable resource, unlike
-  // search and discover results.
-  const movie = await getMovieDetail(id);
+  const t = await getTranslations('detail');
+  const format = await getFormatter();
+
+  // Cached an hour *per locale* (see lib/api.ts): a movie is a stable resource,
+  // unlike search and discover results.
+  const movie = await getMovieDetail(id, locale);
   if (!movie) notFound();
 
   // Deterministic per movie, so the placeholder tint is stable across visits.
   const toneIndex = movie.tmdbId;
 
-  const formattedRating = DISCOVER_COPY.rating(movie.rating);
-  // Widened on purpose: `DETAIL_COPY` is `as const`, so without this the
-  // labels infer as literal types and the filter predicate cannot narrow.
+  const formattedRating =
+    movie.rating === null
+      ? null
+      : format.number(movie.rating, RATING_NUMBER_FORMAT);
+
+  const releaseDate = parseIsoDate(movie.releaseDate);
   const details: { label: string; value: string | null }[] = [
-    { label: DETAIL_COPY.director, value: movie.directors.join(', ') || null },
+    { label: t('director'), value: movie.directors.join(', ') || null },
     {
-      label: DETAIL_COPY.releaseDate,
-      value: formatReleaseDate(movie.releaseDate),
+      label: t('releaseDate'),
+      value: releaseDate ? format.dateTime(releaseDate, RELEASE_DATE_FORMAT) : null,
     },
     {
-      label: DETAIL_COPY.runtime,
-      value: movie.runtime ? DETAIL_COPY.runtimeLong(movie.runtime) : null,
+      label: t('runtime'),
+      value: movie.runtime ? t('runtimeLong', { count: movie.runtime }) : null,
     },
     {
-      label: DETAIL_COPY.originalLanguage,
-      value: formatLanguage(movie.originalLanguage),
+      label: t('originalLanguage'),
+      value: formatLanguage(movie.originalLanguage, locale),
     },
-    { label: DETAIL_COPY.status, value: movie.status },
-    { label: DETAIL_COPY.originalTitle, value: movie.originalTitle },
+    { label: t('status'), value: movie.status },
+    { label: t('originalTitle'), value: movie.originalTitle },
     // A field TMDB has no value for is dropped, not rendered as an empty row.
   ].flatMap((row) => (row.value ? [{ label: row.label, value: row.value }] : []));
 
@@ -115,7 +126,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                   <span className="font-medium text-mx-fg tabular-nums md:text-[17px]">
                     {formattedRating}
                   </span>
-                  <span>{DETAIL_COPY.ratingScale}</span>
+                  <span>{t('ratingScale')}</span>
                 </span>
               )}
               {movie.releaseYear && (
@@ -127,7 +138,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
               {movie.runtime && (
                 <>
                   {(formattedRating || movie.releaseYear) && <Dot />}
-                  <span>{DETAIL_COPY.runtimeShort(movie.runtime)}</span>
+                  <span>{runtimeShort(t, movie.runtime)}</span>
                 </>
               )}
             </div>
@@ -167,7 +178,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
         <section className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6 md:mt-10 md:pt-7">
           <h2 className="text-[13px] font-medium text-mx-fg md:text-[15px]">
-            {DETAIL_COPY.overview}
+            {t('overview')}
           </h2>
           <p
             className={cn(
@@ -175,7 +186,12 @@ export default async function MoviePage({ params }: MoviePageProps) {
               movie.overview ? 'text-mx-fg-muted' : 'text-mx-fg-faint',
             )}
           >
-            {movie.overview ?? DETAIL_COPY.noOverview}
+            {/*
+              The API already falls back to the English overview when TMDB has
+              no translated one, so this only fires when there is no overview in
+              any language. See the TMDB language section in CLAUDE.md.
+            */}
+            {movie.overview ?? t('noOverview')}
           </p>
         </section>
 
@@ -186,7 +202,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
         {details.length > 0 && (
           <section className="mt-8 border-t-[0.5px] border-mx-border-subtle pt-6 pb-10 md:mt-10 md:pt-7 md:pb-14">
             <h2 className="text-[13px] font-medium text-mx-fg md:text-[15px]">
-              {DETAIL_COPY.details}
+              {t('details')}
             </h2>
             <dl className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-x-6 gap-y-5 md:mt-5 md:grid-cols-[repeat(auto-fit,minmax(170px,1fr))] md:gap-x-8 md:gap-y-6">
               {details.map((row) => (

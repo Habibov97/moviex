@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { IconLogout, IconUser } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -10,7 +11,6 @@ import {
   useCurrentUser,
   useLogoutMutation,
 } from "@/hooks/use-current-user";
-import { AUTH_COPY } from "@/lib/constants/errors";
 
 /**
  * The navbar's account control, driven by real session state.
@@ -24,6 +24,7 @@ import { AUTH_COPY } from "@/lib/constants/errors";
  * flashing placeholder in the navbar is worse than a brief generic icon.
  */
 export function UserMenu() {
+  const t = useTranslations("auth");
   const { user, isSignedIn } = useCurrentUser();
   const logout = useLogoutMutation();
   const [authOpen, setAuthOpen] = useState(false);
@@ -57,7 +58,7 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => (isSignedIn ? setMenuOpen((open) => !open) : setAuthOpen(true))}
-        aria-label={user ? user.email : AUTH_COPY.signInOrCreate}
+        aria-label={user ? user.email : t("signInOrCreate")}
         aria-haspopup={isSignedIn ? "menu" : "dialog"}
         aria-expanded={isSignedIn ? menuOpen : undefined}
         className="flex size-9 shrink-0 items-center justify-center rounded-full border-[0.5px] border-mx-avatar-border bg-mx-avatar text-[13px] font-medium text-mx-avatar-fg outline-none transition-colors hover:bg-mx-avatar-hover focus-visible:border-mx-accent md:size-8"
@@ -96,7 +97,7 @@ export function UserMenu() {
             )}
           >
             <IconLogout className="size-4" stroke={1.75} aria-hidden="true" />
-            {logout.isPending ? AUTH_COPY.loggingOut : AUTH_COPY.logOut}
+            {logout.isPending ? t("loggingOut") : t("logOut")}
           </button>
         </div>
       )}

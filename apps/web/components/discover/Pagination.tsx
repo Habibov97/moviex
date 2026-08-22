@@ -1,10 +1,9 @@
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
+import { Link } from "@/i18n/navigation";
 import {
-  DISCOVER_COPY,
-  DISCOVER_LOCALE,
   MAX_PAGE,
   PAGE_SEARCH_PARAM,
   RESULTS_ANCHOR_ID,
@@ -60,14 +59,15 @@ export type PaginationProps = {
    */
   searchParams: Record<string, string | string[] | undefined>;
   /**
-   * Route the links point at. Required in the href even when the query is
-   * empty — see `hrefFor`.
+   * Route the links point at, **without** a locale prefix — the `Link` from
+   * `@/i18n/navigation` adds it. Required in the href even when the query is
+   * empty; see `hrefFor`.
    */
   pathname?: string;
   className?: string;
 };
 
-export function Pagination({
+export async function Pagination({
   currentPage,
   totalPages,
   totalResults,
@@ -75,6 +75,8 @@ export function Pagination({
   pathname = "/",
   className,
 }: PaginationProps) {
+  const t = await getTranslations("discover");
+
   // TMDB refuses anything past 500, so pages beyond it are not offered at all.
   const lastPage = Math.min(totalPages, MAX_PAGE);
   const page = Math.min(Math.max(currentPage, 1), Math.max(lastPage, 1));
@@ -111,19 +113,17 @@ export function Pagination({
   };
 
   const items = buildPageItems(page, lastPage);
-  const formattedResults = new Intl.NumberFormat(DISCOVER_LOCALE).format(
-    totalResults,
-  );
 
   return (
     <nav
-      aria-label={DISCOVER_COPY.paginationLabel}
+      aria-label={t("paginationLabel")}
       className={cn("w-full px-4 py-8 font-mx sm:px-6", className)}
     >
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         <Arrow
           direction="prev"
           href={hrefFor(page - 1)}
+          label={t("previousPage")}
           disabled={page === 1}
         />
 
@@ -151,7 +151,7 @@ export function Pagination({
             <Link
               key={item}
               href={hrefFor(item)}
-              aria-label={DISCOVER_COPY.goToPage(item)}
+              aria-label={t("goToPage", { page: item })}
               className={cn(
                 cellBase,
                 "border-[0.5px] border-mx-border-subtle bg-mx-chip text-mx-fg-muted outline-none transition-colors hover:text-mx-fg focus-visible:border-mx-accent",
@@ -165,12 +165,22 @@ export function Pagination({
         <Arrow
           direction="next"
           href={hrefFor(page + 1)}
+          label={t("nextPage")}
           disabled={page === lastPage}
         />
       </div>
 
+      {/*
+        `count` goes through ICU, so the total is grouped for the locale and the
+        noun agrees with it. `page`/`totalPages` are capped at 500, so they need
+        no grouping of their own.
+      */}
       <p className="mt-4 text-center text-[11px] text-mx-page-meta">
-        {DISCOVER_COPY.pageSummary(page, lastPage, formattedResults)}
+        {t("pageSummary", {
+          page,
+          totalPages: lastPage,
+          count: totalResults,
+        })}
       </p>
     </nav>
   );
@@ -184,15 +194,15 @@ export function Pagination({
 function Arrow({
   direction,
   href,
+  label,
   disabled,
 }: {
   direction: "prev" | "next";
   href: string;
+  label: string;
   disabled: boolean;
 }) {
   const Icon = direction === "prev" ? IconChevronLeft : IconChevronRight;
-  const label =
-    direction === "prev" ? DISCOVER_COPY.previousPage : DISCOVER_COPY.nextPage;
 
   if (disabled) {
     return (

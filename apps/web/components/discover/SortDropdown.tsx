@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { IconArrowsSort, IconCheck } from "@tabler/icons-react";
 import type { MovieSortId } from "@moviex/shared-types";
 
@@ -10,7 +11,6 @@ import {
   DEFAULT_SORT_ID,
   SORT_OPTIONS,
   SORT_SEARCH_PARAM,
-  sortLabelFor,
 } from "@/lib/constants/discover";
 
 export type SortDropdownProps = {
@@ -25,19 +25,25 @@ export type SortDropdownProps = {
  * plain menu rather than a draft popover: there is nothing to stage, so picking
  * an option commits and closes immediately. The `p-1.5` override replaces the
  * popover's roomier panel padding, since menu rows carry their own.
+ *
+ * Labels come from `discover.sort.<id>`, keyed by the same id the URL carries —
+ * so `?sort=rating` and "Highest rated" cannot drift apart.
  */
 export function SortDropdown({ sort }: SortDropdownProps) {
+  const t = useTranslations("discover");
   const applyFilters = useApplyFilters();
+
+  const activeLabel = t(`sort.${sort}`);
 
   return (
     <FilterPopover
-      label={sortLabelFor(sort)}
+      label={activeLabel}
       icon={<IconArrowsSort className="size-3.5" stroke={1.75} />}
       isActive={sort !== DEFAULT_SORT_ID}
       panelClassName="w-[200px] p-1.5"
     >
       {(close) => (
-        <div role="menu" aria-label={sortLabelFor(sort)}>
+        <div role="menu" aria-label={t("sortLabel")}>
           {SORT_OPTIONS.map((option) => {
             const isSelected = option.id === sort;
 
@@ -63,7 +69,7 @@ export function SortDropdown({ sort }: SortDropdownProps) {
                     : "text-mx-fg-muted hover:bg-mx-field hover:text-mx-fg",
                 )}
               >
-                {option.label}
+                {t(`sort.${option.id}`)}
                 {isSelected && (
                   <IconCheck
                     className="ml-auto size-3.5 shrink-0 text-mx-accent"

@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { IconUser } from "@tabler/icons-react";
 import type { CastMember } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { posterTone } from "@/lib/poster-tone";
-import { DETAIL_COPY, VISIBLE_CAST_COUNT } from "@/lib/constants/discover";
+import { VISIBLE_CAST_COUNT } from "@/lib/constants/discover";
 
 /**
  * Top cast, five at a time.
@@ -16,6 +17,7 @@ import { DETAIL_COPY, VISIBLE_CAST_COUNT } from "@/lib/constants/discover";
  * expanding costs no request.
  */
 export function TopCast({ cast }: { cast: CastMember[] }) {
+  const t = useTranslations("detail");
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (cast.length === 0) return null;
@@ -27,7 +29,7 @@ export function TopCast({ cast }: { cast: CastMember[] }) {
     <section className="font-mx">
       <div className="flex items-center gap-4">
         <h2 className="text-[13px] font-medium text-mx-fg md:text-[15px]">
-          {DETAIL_COPY.topCast}
+          {t("topCast")}
         </h2>
         {canExpand && (
           <button
@@ -36,7 +38,7 @@ export function TopCast({ cast }: { cast: CastMember[] }) {
             aria-expanded={isExpanded}
             className="ml-auto text-[12px] text-mx-accent outline-none transition-colors hover:text-mx-accent-hover focus-visible:underline md:text-[13.5px]"
           >
-            {isExpanded ? DETAIL_COPY.viewFewer : DETAIL_COPY.viewAll}
+            {isExpanded ? t("viewFewer") : t("viewAll")}
           </button>
         )}
       </div>

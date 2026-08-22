@@ -1,7 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { ErrorState } from "@/components/shared/ErrorState";
-import { ERROR_COPY } from "@/lib/constants/errors";
 
 /**
  * Boundary for `/search`.
@@ -17,7 +18,7 @@ export default function SearchError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return (
-    <ErrorState title={ERROR_COPY.searchTitle} error={error} reset={reset} />
-  );
+  const t = useTranslations("errors");
+
+  return <ErrorState title={t("searchTitle")} error={error} reset={reset} />;
 }

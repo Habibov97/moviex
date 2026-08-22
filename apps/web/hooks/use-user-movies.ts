@@ -18,12 +18,27 @@ import { useCurrentUser } from "@/hooks/use-current-user";
  * Every query below nests under it, so one
  * `invalidateQueries({ queryKey: USER_MOVIES_KEY })` after any mutation
  * refreshes both the batch status lookups behind the visible badges and the
- * full list — no per-key bookkeeping as more views are added.
+ * full list — no per-key bookkeeping as more views are added. React Query
+ * matches keys by prefix, so that still reaches the per-user keys below.
  */
 export const USER_MOVIES_KEY = ["user-movies"] as const;
 
-const statusKey = (tmdbIds: number[]) =>
-  [...USER_MOVIES_KEY, "status", tmdbIds.join(",")] as const;
+/**
+ * The root key **scoped to one account**, and the only key user-owned data may
+ * be cached under.
+ *
+ * This is a data-isolation control, not a nicety. Without the id, two accounts
+ * used in the same browser share one cache entry: signing out and back in as
+ * someone else leaves the previous user's list sitting under the identical key,
+ * and because the app sets a 60s `staleTime` React Query will serve it without
+ * even refetching. The id makes that structurally impossible — a different user
+ * is a different cache entry, so there is nothing of theirs to read.
+ *
+ * `"anonymous"` is only ever used while signed out, where every query below is
+ * `enabled: false` and nothing is fetched under it.
+ */
+export const userMoviesKey = (userId: number | undefined) =>
+  [...USER_MOVIES_KEY, userId ?? "anonymous"] as const;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -52,14 +67,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * just produce guaranteed 401s.
  */
 export function useMovieStatuses(tmdbIds: number[]) {
-  const { isSignedIn } = useCurrentUser();
+  const { user, isSignedIn } = useCurrentUser();
 
   // Sorted so the key is stable regardless of render order, and deduped so two
   // views showing the same movie share one cache entry.
   const ids = Array.from(new Set(tmdbIds)).sort((a, b) => a - b);
 
   const query = useQuery({
-    queryKey: statusKey(ids),
+    queryKey: [...userMoviesKey(user?.sub), "status", ids.join(",")],
     queryFn: async () => {
       const entries = await request<UserMovieStatusEntry[]>(
         `/user-movies/status?tmdbIds=${ids.join(",")}`,
@@ -77,12 +92,12 @@ export function useMovieStatuses(tmdbIds: number[]) {
   };
 }
 
-/** The caller's whole list. Backs the future "My List" page. */
+/** The caller's whole list. Backs the "My List" page. */
 export function useUserMovies(status?: UserMovieStatus) {
-  const { isSignedIn } = useCurrentUser();
+  const { user, isSignedIn } = useCurrentUser();
 
   return useQuery({
-    queryKey: [...USER_MOVIES_KEY, "list", status ?? "all"],
+    queryKey: [...userMoviesKey(user?.sub), "list", status ?? "all"],
     queryFn: () =>
       request<UserMovie[]>(
         status ? `/user-movies?status=${status}` : "/user-movies",

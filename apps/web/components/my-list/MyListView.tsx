@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
 import {
   IconBookmark,
   IconCircleCheck,
@@ -13,19 +11,20 @@ import {
 import type { UserMovie, UserMovieStatus } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
-import { API_BASE_URL } from "@/lib/api";
-import { DISCOVER_HREF } from "@/lib/constants/discover";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
-  USER_MOVIES_KEY,
   useRemoveUserMovie,
   useUpdateUserMovieStatus,
+  useUserMovies,
 } from "@/hooks/use-user-movies";
 import { MyListCard } from "@/components/my-list/MyListCard";
 import { MyListSortDropdown } from "@/components/my-list/MyListSortDropdown";
+import { SignInRequired } from "@/components/my-list/SignInRequired";
+import { PageHeading } from "@/components/shared/PageHeading";
+import { DISCOVER_HREF, SKELETON_CARD_COUNT } from "@/lib/constants/discover";
 import {
   LIST_SORT_SEARCH_PARAM,
-  MY_LIST_COPY,
   STATUS_SEARCH_PARAM,
   parseListSort,
   parseListTab,
@@ -39,9 +38,22 @@ import {
  * returns the whole list; both tabs, all three stats and the sort are derived
  * from it client-side. Per-status requests would mean two caches to invalidate
  * and a stats bar that can disagree with the tab it sits above.
+ *
+ * Note the entries come from **our** database, not TMDB: the title, poster and
+ * genre were snapshotted in whatever language the user was browsing when they
+ * saved the film. Switching language translates the page's chrome, not those
+ * snapshots — see the user-movies notes in CLAUDE.md.
+ *
+ * **Three states, gated on auth in this order:** still loading → a skeleton;
+ * confirmed signed out → `SignInRequired`; signed in → the list. Reading them
+ * in that order is what stops "unknown" being treated as "signed out", which
+ * would flash the sign-in prompt at someone who is in fact logged in.
  */
 export function MyListView() {
+  const t = useTranslations("myList");
+  const format = useFormatter();
   const router = useRouter();
+  // Locale-free, so the param writes below rebuild a plain `/my-list` path.
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { isSignedIn, isLoading: isAuthLoading } = useCurrentUser();
@@ -52,26 +64,12 @@ export function MyListView() {
   );
 
   /*
-   * No route-level guard exists in this app, so the redirect happens here once
-   * auth resolves. `isAuthLoading` gates it — redirecting on "unknown" would
-   * bounce a signed-in user out on every cold load.
+   * Goes through the shared hook rather than an inline `useQuery`, which is
+   * what it used to be. That inline copy rebuilt the cache key by hand, so it
+   * was a second place the per-user scoping had to be remembered — and exactly
+   * the kind of duplicate that lets one path drift unscoped. One hook, one key.
    */
-  useEffect(() => {
-    if (!isAuthLoading && !isSignedIn) router.replace(DISCOVER_HREF);
-  }, [isAuthLoading, isSignedIn, router]);
-
-  const { data: entries = [], isPending } = useQuery({
-    // The same root key every mutation invalidates.
-    queryKey: [...USER_MOVIES_KEY, "list", "all"],
-    queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/user-movies`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error(`GET /user-movies → ${response.status}`);
-      return (await response.json()) as UserMovie[];
-    },
-    enabled: isSignedIn,
-  });
+  const { data: entries = [], isPending } = useUserMovies();
 
   const updateStatus = useUpdateUserMovieStatus();
   const removeEntry = useRemoveUserMovie();
@@ -86,16 +84,36 @@ export function MyListView() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  if (!isAuthLoading && !isSignedIn) return null;
+  /*
+   * Auth is unresolved, so neither branch below can be trusted yet. A skeleton
+   * of the real layout is the app's established loading treatment (see
+   * `MovieCardSkeleton`) and commits to nothing: it is visibly not content, so
+   * it cannot be mistaken for an empty list or for a sign-in prompt.
+   */
+  if (isAuthLoading) {
+    return (
+      <main className="px-4 py-6 font-mx sm:px-6">
+        <MyListSkeleton />
+      </main>
+    );
+  }
+
+  /*
+   * Confirmed signed out. Nothing else renders — no heading, stats, tabs or
+   * grid — because every one of them would be describing a list this visitor
+   * does not have. Replaces an older silent redirect to Discover.
+   */
+  if (!isSignedIn) {
+    return (
+      <main className="font-mx">
+        <SignInRequired />
+      </main>
+    );
+  }
 
   return (
     <main className="px-4 py-6 font-mx sm:px-6">
-      <h1 className="text-[22px] font-medium text-mx-fg">
-        {MY_LIST_COPY.title}
-      </h1>
-      <p className="mt-1 text-[12px] text-mx-fg-faint">
-        {MY_LIST_COPY.subtitle}
-      </p>
+      <PageHeading title={t("title")} description={t("subtitle")} />
 
       <div className="mt-5 flex flex-wrap gap-3">
         <StatCard
@@ -105,9 +123,11 @@ export function MyListView() {
               stroke={1.75}
             />
           }
-          label={MY_LIST_COPY.statWatchlist}
-          value={String(watchlist.length)}
-          unit={MY_LIST_COPY.statUnit}
+          label={t("statWatchlist")}
+          value={format.number(watchlist.length)}
+          // The unit agrees with the number: Russian needs "фильм /
+          // фильма / фильмов" where English needs two forms.
+          unit={t("statUnit", { count: watchlist.length })}
         />
         <StatCard
           icon={
@@ -116,27 +136,27 @@ export function MyListView() {
               stroke={1.75}
             />
           }
-          label={MY_LIST_COPY.statWatched}
-          value={String(watched.length)}
-          unit={MY_LIST_COPY.statUnit}
+          label={t("statWatched")}
+          value={format.number(watched.length)}
+          unit={t("statUnit", { count: watched.length })}
         />
         <StatCard
           icon={<IconFlame className="size-4 text-mx-accent" stroke={1.75} />}
-          label={MY_LIST_COPY.statTopGenre}
+          label={t("statTopGenre")}
           // Across *both* tabs — a taste signal, not a per-tab figure.
-          value={topGenreOf(entries)}
+          value={topGenreOf(entries) ?? t("noGenre")}
         />
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-4 border-b-[0.5px] border-mx-border-subtle">
         <Tab
-          label={MY_LIST_COPY.tabWatchlist}
+          label={t("tabWatchlist")}
           count={watchlist.length}
           isActive={tab === "watchlist"}
           onClick={() => setParam(STATUS_SEARCH_PARAM, "watchlist")}
         />
         <Tab
-          label={MY_LIST_COPY.tabWatched}
+          label={t("tabWatched")}
           count={watched.length}
           isActive={tab === "watched"}
           onClick={() => setParam(STATUS_SEARCH_PARAM, "watched")}
@@ -154,7 +174,7 @@ export function MyListView() {
         <EmptyState tab={tab} />
       ) : (
         <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {visible.map((entry, index) => (
+          {visible.map((entry) => (
             <li key={entry.tmdbId}>
               <MyListCard
                 entry={entry}
@@ -172,6 +192,49 @@ export function MyListView() {
         </ul>
       )}
     </main>
+  );
+}
+
+/**
+ * Placeholder for the whole page while `/auth/me` is in flight.
+ *
+ * Mirrors the real layout's geometry — heading, three stat cards, a card grid —
+ * so resolving to the signed-in view does not reflow. `animate-pulse` over
+ * `bg-mx-chip` is the same treatment `MovieCardSkeleton` uses.
+ */
+function MyListSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="h-[28px] w-40 animate-pulse rounded-[6px] bg-mx-chip" />
+      <div className="mt-2 h-[13.5px] w-64 animate-pulse rounded-[4px] bg-mx-chip" />
+
+      <div className="mt-5 flex flex-wrap gap-3">
+        {[0, 1, 2].map((index) => (
+          <div
+            key={index}
+            className="min-w-[150px] flex-1 rounded-[10px] border-[0.5px] border-mx-border-subtle bg-mx-card px-[15px] py-[13px]"
+          >
+            <div className="h-4 w-24 animate-pulse rounded-[4px] bg-mx-chip" />
+            <div className="mt-2 h-[24px] w-12 animate-pulse rounded-[4px] bg-mx-chip" />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex gap-4 border-b-[0.5px] border-mx-border-subtle pb-2">
+        <div className="h-[18px] w-28 animate-pulse rounded-[4px] bg-mx-chip" />
+        <div className="h-[18px] w-24 animate-pulse rounded-[4px] bg-mx-chip" />
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
+          <div key={index}>
+            <div className="aspect-[2/3] animate-pulse rounded-[12px] border-[0.5px] border-mx-border-subtle bg-mx-chip" />
+            <div className="mt-2.5 h-[12.5px] w-3/4 animate-pulse rounded-[4px] bg-mx-chip" />
+            <div className="mt-1.5 h-[10.5px] w-1/2 animate-pulse rounded-[4px] bg-mx-chip" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -193,7 +256,7 @@ function StatCard({
         <span className="text-[12.5px] text-mx-fg-subtle">{label}</span>
       </div>
       <p className="mt-1 flex items-baseline gap-1.5">
-        <span className="text-[20px] font-medium text-mx-fg">{value}</span>
+        <span className="text-[24px] font-medium text-mx-fg">{value}</span>
         {unit && <span className="text-[11px] text-mx-page-meta">{unit}</span>}
       </p>
     </div>
@@ -240,6 +303,7 @@ function Tab({
 
 /** Shown per tab — the stats and tabs above it stay, so counts stay readable. */
 function EmptyState({ tab }: { tab: UserMovieStatus }) {
+  const t = useTranslations("myList");
   const isWatchlist = tab === "watchlist";
 
   return (
@@ -256,14 +320,10 @@ function EmptyState({ tab }: { tab: UserMovieStatus }) {
       </span>
 
       <h2 className="mt-5 text-[15px] font-medium text-mx-fg">
-        {isWatchlist
-          ? MY_LIST_COPY.emptyWatchlistTitle
-          : MY_LIST_COPY.emptyWatchedTitle}
+        {isWatchlist ? t("emptyWatchlistTitle") : t("emptyWatchedTitle")}
       </h2>
       <p className="mt-2 max-w-[300px] text-[12.5px] leading-[1.6] text-mx-fg-subtle">
-        {isWatchlist
-          ? MY_LIST_COPY.emptyWatchlistBody
-          : MY_LIST_COPY.emptyWatchedBody}
+        {isWatchlist ? t("emptyWatchlistBody") : t("emptyWatchedBody")}
       </p>
 
       <Link
@@ -271,7 +331,7 @@ function EmptyState({ tab }: { tab: UserMovieStatus }) {
         className="mt-6 inline-flex items-center gap-2 rounded-[8px] bg-mx-accent px-5 py-[9px] text-[12px] font-medium text-mx-on-accent outline-none transition-colors hover:bg-mx-accent-hover"
       >
         <IconCompass className="size-4" stroke={1.75} aria-hidden="true" />
-        {MY_LIST_COPY.browseMovies}
+        {t("browseMovies")}
       </Link>
     </div>
   );
@@ -306,8 +366,12 @@ function sortEntries(entries: UserMovie[], sort: ListSortId): UserMovie[] {
   }
 }
 
-/** Most frequent `primaryGenre` across every entry, or a dash. */
-function topGenreOf(entries: UserMovie[]): string {
+/**
+ * Most frequent `primaryGenre` across every entry, or `null` when nothing saved
+ * carries one — the caller substitutes the dash, so the placeholder stays a
+ * message rather than a literal in here.
+ */
+function topGenreOf(entries: UserMovie[]): string | null {
   const tally = new Map<string, number>();
 
   for (const entry of entries) {
@@ -324,7 +388,7 @@ function topGenreOf(entries: UserMovie[]): string {
     }
   }
 
-  return best ?? MY_LIST_COPY.noGenre;
+  return best;
 }
 
 export default MyListView;

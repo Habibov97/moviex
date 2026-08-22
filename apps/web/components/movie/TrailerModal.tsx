@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { IconX } from "@tabler/icons-react";
 import type { MovieTrailer } from "@moviex/shared-types";
-
-import { DETAIL_COPY } from "@/lib/constants/discover";
 
 /**
  * YouTube player in a modal. Same conventions as `LoginRegisterModal`: Escape
@@ -19,6 +18,8 @@ export function TrailerModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  const t = useTranslations("detail");
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -53,7 +54,7 @@ export function TrailerModal({
         <button
           type="button"
           onClick={onClose}
-          aria-label={DETAIL_COPY.closeTrailer}
+          aria-label={t("closeTrailer")}
           className="absolute -top-10 right-0 flex size-8 items-center justify-center rounded-full bg-mx-hero-pill text-mx-poster-fg outline-none transition-colors hover:bg-mx-accent focus-visible:bg-mx-accent"
         >
           <IconX className="size-4" stroke={1.75} />

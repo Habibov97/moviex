@@ -1,19 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import type { Genre, MovieSortId } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { YearFilterPopover } from "@/components/discover/YearFilterPopover";
 import { RatingFilterPopover } from "@/components/discover/RatingFilterPopover";
 import { SortDropdown } from "@/components/discover/SortDropdown";
 import { ViewToggle } from "@/components/discover/ViewToggle";
+import { PageHeading } from "@/components/shared/PageHeading";
 import {
-  ALL_GENRE_LABEL,
   DEFAULT_VIEW_MODE,
-  DISCOVER_COPY,
-  DISCOVER_LOCALE,
   GENRE_SEARCH_PARAM,
   PAGE_SEARCH_PARAM,
   VISIBLE_GENRE_COUNT,
@@ -29,9 +29,10 @@ const chipBase =
 
 export type DiscoverHeroProps = {
   /**
-   * The live TMDB genre list, fetched server-side. No default value: there is
-   * no hard-coded genre list to fall back to, and an empty array simply renders
-   * the "All" chip on its own.
+   * The live TMDB genre list, fetched server-side **in the active locale** —
+   * genre names are catalogue data, translated by TMDB rather than by our
+   * message files. No default value: there is no hard-coded genre list to fall
+   * back to, and an empty array simply renders the "All" chip on its own.
    */
   genres: Genre[];
   /**
@@ -64,7 +65,10 @@ export function DiscoverHero({
   onViewModeChange,
   className,
 }: DiscoverHeroProps) {
+  const t = useTranslations("discover");
   const router = useRouter();
+  // Locale-free (`/`), so the pushes below rebuild a plain path and the
+  // navigation helper re-adds the prefix.
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -118,10 +122,6 @@ export function DiscoverHero({
     onViewModeChange?.(next);
   };
 
-  const formattedCount = new Intl.NumberFormat(DISCOVER_LOCALE).format(
-    resultCount,
-  );
-
   return (
     <section
       aria-labelledby="discover-title"
@@ -130,30 +130,30 @@ export function DiscoverHero({
         className,
       )}
     >
-      <h1
+      <PageHeading
         id="discover-title"
-        className="text-2xl font-semibold tracking-tight text-mx-fg"
-      >
-        {DISCOVER_COPY.title}
-      </h1>
-
-      <div className="mt-1 flex items-baseline gap-4">
-        <p className="min-w-0 flex-1 text-[14px] text-mx-fg-subtle">
-          {DISCOVER_COPY.subtitle}
-        </p>
-        <span className="shrink-0 text-[13px] whitespace-nowrap text-mx-fg-faint">
-          {DISCOVER_COPY.results(formattedCount)}
-        </span>
-      </div>
+        title={t("title")}
+        description={t("subtitle")}
+        aside={
+          /*
+            The count goes through ICU as `{count, plural, …}`, so `#` is
+            grouped for the active locale and the noun agrees with it — Russian
+            needs three forms where English needs two.
+          */
+          <span className="shrink-0 text-[13px] whitespace-nowrap text-mx-fg-faint">
+            {t("results", { count: resultCount })}
+          </span>
+        }
+      />
 
       <div
         role="group"
-        aria-label={DISCOVER_COPY.categoriesLabel}
+        aria-label={t("genresLabel")}
         className="mt-4 flex flex-wrap items-center gap-2"
       >
         {/* Not a TMDB genre — it clears the filter rather than applying one. */}
         <GenreChip
-          label={ALL_GENRE_LABEL}
+          label={t("allGenres")}
           isSelected={selectedGenreId === null}
           onClick={() => selectGenre(null)}
         />
@@ -173,8 +173,8 @@ export function DiscoverHero({
             aria-expanded={isExpanded}
             aria-label={
               isExpanded
-                ? DISCOVER_COPY.showLess
-                : DISCOVER_COPY.showMoreLabel(hiddenCount)
+                ? t("showLess")
+                : t("showMoreLabel", { count: hiddenCount })
             }
             onClick={() => setIsExpanded((current) => !current)}
             className={cn(
@@ -183,8 +183,8 @@ export function DiscoverHero({
             )}
           >
             {isExpanded
-              ? DISCOVER_COPY.showLess
-              : DISCOVER_COPY.showMore(hiddenCount)}
+              ? t("showLess")
+              : t("showMore", { count: hiddenCount })}
           </button>
         )}
       </div>
@@ -197,7 +197,7 @@ export function DiscoverHero({
         id={FILTERS_HEADING_ID}
         className="mt-5 text-[12px] font-medium text-mx-fg-subtle"
       >
-        {DISCOVER_COPY.filtersLabel}
+        {t("filtersLabel")}
       </h2>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">

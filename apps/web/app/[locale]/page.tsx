@@ -1,4 +1,6 @@
 import { Suspense } from 'react';
+import { setRequestLocale } from 'next-intl/server';
+import type { Locale } from '@moviex/shared-types';
 
 import { DiscoverSection } from '@/components/discover/DiscoverSection';
 import { Pagination } from '@/components/discover/Pagination';
@@ -21,7 +23,8 @@ import {
 } from '@/lib/constants/discover';
 
 type HomeProps = {
-  /** Next 15+ hands search params to the page as a promise. */
+  /** Next 15+ hands params and search params to the page as promises. */
+  params: Promise<{ locale: Locale }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
@@ -30,7 +33,10 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function Home({ searchParams }: HomeProps) {
+export default async function Home({ params: routeParams, searchParams }: HomeProps) {
+  const { locale } = await routeParams;
+  setRequestLocale(locale);
+
   const params = await searchParams;
 
   const selectedGenreId = parseGenreParam(first(params[GENRE_SEARCH_PARAM]));
@@ -62,13 +68,16 @@ export default async function Home({ searchParams }: HomeProps) {
   /*
    * Two different caching stories on purpose (see lib/api.ts): genres are
    * cached for 24h and degrade to an empty list, while discover results are
-   * uncached per filter combination and throw on failure.
+   * uncached per filter combination and throw on failure. Both are keyed by
+   * `locale`, so switching language re-fetches rather than reusing the other
+   * language's copy.
    *
    * Fetched in parallel — the genre list does not gate the results.
    */
   const [genres, discover] = await Promise.all([
-    getGenres(),
+    getGenres(locale),
     getDiscoverMovies({
+      locale,
       genreId: selectedGenreId,
       page,
       yearFrom: isFullYearRange ? null : yearFrom,

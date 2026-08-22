@@ -1,7 +1,8 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { PAGE_SEARCH_PARAM } from "@/lib/constants/discover";
 
 /**
@@ -14,6 +15,10 @@ import { PAGE_SEARCH_PARAM } from "@/lib/constants/discover";
  *
  * Always resets `page`: the old page number is meaningless against a different
  * result set, and a narrower filter may not even have that many pages.
+ *
+ * `usePathname` / `useRouter` come from `@/i18n/navigation`: the pathname
+ * arrives locale-free, and the push re-adds the active prefix — so applying a
+ * filter never drops the user back into the default language.
  */
 export function useApplyFilters() {
   const router = useRouter();

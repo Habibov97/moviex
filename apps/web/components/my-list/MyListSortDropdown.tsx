@@ -1,12 +1,13 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { IconArrowsSort, IconCheck } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { FilterPopover } from "@/components/discover/FilterPopover";
 import {
-  LIST_SORT_OPTIONS,
   DEFAULT_LIST_SORT,
+  LIST_SORT_OPTIONS,
   type ListSortId,
 } from "@/lib/constants/my-list";
 
@@ -25,30 +26,28 @@ export function MyListSortDropdown({
   sort: ListSortId;
   onChange: (sort: ListSortId) => void;
 }) {
-  const label =
-    LIST_SORT_OPTIONS.find((option) => option.id === sort)?.label ??
-    LIST_SORT_OPTIONS[0]!.label;
+  const t = useTranslations("myList");
 
   return (
     <FilterPopover
-      label={label}
+      label={t(`sort.${sort}`)}
       icon={<IconArrowsSort className="size-3.5" stroke={1.75} />}
       isActive={sort !== DEFAULT_LIST_SORT}
       panelClassName="w-[200px] p-1.5"
     >
       {(close) => (
-        <div role="menu" aria-label={label}>
+        <div role="menu" aria-label={t(`sort.${sort}`)}>
           {LIST_SORT_OPTIONS.map((option) => {
-            const isSelected = option.id === sort;
+            const isSelected = option === sort;
 
             return (
               <button
-                key={option.id}
+                key={option}
                 type="button"
                 role="menuitemradio"
                 aria-checked={isSelected}
                 onClick={() => {
-                  onChange(option.id);
+                  onChange(option);
                   close();
                 }}
                 className={cn(
@@ -58,7 +57,7 @@ export function MyListSortDropdown({
                     : "text-mx-fg-muted hover:bg-mx-field hover:text-mx-fg",
                 )}
               >
-                {option.label}
+                {t(`sort.${option}`)}
                 {isSelected && (
                   <IconCheck
                     className="ml-auto size-3.5 shrink-0 text-mx-accent"

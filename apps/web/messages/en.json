@@ -1,0 +1,249 @@
+{
+  "meta": {
+    "title": "MovieX",
+    "description": "Track what you want to watch and mark what you have seen."
+  },
+
+  "nav": {
+    "discover": "Discover",
+    "myList": "My list",
+    "home": "MovieX home",
+    "mainMenu": "Main menu",
+    "mobileMenu": "Mobile menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "toggleTheme": "Toggle light and dark mode"
+  },
+
+  "language": {
+    "label": "Change language",
+    "menuLabel": "Language"
+  },
+
+  "discover": {
+    "title": "Discover",
+    "subtitle": "Browse popular movies, add them to your list, mark what you have seen",
+    "genresLabel": "Genres",
+    "filtersLabel": "Filters",
+    "allGenres": "All",
+    "results": "{count, plural, one {# result} other {# results}}",
+    "showMore": "+{count}",
+    "showMoreLabel": "{count, plural, one {Show # more genre} other {Show # more genres}}",
+    "showLess": "Show less",
+
+    "yearRange": "{from} – {to}",
+    "yearTitle": "Release year",
+    "yearSubtitle": "Pick a range between {from} and {to}",
+    "yearFromLabel": "From year",
+    "yearToLabel": "To year",
+    "yearSeparator": "to",
+    "presetThisYear": "This year",
+    "presetLast5": "Last 5 years",
+    "presetLast10": "Last 10 years",
+    "presetClassics": "Classics",
+
+    "ratingChip": "Rating",
+    "ratingChipValue": "{value}+",
+    "ratingTitle": "Minimum rating",
+    "ratingSubtitle": "Show movies rated at least this high",
+    "anyRating": "Any rating",
+
+    "reset": "Reset",
+    "apply": "Apply",
+
+    "sortLabel": "Sort",
+    "sort": {
+      "popularity": "Most popular",
+      "rating": "Highest rated",
+      "newest": "Newest first",
+      "oldest": "Oldest first"
+    },
+
+    "viewLabel": "View",
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    },
+
+    "gridLabel": "Movies",
+    "listLabel": "Movie list",
+    "loading": "Loading movies",
+    "empty": "No movies found for this filter",
+
+    "add": "Add",
+    "addLabel": "Add {title} to your list",
+    "markWatched": "Watched",
+    "markWatchedLabel": "Mark {title} as watched",
+    "tagWatched": "Watched",
+    "tagListed": "In list",
+
+    "notRated": "—",
+    "ratingLabel": "Rated {value} out of 10",
+    "notRatedLabel": "Not yet rated",
+
+    "paginationLabel": "Pagination",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "goToPage": "Go to page {page}",
+    "pageSummary": "Page {page} of {totalPages} — {count, plural, one {# result} other {# results}}"
+  },
+
+  "detail": {
+    "back": "Back",
+    "watchTrailer": "Watch trailer",
+    "closeTrailer": "Close trailer",
+    "addToList": "Add to list",
+    "inYourList": "In your list",
+    "removeFromList": "Remove from your list",
+    "markWatched": "Mark as watched",
+    "watched": "Watched",
+    "moveBackToList": "Move back to list",
+    "share": "Copy link to this movie",
+    "shareCopied": "Link copied",
+    "overview": "Overview",
+    "noOverview": "No overview available",
+    "topCast": "Top cast",
+    "viewAll": "View all",
+    "viewFewer": "View fewer",
+    "details": "Details",
+    "director": "Director",
+    "releaseDate": "Release date",
+    "runtime": "Runtime",
+    "originalLanguage": "Original language",
+    "status": "Status",
+    "originalTitle": "Original title",
+    "ratingScale": "/10",
+    "watchedOn": "Watched {date}",
+    "runtimeShortHours": "{hours}h {minutes}m",
+    "runtimeShortMinutes": "{minutes}m",
+    "runtimeLong": "{count, plural, one {# minute} other {# minutes}}"
+  },
+
+  "search": {
+    "placeholder": "Search movies…",
+    "label": "Search movies",
+    "close": "Close search",
+    "typeaheadSection": "Movies",
+    "typeaheadNoResults": "No results",
+    "typeaheadSearching": "Searching…",
+    "seeAllResults": "{count, plural, one {See # result} other {See all # results}}",
+    "hintNavigate": "navigate",
+    "hintOpen": "open",
+    "resultsFor": "Search results for",
+    "clear": "Clear search",
+    "moviesFound": "{count, plural, one {# movie found} other {# movies found}}",
+    "sortedByRelevance": "Sorted by relevance",
+    "emptyTitle": "No movies found",
+    "emptyBody": "Nothing matched that search. Try checking the spelling, using fewer words, or searching the original title.",
+    "browsePopular": "Browse popular",
+    "popularRightNow": "Popular right now"
+  },
+
+  "myList": {
+    "title": "My list",
+    "subtitle": "Everything you've saved and seen",
+    "statWatchlist": "Watchlist",
+    "statWatched": "Watched",
+    "statTopGenre": "Top genre",
+    "statUnit": "{count, plural, one {movie} other {movies}}",
+    "noGenre": "—",
+    "tabWatchlist": "Watchlist",
+    "tabWatched": "Watched",
+    "addedOn": "Added {date}",
+    "watchedOn": "Watched {date}",
+    "markWatched": "Watched",
+    "remove": "Remove",
+    "moreActions": "More actions",
+    "emptyWatchlistTitle": "Your watchlist is empty",
+    "emptyWatchlistBody": "Movies you save will show up here. Start exploring to find something to watch.",
+    "emptyWatchedTitle": "You haven't marked anything watched yet",
+    "emptyWatchedBody": "Once you mark a movie as watched it will show up here, with the date you saw it.",
+    "signInTitle": "Sign in to see your list",
+    "signInBody": "Your watchlist and watched movies are saved to your account. Sign in to view them.",
+    "noAccount": "No account?",
+    "browseMovies": "Browse movies",
+    "sort": {
+      "recent": "Recently added",
+      "title": "Title A–Z",
+      "year": "Release year",
+      "rating": "Rating"
+    }
+  },
+
+  "footer": {
+    "tagline": "Track what you want to watch, mark what you have seen, and grow your collection.",
+    "navLabel": "Footer",
+    "copyright": "© {year} MovieX",
+    "author": "Created by Najaf Habibov",
+    "attribution": "Movie data provided by TMDB",
+    "columnProduct": "Product",
+    "columnAbout": "About",
+    "discover": "Discover",
+    "myList": "My list",
+    "statistics": "Statistics",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "contact": "Contact"
+  },
+
+  "errors": {
+    "discoverTitle": "Couldn't load movies",
+    "searchTitle": "Couldn't load search results",
+    "movieTitle": "Couldn't load this movie",
+    "body": "Something went wrong while reaching our servers. Check your connection and try again.",
+    "tryAgain": "Try again"
+  },
+
+  "auth": {
+    "signInOrCreate": "Sign in or create an account",
+    "logOut": "Log out",
+    "loggingOut": "Logging out…",
+
+    "welcomeBack": "Welcome back",
+    "welcomeBackSubtitle": "Sign in to pick up where you left off",
+    "createAccountTitle": "Create an account",
+    "createAccountSubtitle": "Start building your movie collection",
+
+    "nameLabel": "Name",
+    "namePlaceholder": "Najaf",
+    "emailLabel": "Email",
+    "emailPlaceholder": "najaf@example.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "••••••••",
+    "confirmPasswordLabel": "Confirm password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "createAccount": "Create account",
+    "creatingAccount": "Creating account…",
+    "termsNotice": "By continuing you agree to the terms",
+    "or": "or",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign up",
+    "haveAccount": "Already have an account?",
+
+    "strengthWeak": "Weak",
+    "strengthMedium": "Medium",
+    "strengthStrong": "Strong",
+
+    "invalidCredentials": "Invalid email or password",
+    "emailTaken": "That email is already registered — sign in instead",
+    "networkError": "Couldn't reach our servers. Check your connection and try again.",
+    "genericError": "Something went wrong, please try again",
+    "accountCreated": "Account created — sign in below",
+
+    "validation": {
+      "nameTooShort": "Name must be at least {min, plural, one {# character} other {# characters}}",
+      "nameTooLong": "Name must be {max, plural, one {# character} other {# characters}} or fewer",
+      "emailRequired": "Enter your email address",
+      "emailInvalid": "Enter a valid email address",
+      "passwordTooShort": "Password must be at least {min, plural, one {# character} other {# characters}}",
+      "confirmRequired": "Re-enter your password",
+      "passwordsDoNotMatch": "Passwords do not match"
+    }
+  }
+}

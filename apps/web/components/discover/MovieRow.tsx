@@ -1,23 +1,30 @@
 "use client";
 
-import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import type { MovieSummary, MovieUserState } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { Link } from "@/i18n/navigation";
 import { StatusTag } from "@/components/discover/StatusTag";
 import { posterTone } from "@/lib/poster-tone";
-import { DISCOVER_COPY, movieHref } from "@/lib/constants/discover";
+import {
+  RATING_NUMBER_FORMAT,
+  movieHref,
+  movieMeta,
+  rankLabel,
+} from "@/lib/constants/discover";
 
 type RowAction = {
-  label: string;
-  ariaLabel: (title: string) => string;
+  /** Key under the `discover` namespace, not a label. */
+  labelKey: string;
+  ariaLabelKey: string;
   className: string;
 };
 
-/** Adds the film to Listem. The accent-filled call to action. */
+/** Adds the film to the watchlist. The accent-filled call to action. */
 const ADD_ACTION: RowAction = {
-  label: DISCOVER_COPY.add,
-  ariaLabel: DISCOVER_COPY.addLabel,
+  labelKey: "add",
+  ariaLabelKey: "addLabel",
   className:
     "border-transparent bg-mx-accent text-mx-on-accent hover:bg-mx-accent-hover",
 };
@@ -34,8 +41,8 @@ const ROW_ACTIONS = {
   none: ADD_ACTION,
   watched: ADD_ACTION,
   watchlist: {
-    label: DISCOVER_COPY.markWatched,
-    ariaLabel: DISCOVER_COPY.markWatchedLabel,
+    labelKey: "markWatched",
+    ariaLabelKey: "markWatchedLabel",
     className:
       "border-mx-border bg-transparent text-mx-fg-muted hover:text-mx-fg",
   },
@@ -53,7 +60,7 @@ export type MovieRowProps = {
   /** 1-based; rendered zero-padded as the row's rank. */
   position: number;
   /**
-   * Resolved from the category list by the caller — the row never owns a genre
+   * Resolved from the genre list by the caller — the row never owns a genre
    * label of its own.
    */
   genreLabel?: string;
@@ -72,9 +79,15 @@ export function MovieRow({
   onAction,
   className,
 }: MovieRowProps) {
+  const t = useTranslations("discover");
+  const format = useFormatter();
+
   const action = ROW_ACTIONS[movie.userState ?? "none"];
-  // `null` for a title TMDB has no score for — see DISCOVER_COPY.rating.
-  const formattedRating = DISCOVER_COPY.rating(movie.rating);
+  // `null` for a title TMDB has no score for — see MovieCard.
+  const formattedRating =
+    movie.rating === null
+      ? null
+      : format.number(movie.rating, RATING_NUMBER_FORMAT);
   // No runtime: TMDB's discover endpoint doesn't return it, so the meta line
   // is just "year · genre" until a details call fills it in.
 
@@ -101,7 +114,7 @@ export function MovieRow({
         aria-hidden="true"
         className="hidden w-7 shrink-0 text-[13px] text-mx-fg-faint tabular-nums sm:block"
       >
-        {DISCOVER_COPY.rank(position)}
+        {rankLabel(position)}
       </span>
 
       <div className={cn(posterBase, "relative", posterTone(toneIndex))}>
@@ -132,7 +145,7 @@ export function MovieRow({
           </div>
 
           <p className="mt-1 text-[13px] text-mx-fg-faint">
-            {DISCOVER_COPY.movieMetaLong(movie.releaseYear, genreLabel)}
+            {movieMeta(movie.releaseYear, genreLabel)}
           </p>
 
           {movie.overview && (
@@ -153,9 +166,13 @@ export function MovieRow({
               "text-[16px] font-semibold tabular-nums",
               formattedRating === null ? "text-mx-fg-faint" : "text-mx-fg",
             )}
-            aria-label={DISCOVER_COPY.ratingLabel(movie.rating)}
+            aria-label={
+              formattedRating === null
+                ? t("notRatedLabel")
+                : t("ratingLabel", { value: formattedRating })
+            }
           >
-            {formattedRating ?? DISCOVER_COPY.notRated}
+            {formattedRating ?? t("notRated")}
           </span>
 
           <button
@@ -165,14 +182,14 @@ export function MovieRow({
               event.stopPropagation();
               onAction?.(movie);
             }}
-            aria-label={action.ariaLabel(movie.title)}
+            aria-label={t(action.ariaLabelKey, { title: movie.title })}
             className={cn(
               "relative z-10 inline-flex h-10 items-center justify-center rounded-[10px] border-[0.5px] text-[14px] font-medium outline-none transition-colors focus-visible:border-mx-accent",
               actionWidth,
               action.className,
             )}
           >
-            {action.label}
+            {t(action.labelKey)}
           </button>
         </div>
       </div>

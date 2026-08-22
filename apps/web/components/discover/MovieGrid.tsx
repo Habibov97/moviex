@@ -1,13 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { Genre, MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { MovieCard, MovieCardSkeleton } from "@/components/discover/MovieCard";
-import {
-  DISCOVER_COPY,
-  SKELETON_CARD_COUNT,
-} from "@/lib/constants/discover";
+import { SKELETON_CARD_COUNT } from "@/lib/constants/discover";
 
 export type MovieGridProps = {
   /** A page of results from `GET /tmdb/discover`, fetched by the page. */
@@ -29,6 +27,7 @@ export function MovieGrid({
   onAddMovie,
   className,
 }: MovieGridProps) {
+  const t = useTranslations("discover");
   const genreNames = new Map(genres.map((genre) => [genre.id, genre.name]));
 
   /**
@@ -41,7 +40,7 @@ export function MovieGrid({
 
   return (
     <section
-      aria-label={DISCOVER_COPY.gridLabel}
+      aria-label={t("gridLabel")}
       aria-busy={isLoading || undefined}
       className={cn(
         "w-full border-b-[0.5px] border-mx-border-subtle bg-mx-bg px-4 py-6 font-mx sm:px-6",
@@ -53,11 +52,11 @@ export function MovieGrid({
           {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
             <MovieCardSkeleton key={index} toneIndex={index} />
           ))}
-          <span className="sr-only">{DISCOVER_COPY.loading}</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : movies.length === 0 ? (
         <p className="py-10 text-center text-[14px] text-mx-fg-subtle">
-          {DISCOVER_COPY.empty}
+          {t("empty")}
         </p>
       ) : (
         <ul className={GRID_CLASSNAME}>
