@@ -162,19 +162,9 @@
   },
 
   "footer": {
-    "tagline": "İzlemek istediklerinizi takip edin, izlediklerinizi işaretleyin ve koleksiyonunuzu büyütün.",
-    "navLabel": "Alt bilgi",
-    "copyright": "© {year} MovieX",
     "author": "Najaf Habibov tarafından yapıldı",
-    "attribution": "Film verileri TMDB tarafından sağlanmaktadır",
-    "columnProduct": "Ürün",
-    "columnAbout": "Hakkında",
-    "discover": "Keşfet",
-    "myList": "Listem",
-    "statistics": "İstatistikler",
-    "privacy": "Gizlilik",
-    "terms": "Şartlar",
-    "contact": "İletişim"
+    "copyright": "© {year} MovieX",
+    "attribution": "Film verileri TMDB tarafından sağlanmaktadır"
   },
 
   "errors": {

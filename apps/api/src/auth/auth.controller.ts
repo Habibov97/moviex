@@ -9,8 +9,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
+import {
+  EMAIL_DISPATCH_LIMIT,
+  LOGIN_LIMIT,
+  SIGNUP_LIMIT,
+  THROTTLE_WINDOW_MS,
+} from '../throttle.constants';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -65,11 +72,46 @@ const CHALLENGE_RESPONSE_SCHEMA = {
   },
 } as const;
 
+/**
+ * Per-route rate limits, tightening the global 100/minute default from
+ * `throttle.constants.ts`. Each is a full override of the `default` throttler
+ * for that handler, keyed per route per IP, so these budgets are independent of
+ * one another and of the rest of the API.
+ *
+ * The endpoint-specific reasoning lives beside each constant; what matters here
+ * is that they are named rather than inlined, so the policy is readable in one
+ * place instead of scattered across decorator literals.
+ */
+const throttleLogin = Throttle({
+  default: { limit: LOGIN_LIMIT, ttl: THROTTLE_WINDOW_MS },
+});
+const throttleSignup = Throttle({
+  default: { limit: SIGNUP_LIMIT, ttl: THROTTLE_WINDOW_MS },
+});
+const throttleEmailDispatch = Throttle({
+  default: { limit: EMAIL_DISPATCH_LIMIT, ttl: THROTTLE_WINDOW_MS },
+});
+
+/**
+ * Documented on every throttled route, because the body is the throttler's own
+ * and not one of ours: `{ statusCode: 429, message: 'ThrottlerException: Too
+ * Many Requests' }`. Deliberately left as-is — it names no account, echoes no
+ * input and carries no `code`, so there is nothing in it to leak.
+ */
+const THROTTLED_RESPONSE = {
+  status: 429,
+  description:
+    'IP rate limit exceeded. The body is the throttler’s generic message with ' +
+    'no `code` field — distinguishable from this module’s own 429s, which ' +
+    'always carry one.',
+} as const;
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('signup')
+  @throttleSignup
   @ApiOperation({
     summary: 'Create an account',
     description:
@@ -86,6 +128,7 @@ export class AuthController {
     schema: CHALLENGE_RESPONSE_SCHEMA,
   })
   @ApiResponse({ status: 404, description: 'Email or username already taken.' })
+  @ApiResponse(THROTTLED_RESPONSE)
   signUp(@Body() dto: RegisterDto) {
     return this.authService.signUp(dto);
   }
@@ -128,6 +171,7 @@ export class AuthController {
 
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
+  @throttleEmailDispatch
   @ApiOperation({
     summary: 'Send a fresh verification code',
     description:
@@ -145,8 +189,9 @@ export class AuthController {
   @ApiResponse({
     status: 429,
     description:
-      'Still inside the cooldown — `code: "OTP_RESEND_COOLDOWN"` with ' +
-      '`retryAfterSeconds`.',
+      'Two different limits answer here. The per-account cooldown carries ' +
+      '`code: "OTP_RESEND_COOLDOWN"` and `retryAfterSeconds`; the per-IP rate ' +
+      'limit carries neither. Branch on `code`, not on the status.',
   })
   resendOtp(@Body() dto: ResendOtpDto) {
     return this.authService.resendOtp(dto);
@@ -154,6 +199,7 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @throttleEmailDispatch
   @ApiOperation({
     summary: 'Start a password reset',
     description:
@@ -184,6 +230,15 @@ export class AuthController {
         },
       },
     },
+  })
+  @ApiResponse({
+    status: 429,
+    description:
+      'Per-IP rate limit. This does **not** weaken the non-disclosure above: ' +
+      'the limit is counted per caller address, never per submitted email, so ' +
+      'the answer to any given address is still identical whether or not it ' +
+      'has an account. (The per-account cooldown deliberately stays silent ' +
+      'here and returns 200 — a 429 for *that* would confirm the account.)',
   })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
@@ -264,6 +319,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @throttleLogin
   @ApiOperation({
     summary: 'Sign in',
     description:
@@ -286,6 +342,7 @@ export class AuthController {
       '"EMAIL_NOT_VERIFIED"`. Distinct from 401 on purpose: the client sends ' +
       'this user to the OTP screen rather than telling them the password was wrong.',
   })
+  @ApiResponse(THROTTLED_RESPONSE)
   async login(
     @Body() dto: LoginDto,
     // passthrough: Nest still serialises the returned object; we only reach for

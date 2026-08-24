@@ -39,7 +39,7 @@ export function SearchResults({
   const [viewMode, setViewMode] = useState<ViewModeId>(DEFAULT_VIEW_MODE);
 
   // Identical gate to Discover and the detail page — same hook, same TODO.
-  const { runCardAction, authModal } = useLibraryActions({ genres });
+  const { runCardAction, authModal } = useLibraryActions();
 
   /*
    * One batch lookup for every movie on screen, not one per card. Mutations

@@ -162,19 +162,9 @@
   },
 
   "footer": {
-    "tagline": "Отмечайте, что хотите посмотреть и что уже посмотрели, и пополняйте свою коллекцию.",
-    "navLabel": "Нижнее меню",
-    "copyright": "© {year} MovieX",
     "author": "Создано Najaf Habibov",
-    "attribution": "Данные о фильмах предоставлены TMDB",
-    "columnProduct": "Продукт",
-    "columnAbout": "О сервисе",
-    "discover": "Обзор",
-    "myList": "Мой список",
-    "statistics": "Статистика",
-    "privacy": "Конфиденциальность",
-    "terms": "Условия",
-    "contact": "Контакты"
+    "copyright": "© {year} MovieX",
+    "attribution": "Данные о фильмах предоставлены TMDB"
   },
 
   "errors": {

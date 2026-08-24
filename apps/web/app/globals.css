@@ -93,6 +93,7 @@
   --font-mx: var(--mx-font);
   --color-mx-bg: var(--mx-bg);
   --color-mx-nav: var(--mx-nav);
+  --color-mx-footer: var(--mx-footer);
   --color-mx-card: var(--mx-card);
   --color-mx-field: var(--mx-field);
   --color-mx-field-raised: var(--mx-field-raised);
@@ -106,6 +107,8 @@
   --color-mx-fg-faint: var(--mx-fg-faint);
   --color-mx-accent: var(--mx-accent);
   --color-mx-accent-hover: var(--mx-accent-hover);
+  --color-mx-accent-deep: var(--mx-accent-deep);
+  --color-mx-logo-surface: var(--mx-logo-surface);
   --color-mx-on-accent: var(--mx-on-accent);
   --color-mx-avatar: var(--mx-avatar);
   --color-mx-avatar-hover: var(--mx-avatar-hover);
@@ -216,6 +219,9 @@
     Arial, sans-serif;
   --mx-bg: #ffffff;
   --mx-nav: #ffffff;
+  /* The footer sits a shade *behind* the page rather than level with the nav —
+     see the dark value, which is the one the design was drawn in. */
+  --mx-footer: #fafafa;
   --mx-card: #ffffff;
   --mx-field: #f4f4f5;
   --mx-field-raised: #f4f4f5;
@@ -231,6 +237,15 @@
   --mx-fg-faint: #a1a1aa;
   --mx-accent: #e24b4a;
   --mx-accent-hover: #c93f3e;
+  /* Brand mark only — see `components/shared/LogoMark.tsx`.
+     `accent-deep` is the darker red of the logo's right-hand triangle; it is a
+     *shading* value, not an interaction state, so it is distinct from
+     `accent-hover` (#c93f3e) and must not be substituted for it.
+     Both live on `:root` with no `.dark` override, like `--mx-accent` above: a
+     brand mark is the same colour in both themes, and the dark tile is part of
+     the logo rather than a surface that should follow the page. */
+  --mx-accent-deep: #a13230;
+  --mx-logo-surface: #17171b;
   --mx-on-accent: #2c0808;
   --mx-avatar: #f4f4f5;
   --mx-avatar-hover: #e4e4e7;
@@ -329,6 +344,11 @@
   /* MovieX — dark (the values measured off the design references) */
   --mx-bg: #09090b;
   --mx-nav: #0e0e10;
+  /* A hair darker than `--mx-bg`, so the footer reads as recessed rather than
+     as another raised bar like the navbar. Its own token because no existing
+     one carries this value, and a literal hex would leave the footer near-black
+     in the light theme. */
+  --mx-footer: #08080a;
   --mx-card: #131316;
   --mx-field: #0e0e11;
   --mx-field-raised: #17171b;

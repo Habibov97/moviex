@@ -16,9 +16,10 @@ import {
   NAME_MIN_LENGTH,
   OTP_CODE_LENGTH,
   PASSWORD_MIN_LENGTH,
+  PASSWORD_SPECIAL_PATTERN,
+  PASSWORD_UPPERCASE_PATTERN,
   forgotPasswordSchema,
   loginSchema,
-  passwordSchema,
   registerSchema,
   resetPasswordFormSchema,
 } from "@moviex/shared-types";
@@ -28,6 +29,7 @@ import type {
 } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { LogoMark } from "@/components/shared/LogoMark";
 import {
   AuthError,
   isChallenge,
@@ -120,8 +122,30 @@ function emptyDigits(): string[] {
  * ignores parameters a message does not use, so there is no per-key table to
  * keep in step with the schema.
  */
-/** Length at which a password earns a point beyond the required minimum. */
+/**
+ * Strength-meter tuning. **Display only** — none of this decides whether a
+ * password may be submitted; `passwordSchema` alone does that.
+ *
+ * Six criteria, one point each (see `getPasswordStrength`). The two bucket
+ * boundaries are the knobs: raise `STRONG_MIN_POINTS` to 6 if valid passwords
+ * reach "strong" too readily, since 6 can only be earned by a 12+ character
+ * password carrying all four character classes.
+ */
+/** Length earning the second of the two length points. */
 const STRONG_PASSWORD_LENGTH = 12;
+const MEDIUM_MIN_POINTS = 3;
+const STRONG_MIN_POINTS = 5;
+
+/*
+ * Lowercase and digit are meter-only heuristics — neither is a rule in
+ * `passwordSchema`, so there is nothing in `@moviex/shared-types` to import and
+ * these are not a parallel copy of anything. Uppercase and "special character"
+ * *are* rules, so those two patterns come from the schema's own exports rather
+ * than being re-expressed here; that is what stops the meter and the validator
+ * disagreeing about what counts as a symbol.
+ */
+const PASSWORD_LOWERCASE_PATTERN = /[a-z]/;
+const PASSWORD_DIGIT_PATTERN = /\d/;
 
 const VALIDATION_VALUES: Record<string, Record<string, number>> = {
   nameTooShort: { min: NAME_MIN_LENGTH },
@@ -313,7 +337,10 @@ export function LoginRegisterModal({
         className="animate-in fade-in zoom-in-95 my-auto w-full max-w-[352px] rounded-[14px] border-[0.5px] border-mx-border bg-mx-card p-5 duration-150"
       >
         <div className="flex items-center gap-2">
-          <div className="size-7 rounded-[8px] bg-mx-accent" aria-hidden="true" />
+          {/* The shared mark, not a second inlined tile. Kept as `LogoMark`
+              rather than `BrandMark` because the modal's wordmark is 15px
+              against the navbar's 18px — only the icon is shared. */}
+          <LogoMark size={28} />
           <span className="text-[15px] font-medium text-mx-fg">
             Movie<span className="text-mx-accent">X</span>
           </span>
@@ -1779,16 +1806,28 @@ function FormError({ error }: { error: Error | null }) {
 }
 
 /**
- * Strength is measured against the very same `passwordSchema` the form
- * validates with, so the meter can never call something acceptable that submit
- * then rejects.
+ * A running score out of six, for **progressive feedback while typing**.
  *
- * **Weak means "does not yet pass".** Anything above weak has already cleared
- * the whole policy — length, an uppercase letter and a special character — so
- * what separates medium from strong is only what the password adds *beyond*
- * the requirements. That is why the variety count below no longer includes
- * uppercase or symbols: they are now mandatory, and scoring a password for
- * something it could not have omitted would rate every valid password strong.
+ * **The meter is deliberately not gated on `passwordSchema`, and reinstating
+ * that gate reintroduces a real bug.** It used to return "weak" for anything
+ * the schema rejected, then score only the *optional* criteria beyond that, on
+ * the reasoning that crediting a password for something it could not have
+ * omitted would rate every valid password strong. Sound in isolation, wrong in
+ * practice: the meter sat flat at weak however long or varied the password got,
+ * and the moment the last mandatory rule (a special character) was satisfied it
+ * usually leapt past medium to strong, because a password that far along
+ * already had most of the bonus criteria. The bar communicated nothing during
+ * the part of typing where guidance is worth something.
+ *
+ * So mandatory criteria count too. "Strong" is now earned by a high total
+ * rather than by a special zero-credit rule for the required ones, which is
+ * what makes the bar fill gradually instead of stepping weak → strong.
+ *
+ * This changes **display only**. Whether a password is acceptable is still
+ * `passwordSchema`'s answer alone, unchanged, checked at submit — so the meter
+ * can read "medium" on a password that is perfectly valid, and that is correct:
+ * the two are answering different questions ("how good is this?" versus "does
+ * it meet the bar?"), and conflating them is what caused the bug above.
  *
  * Takes the translator so the three labels stay in the message files with
  * everything else; the colours stay `--mx-*` variables so they theme.
@@ -1798,22 +1837,43 @@ function getPasswordStrength(password: string, t: (key: string) => string) {
     return { score: 0, label: "", color: "" };
   }
 
-  if (!passwordSchema.safeParse(password).success) {
-    return { score: 1, label: t("strengthWeak"), color: "var(--mx-strength-weak)" };
-  }
-
-  // Credit for what is *not* required: extra length, lowercase, a digit.
-  const bonus = [
+  /*
+   * One point per criterion, mandatory and optional alike — the meter is not
+   * gated on `passwordSchema` passing.
+   *
+   * Order matters only for reading: two length steps, then the four character
+   * classes.
+   */
+  const points = [
+    password.length >= PASSWORD_MIN_LENGTH,
     password.length >= STRONG_PASSWORD_LENGTH,
-    /[a-z]/.test(password),
-    /\d/.test(password),
+    PASSWORD_UPPERCASE_PATTERN.test(password),
+    PASSWORD_LOWERCASE_PATTERN.test(password),
+    PASSWORD_DIGIT_PATTERN.test(password),
+    PASSWORD_SPECIAL_PATTERN.test(password),
   ].filter(Boolean).length;
 
-  if (bonus >= 2) {
-    return { score: 3, label: t("strengthStrong"), color: "var(--mx-strength-strong)" };
+  if (points >= STRONG_MIN_POINTS) {
+    return {
+      score: 3,
+      label: t("strengthStrong"),
+      color: "var(--mx-strength-strong)",
+    };
   }
 
-  return { score: 2, label: t("strengthMedium"), color: "var(--mx-strength-medium)" };
+  if (points >= MEDIUM_MIN_POINTS) {
+    return {
+      score: 2,
+      label: t("strengthMedium"),
+      color: "var(--mx-strength-medium)",
+    };
+  }
+
+  return {
+    score: 1,
+    label: t("strengthWeak"),
+    color: "var(--mx-strength-weak)",
+  };
 }
 
 /**

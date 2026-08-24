@@ -171,7 +171,8 @@ export default async function MoviePage({ params }: MoviePageProps) {
               title: movie.title,
               posterUrl: movie.posterUrl,
               releaseYear: movie.releaseYear,
-              primaryGenre: movie.genres[0]?.name ?? null,
+              // The id, not `.name`: a name would freeze in this page's locale.
+              primaryGenreId: movie.genres[0]?.id ?? null,
             }}
           />
         </div>

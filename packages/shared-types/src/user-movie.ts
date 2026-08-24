@@ -23,7 +23,22 @@ export type UserMovie = {
   title: string;
   posterUrl: string | null;
   releaseYear: string | null;
-  /** Primary genre name at save time; powers My List's "top genre" tally. */
+  /**
+   * TMDB genre id of the movie's primary genre — **an id, not a name**, and
+   * deliberately not part of the snapshot above.
+   *
+   * A genre id is locale-independent, so My List's "top genre" stat resolves it
+   * to a word at render time against the genre list already fetched for the
+   * page. That is what makes the stat follow the language switcher instead of
+   * being frozen in whatever language the film was saved in.
+   */
+  primaryGenreId: number | null;
+  /**
+   * @deprecated Legacy. The resolved genre **name** at save time, which is
+   * precisely the bug `primaryGenreId` replaced: it froze in the saving
+   * locale. Nothing reads it and the client no longer sends it; the column
+   * survives only so the change needed no destructive migration.
+   */
   primaryGenre: string | null;
   /** Set when status becomes `watched`, cleared when moved back. */
   watchedAt: string | null;
@@ -38,6 +53,12 @@ export type AddUserMovieInput = {
   title: string;
   posterUrl?: string | null;
   releaseYear?: string | null;
+  /** TMDB genre id of the movie's first genre. See {@link UserMovie}. */
+  primaryGenreId?: number | null;
+  /**
+   * @deprecated Still accepted so an older client cannot be rejected by the
+   * API's `forbidNonWhitelisted`, but no longer sent and never read.
+   */
   primaryGenre?: string | null;
 };
 

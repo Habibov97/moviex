@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -8,7 +9,7 @@ import {
   IconCompass,
   IconFlame,
 } from "@tabler/icons-react";
-import type { UserMovie, UserMovieStatus } from "@moviex/shared-types";
+import type { Genre, UserMovie, UserMovieStatus } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
@@ -39,17 +40,31 @@ import {
  * from it client-side. Per-status requests would mean two caches to invalidate
  * and a stats bar that can disagree with the tab it sits above.
  *
- * Note the entries come from **our** database, not TMDB: the title, poster and
- * genre were snapshotted in whatever language the user was browsing when they
- * saved the film. Switching language translates the page's chrome, not those
- * snapshots — see the user-movies notes in CLAUDE.md.
+ * Note the entries come from **our** database, not TMDB: `title` and
+ * `posterUrl` were snapshotted in whatever language the user was browsing when
+ * they saved the film, so switching language translates the page's chrome but
+ * not the cards. That is a deliberate trade — refreshing them would cost a TMDB
+ * call per row on every visit.
+ *
+ * **The "top genre" stat is the exception**, because it can be: entries store a
+ * genre *id*, and the name is resolved here against `genres`, so that one value
+ * does follow the language switcher. See the user-movies notes in CLAUDE.md.
  *
  * **Three states, gated on auth in this order:** still loading → a skeleton;
  * confirmed signed out → `SignInRequired`; signed in → the list. Reading them
  * in that order is what stops "unknown" being treated as "signed out", which
  * would flash the sign-in prompt at someone who is in fact logged in.
  */
-export function MyListView() {
+export type MyListViewProps = {
+  /**
+   * The current locale's genre list, fetched by the page. Used only to turn the
+   * winning genre id into a word for the "top genre" stat; defaulting to `[]`
+   * degrades that stat to its dash rather than breaking the page.
+   */
+  genres?: Genre[];
+};
+
+export function MyListView({ genres = [] }: MyListViewProps) {
   const t = useTranslations("myList");
   const format = useFormatter();
   const router = useRouter();
@@ -70,6 +85,28 @@ export function MyListView() {
    * the kind of duplicate that lets one path drift unscoped. One hook, one key.
    */
   const { data: entries = [], isPending } = useUserMovies();
+
+  /*
+   * The "top genre" stat, resolved **now** rather than at save time.
+   *
+   * Entries store a locale-free genre id, so this lookup runs against whichever
+   * language's genre list the page was rendered with — switching language
+   * re-renders the page with a different `genres` array and the word changes
+   * with it, no re-save and no extra request. That is the whole difference from
+   * `title` / `posterUrl`, which stay snapshotted: those would each cost a TMDB
+   * call per row to keep current, whereas this is a `Map.get` against an array
+   * the page already had.
+   *
+   * An id missing from the list falls back to the same dash as "nothing saved".
+   * It should not happen — the ids come from the same TMDB catalogue — but a
+   * raw number in a stat card would be worse than a placeholder.
+   */
+  const topGenre = useMemo(() => {
+    const topId = topGenreIdOf(entries);
+    if (topId == null) return null;
+
+    return genres.find((genre) => genre.id === topId)?.name ?? null;
+  }, [entries, genres]);
 
   const updateStatus = useUpdateUserMovieStatus();
   const removeEntry = useRemoveUserMovie();
@@ -144,7 +181,7 @@ export function MyListView() {
           icon={<IconFlame className="size-4 text-mx-accent" stroke={1.75} />}
           label={t("statTopGenre")}
           // Across *both* tabs — a taste signal, not a per-tab figure.
-          value={topGenreOf(entries) ?? t("noGenre")}
+          value={topGenre ?? t("noGenre")}
         />
       </div>
 
@@ -367,23 +404,35 @@ function sortEntries(entries: UserMovie[], sort: ListSortId): UserMovie[] {
 }
 
 /**
- * Most frequent `primaryGenre` across every entry, or `null` when nothing saved
- * carries one — the caller substitutes the dash, so the placeholder stays a
- * message rather than a literal in here.
+ * The most frequently saved genre **id** across every entry, or `null` when
+ * nothing saved carries one.
+ *
+ * An id, not a name, and that is the whole fix: this used to tally the resolved
+ * genre name stored at save time, so the stat was stuck in whatever language
+ * each film happened to be saved in and never followed the language switcher.
+ * The caller turns the winning id into a word against the current locale's
+ * genre list.
+ *
+ * Entries with no `primaryGenreId` — everything saved before the column existed
+ * — simply do not count, the same way an absent rating is not treated as a
+ * zero elsewhere in this app. Re-saving a film fills it in.
  */
-function topGenreOf(entries: UserMovie[]): string | null {
-  const tally = new Map<string, number>();
+function topGenreIdOf(entries: UserMovie[]): number | null {
+  const tally = new Map<number, number>();
 
   for (const entry of entries) {
-    if (!entry.primaryGenre) continue;
-    tally.set(entry.primaryGenre, (tally.get(entry.primaryGenre) ?? 0) + 1);
+    if (entry.primaryGenreId == null) continue;
+    tally.set(
+      entry.primaryGenreId,
+      (tally.get(entry.primaryGenreId) ?? 0) + 1,
+    );
   }
 
-  let best: string | null = null;
+  let best: number | null = null;
   let bestCount = 0;
-  for (const [genre, count] of tally) {
+  for (const [genreId, count] of tally) {
     if (count > bestCount) {
-      best = genre;
+      best = genreId;
       bestCount = count;
     }
   }

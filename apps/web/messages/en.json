@@ -162,19 +162,9 @@
   },
 
   "footer": {
-    "tagline": "Track what you want to watch, mark what you have seen, and grow your collection.",
-    "navLabel": "Footer",
-    "copyright": "© {year} MovieX",
     "author": "Created by Najaf Habibov",
-    "attribution": "Movie data provided by TMDB",
-    "columnProduct": "Product",
-    "columnAbout": "About",
-    "discover": "Discover",
-    "myList": "My list",
-    "statistics": "Statistics",
-    "privacy": "Privacy",
-    "terms": "Terms",
-    "contact": "Contact"
+    "copyright": "© {year} MovieX",
+    "attribution": "Movie data provided by TMDB"
   },
 
   "errors": {

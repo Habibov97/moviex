@@ -56,7 +56,7 @@ export function DiscoverSection({
 
   // Same gate the detail page uses: signed out opens the auth modal, signed in
   // hits the placeholder handler. TODO lives in the hook, not here.
-  const { runCardAction, authModal } = useLibraryActions({ genres });
+  const { runCardAction, authModal } = useLibraryActions();
 
   /*
    * One batch lookup for every movie on screen, not one per card. Mutations

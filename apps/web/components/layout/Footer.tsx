@@ -1,14 +1,24 @@
 import { getTranslations } from 'next-intl/server';
 
 import { cn } from '@/lib/utils';
-import { Link } from '@/i18n/navigation';
-import { BrandMark } from '@/components/layout/BrandMark';
-import { FOOTER_COLUMNS } from '@/lib/constants/footer';
 
 export type FooterProps = {
   className?: string;
 };
 
+/**
+ * Three lines of text in one row. That is the whole footer.
+ *
+ * It has been through a brand block with link columns, then a slim bar with the
+ * nav links on it; this replaces both. **Nothing in here is a link** — the two
+ * routes worth linking to are already in the navbar, and everything the earlier
+ * versions pointed at besides them (Statistics, Privacy, Terms, Contact) was a
+ * page that never existed. A footer with no links cannot go stale when a route
+ * is renamed, which is the failure mode both previous versions had.
+ *
+ * The attribution is the one item that is not decoration: crediting TMDB is a
+ * condition of using their data, so it stays whatever else changes.
+ */
 export async function Footer({ className }: FooterProps) {
   const t = await getTranslations('footer');
 
@@ -18,57 +28,25 @@ export async function Footer({ className }: FooterProps) {
   const year = String(new Date().getFullYear());
 
   return (
-    <footer className={cn('w-full border-t-[0.5px] border-mx-border-subtle bg-mx-nav font-mx', className)}>
-      <div className="px-4 py-14 sm:px-6 sm:py-16">
-        <div className="flex flex-col gap-12 md:flex-row md:items-start md:justify-between md:gap-16">
-          <div className="min-w-0">
-            <BrandMark size="lg" />
-            <p className="mt-5 max-w-sm text-[16px] leading-[1.65] text-mx-fg-subtle">{t('tagline')}</p>
-          </div>
-
-          <nav aria-label={t('navLabel')} className="grid shrink-0 grid-cols-2 gap-x-16 gap-y-10 sm:gap-x-24">
-            {FOOTER_COLUMNS.map((column) => (
-              <div key={column.titleKey}>
-                <h2 className="text-[15px] font-semibold tracking-tight text-mx-fg">{t(column.titleKey)}</h2>
-                <ul className="mt-5 space-y-4">
-                  {column.links.map((link) => (
-                    <li key={link.href}>
-                      <Link
-                        href={link.href}
-                        className="text-[15px] text-mx-fg-subtle outline-none transition-colors hover:text-mx-fg focus-visible:text-mx-fg"
-                      >
-                        {t(link.messageKey)}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
-        </div>
-
-        <div className="mt-14 flex flex-col gap-3 border-t-[0.5px] border-mx-border-subtle pt-8 text-[14px] text-mx-fg-faint sm:flex-row sm:items-center sm:justify-between">
-          {/*
-            The byline rides with the copyright rather than getting its own row:
-            same "who made this" register, and it keeps the bottom bar to the two
-            balanced ends the reference draws.
-          */}
-
-          <Link href="https://www.linkedin.com/in/najafhabibov/" className="text-mx-fg-subtle">
-            {t('author')}
-          </Link>
-          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span aria-hidden="true" className="text-mx-border">
-              ·
-            </span>
-            <span>{t('copyright', { year })}</span>
-            <span aria-hidden="true" className="text-mx-border">
-              ·
-            </span>
-          </p>
-          <p>{t('attribution')}</p>
-        </div>
-      </div>
+    <footer
+      className={cn(
+        'w-full border-t-[0.5px] border-mx-border-subtle bg-mx-footer font-mx',
+        // 22px is off the spacing scale, hence the arbitrary value; 20px is px-5.
+        'px-5 py-[22px]',
+        /*
+         * `justify-center` until `sm`, `justify-between` above it. Once the row
+         * wraps, spreading three items across the full width leaves two of them
+         * pinned to opposite edges with a gap down the middle — centred reads as
+         * deliberate at that size, and the single row is unaffected.
+         */
+        'flex flex-wrap items-center justify-center gap-3 sm:justify-between',
+        'text-[13px] text-mx-fg-faint',
+        className,
+      )}
+    >
+      <p>{t('author')}</p>
+      <p>{t('copyright', { year })}</p>
+      <p>{t('attribution')}</p>
     </footer>
   );
 }

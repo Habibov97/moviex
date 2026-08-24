@@ -50,7 +50,37 @@ export class AddUserMovieDto {
   @Length(4, 4)
   releaseYear?: string | null;
 
-  @ApiPropertyOptional({ example: 'Science Fiction', nullable: true })
+  /**
+   * TMDB genre id of the movie's first genre. Locale-independent on purpose —
+   * My List resolves it to a name at render time so the "top genre" stat
+   * follows the language switcher.
+   */
+  @ApiPropertyOptional({
+    example: 878,
+    nullable: true,
+    description:
+      "TMDB genre id of the movie's primary genre. Stored as an id, not a " +
+      'name, so the displayed genre is resolved in the reader’s language ' +
+      'rather than frozen in the saver’s.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  primaryGenreId?: number | null;
+
+  /**
+   * @deprecated Superseded by `primaryGenreId`. Still accepted rather than
+   * removed: the API's global `forbidNonWhitelisted` turns an unknown property
+   * into a 400, so dropping it here would reject an older client outright. It
+   * is stored, but nothing reads it.
+   */
+  @ApiPropertyOptional({
+    example: 'Science Fiction',
+    nullable: true,
+    deprecated: true,
+    description: 'Legacy resolved genre name. Ignored — send primaryGenreId.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(60)
@@ -89,7 +119,10 @@ export class UserMovieResponseDto {
   @ApiProperty({ example: 'Dune: Part Two' }) title!: string;
   @ApiProperty({ nullable: true }) posterUrl!: string | null;
   @ApiProperty({ nullable: true, example: '2024' }) releaseYear!: string | null;
-  @ApiProperty({ nullable: true, example: 'Science Fiction' })
+  @ApiProperty({ nullable: true, example: 878 })
+  primaryGenreId!: number | null;
+  /** @deprecated Legacy name snapshot — resolve `primaryGenreId` instead. */
+  @ApiProperty({ nullable: true, example: 'Science Fiction', deprecated: true })
   primaryGenre!: string | null;
   @ApiProperty({ nullable: true }) watchedAt!: string | null;
   @ApiProperty() createdAt!: string;

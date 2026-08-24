@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { Genre, MovieSummary } from "@moviex/shared-types";
+import type { MovieSummary } from "@moviex/shared-types";
 
 import { LoginRegisterModal } from "@/components/auth/LoginRegisterModal";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -25,14 +25,14 @@ import {
  * still means one `LoginRegisterModal` implementation and one piece of open
  * state per surface, not a second modal component.
  */
-export function useLibraryActions({
-  /**
-   * Live genre list, used only to resolve a movie's primary genre **name** for
-   * the stored snapshot — `MovieSummary` carries ids, and `user_movies` stores
-   * a name so My List can tally a top genre without a TMDB call.
-   */
-  genres = [],
-}: { genres?: Genre[] } = {}) {
+/*
+ * This used to take a `genres` list, purely to resolve a movie's primary genre
+ * to a **name** before saving it. That is exactly what froze My List's "top
+ * genre" stat in the saving locale, so `user_movies` stores the genre id now
+ * and the name is resolved where it is displayed. Saving needs no genre list at
+ * all — `MovieSummary` already carries the ids.
+ */
+export function useLibraryActions() {
   const [authOpen, setAuthOpen] = useState(false);
   // Real session state now — no longer a prop defaulting to "logged out".
   const { isSignedIn, isLoading: isAuthLoading } = useCurrentUser();
@@ -74,18 +74,25 @@ export function useLibraryActions({
    */
   type SavableMovie = Parameters<typeof snapshotOf>[0];
 
-  const genreNames = new Map(genres.map((genre) => [genre.id, genre.name]));
-  const primaryGenreOf = (movie: SavableMovie & { genreIds?: number[] }) =>
-    movie.genreIds?.map((id) => genreNames.get(id)).find(Boolean) ?? null;
+  /**
+   * The movie's first genre id, as TMDB orders them — no lookup, no locale.
+   *
+   * Note this is `[0]`, where the name-based version walked the list for the
+   * first id it could *resolve*. With ids there is nothing to resolve, so an id
+   * missing from some genre list no longer silently changes which genre gets
+   * stored; the display side handles an unresolvable id instead.
+   */
+  const primaryGenreIdOf = (movie: SavableMovie & { genreIds?: number[] }) =>
+    movie.genreIds?.[0] ?? movie.primaryGenreId ?? null;
 
   const addToList = useCallback(
     (movie: SavableMovie) =>
       add.mutate({
-        ...snapshotOf({ ...movie, primaryGenre: primaryGenreOf(movie) }),
+        ...snapshotOf({ ...movie, primaryGenreId: primaryGenreIdOf(movie) }),
         status: "watchlist",
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [add, genres],
+    [add],
   );
 
   const removeFromList = useCallback(
@@ -101,11 +108,11 @@ export function useLibraryActions({
   const markWatched = useCallback(
     (movie: SavableMovie) =>
       add.mutate({
-        ...snapshotOf({ ...movie, primaryGenre: primaryGenreOf(movie) }),
+        ...snapshotOf({ ...movie, primaryGenreId: primaryGenreIdOf(movie) }),
         status: "watched",
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [add, genres],
+    [add],
   );
 
   /** Only offered on an entry that exists, so PATCH is safe here. */

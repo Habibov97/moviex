@@ -42,8 +42,12 @@ export type MovieActionsProps = {
     title: string;
     posterUrl: string | null;
     releaseYear: string | null;
-    /** First genre name, stored on the entry for My List's top-genre tally. */
-    primaryGenre?: string | null;
+    /**
+     * TMDB genre **id** of the first genre, stored on the entry for My List's
+     * top-genre tally. An id, not a name — the name is resolved where it is
+     * shown, so the stat follows the reader's language.
+     */
+    primaryGenreId?: number | null;
   };
   /**
    * Overrides the looked-up status. Normally omitted — the component reads the

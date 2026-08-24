@@ -39,6 +39,9 @@ export class UserMoviesService {
     entity.title = dto.title;
     entity.posterUrl = dto.posterUrl ?? null;
     entity.releaseYear = dto.releaseYear ?? null;
+    entity.primaryGenreId = dto.primaryGenreId ?? null;
+    // Legacy, unread. Written only so a row does not keep a stale name beside
+    // a fresh id; the client stopped sending it, so in practice this clears it.
     entity.primaryGenre = dto.primaryGenre ?? null;
     entity.watchedAt = this.watchedAtFor(status, entity.watchedAt ?? null);
 

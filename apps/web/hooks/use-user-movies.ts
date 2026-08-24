@@ -188,11 +188,12 @@ export function useRemoveUserMovie() {
 export function snapshotOf(
   movie: Pick<MovieSummary, "tmdbId" | "title" | "posterUrl" | "releaseYear"> & {
     /**
-     * Primary genre **name**, resolved by the caller against the live genre
-     * list. Stored as one string so My List can tally a top genre without a
-     * TMDB call or a relation table.
+     * TMDB genre **id** of the movie's primary genre — an id, never a resolved
+     * name. One id is enough for My List to tally a top genre without a TMDB
+     * call or a relation table, and being language-free is what lets the stat
+     * re-render in the reader's language rather than the saver's.
      */
-    primaryGenre?: string | null;
+    primaryGenreId?: number | null;
   },
 ) {
   return {
@@ -200,6 +201,6 @@ export function snapshotOf(
     title: movie.title,
     posterUrl: movie.posterUrl,
     releaseYear: movie.releaseYear,
-    primaryGenre: movie.primaryGenre ?? null,
+    primaryGenreId: movie.primaryGenreId ?? null,
   };
 }

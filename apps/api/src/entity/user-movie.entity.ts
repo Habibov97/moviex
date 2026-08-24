@@ -66,9 +66,28 @@ export class UserMovieEntity extends BaseEntity {
   releaseYear!: string | null;
 
   /**
-   * The movie's primary genre **name** at the time it was saved — one string,
-   * not a list. Enough to tally a "top genre" on My List without joining TMDB
-   * or storing a relation. Same snapshot rationale as the fields above.
+   * TMDB genre id of the movie's primary genre — one id, not a list. Enough to
+   * tally a "top genre" on My List without a relation table or a TMDB call.
+   *
+   * **Explicitly not part of the snapshot above, and that is the point.** An id
+   * carries no language, so My List resolves it to a word at render time from
+   * the genre list the page already has. Storing the resolved *name* is what
+   * this replaced: it froze in whatever language the user happened to be
+   * browsing in, so a film saved in Russian still read "Мультфильм" after
+   * switching the site to English.
+   *
+   * Null for rows saved before this column existed. They contribute nothing to
+   * the tally until re-saved — the old name cannot be mapped back to an id,
+   * because it could be in any of the three languages.
+   */
+  @Column({ type: 'int', nullable: true })
+  primaryGenreId!: number | null;
+
+  /**
+   * @deprecated The resolved genre name at save time. Superseded by
+   * `primaryGenreId`; **nothing reads this** and the client no longer sends it,
+   * so it nulls out on the next write to a row. Kept only so the fix needed no
+   * destructive migration — safe to drop in a later, deliberate one.
    */
   @Column({ type: 'varchar', length: 60, nullable: true })
   primaryGenre!: string | null;
