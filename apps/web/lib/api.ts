@@ -62,6 +62,71 @@ if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
   }
 }
 
+/**
+ * Backoff between retries, in milliseconds — one entry per retry, so the length
+ * of this array *is* the retry count. Two short waits: this exists to bridge a
+ * gap measured in milliseconds to low seconds (the API still booting, or being
+ * replaced mid-deploy), not to keep a genuinely dead backend hidden behind a
+ * spinner. Total added latency before the error surfaces is ~900ms.
+ */
+const RETRY_DELAYS_MS = [300, 600];
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * `true` for the one throw that must never be retried: a caller that cancelled
+ * the request on purpose. The typeahead aborts superseded searches, and retrying
+ * those would resurrect requests whose results are already unwanted.
+ */
+function isAbortError(error: unknown): boolean {
+  return (error as { name?: string } | null)?.name === "AbortError";
+}
+
+/**
+ * `fetch` with a short retry window for **network-level** failures only.
+ *
+ * The race this fixes: `npm run dev` starts both apps in parallel and Next
+ * becomes ready before Nest has finished connecting to Postgres, so the first
+ * server-rendered fetch can hit a port nothing is listening on and throw
+ * `TypeError: fetch failed` / `ECONNREFUSED`. The same window exists in
+ * production every time the API restarts during a deploy.
+ *
+ * **Only a throwing `fetch` is retried.** An HTTP response — 404, 400, 503,
+ * anything — is a real answer from a reachable server, so it is returned
+ * untouched on the first attempt and each caller applies its own policy to it
+ * (discover/search/detail throw, genres degrade to `[]`, a movie 404 becomes
+ * `null`). Retrying a status code would multiply load on an API that is already
+ * struggling and delay an error the user needs to see.
+ *
+ * Once the retries are exhausted the original error is rethrown unchanged, so
+ * every existing failure path — `error.tsx` boundaries included — behaves
+ * exactly as it did before. This only adds a brief window in front of them.
+ */
+async function fetchWithRetry(
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetch(url, init);
+    } catch (error) {
+      const delayMs = RETRY_DELAYS_MS[attempt];
+
+      // Out of retries, or a deliberate cancellation: propagate as-is.
+      if (delayMs === undefined || isAbortError(error)) throw error;
+
+      console.warn(
+        `[moviex] ${url} unreachable (attempt ${attempt + 1}/${
+          RETRY_DELAYS_MS.length + 1
+        }), retrying in ${delayMs}ms`,
+        error,
+      );
+
+      await sleep(delayMs);
+    }
+  }
+}
+
 /** Genres change rarely — a day-old list is fine. */
 const GENRES_REVALIDATE_SECONDS = 86_400;
 
@@ -77,7 +142,7 @@ const GENRES_REVALIDATE_SECONDS = 86_400;
  */
 export async function getGenres(locale: Locale): Promise<Genre[]> {
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_URL}/tmdb/genres?${LANG_PARAM}=${locale}`,
       {
         next: { revalidate: GENRES_REVALIDATE_SECONDS },
@@ -138,7 +203,7 @@ export async function getDiscoverMovies({
   if (yearTo != null) params.set("yearTo", String(yearTo));
   if (minRating != null) params.set("minRating", String(minRating));
 
-  const response = await fetch(`${API_URL}/tmdb/discover?${params}`, {
+  const response = await fetchWithRetry(`${API_URL}/tmdb/discover?${params}`, {
     cache: "no-store",
   });
 
@@ -175,7 +240,7 @@ export async function getSearchResults({
   const params = new URLSearchParams({ q: query, [LANG_PARAM]: locale });
   if (page != null) params.set("page", String(page));
 
-  const response = await fetch(`${API_URL}/tmdb/search?${params}`, {
+  const response = await fetchWithRetry(`${API_URL}/tmdb/search?${params}`, {
     cache: "no-store",
   });
 
@@ -206,7 +271,7 @@ export async function getMovieDetail(
   tmdbId: number,
   locale: Locale,
 ): Promise<MovieDetail | null> {
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${API_URL}/tmdb/${tmdbId}?${LANG_PARAM}=${locale}`,
     {
       next: { revalidate: MOVIE_DETAIL_REVALIDATE_SECONDS },

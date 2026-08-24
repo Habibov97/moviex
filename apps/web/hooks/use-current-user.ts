@@ -5,14 +5,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/api";
 
 /**
- * What `GET /auth/me` actually returns: the **decoded JWT payload**, not a user
- * record. There is no `name` — the token carries only these four claims (see
- * `JwtPayload` in `apps/api`), so anything wanting a display name has to derive
- * it from `email` until `/auth/me` is widened to join the user row.
+ * What `GET /auth/me` returns.
+ *
+ * `sub`, `iat` and `exp` come from the token; **`userName` is joined from the
+ * `users` row** by the API, because the token deliberately does not carry it
+ * (it rides on every request, so it stays small). That join is what lets the
+ * UI show a real username instead of deriving something from the email.
  */
 export type CurrentUser = {
   sub: number;
   email: string;
+  /** The account's username — the same value the register form collects. */
+  userName: string;
   iat: number;
   exp: number;
 };
@@ -96,42 +100,68 @@ export function useLogoutMutation() {
        * Settled, not success: if the request failed we still do not know the
        * cookie's state, so discarding is the safe move either way.
        *
-       * `removeQueries()` with no filter **deletes** every cached query rather
-       * than marking them stale. `invalidateQueries` — which is all this used
-       * to do, and only for the auth key — leaves the data in place, so the
-       * next account rendered the previous one's list straight from cache.
+       * `removeQueries` **deletes** cached data rather than marking it stale.
+       * `invalidateQueries` — which is all this used to do, and only for the
+       * auth key — leaves the data in place, so the next account rendered the
+       * previous one's list straight from cache.
        *
-       * Deliberately `removeQueries()` and not `queryClient.clear()`: `clear()`
-       * also wipes the *mutation* cache, and this runs from inside a mutation
-       * that is still settling — including the one whose `isPending` the logout
-       * button is reading. Same outcome for cached data, no reaching under our
-       * own feet.
+       * Deliberately not `queryClient.clear()`: `clear()` also wipes the
+       * *mutation* cache, and this runs from inside a mutation that is still
+       * settling — including the one whose `isPending` the logout button is
+       * reading. Same outcome for cached data, no reaching under our own feet.
        *
-       * Nothing here is expensive to lose: Discover and Search render from
+       * **`['auth','me']` is deliberately exempt from the removal, and that
+       * exemption is load-bearing.** Removing a query destroys the cache entry
+       * but does *not* clear the data a mounted observer is already rendering,
+       * and it leaves nothing behind for `invalidateQueries` to match — that
+       * call only refetches queries the cache still holds. So an unfiltered
+       * `removeQueries()` froze `useCurrentUser` on the departing user
+       * indefinitely: `/auth/me` was never re-requested, `user.sub` stayed the
+       * old id, and every badge keyed by `userMoviesKey(user?.sub)` kept
+       * rendering that account's saved state until something remounted the
+       * tree. Worse, the next login's `invalidateQueries(['auth','me'])` also
+       * matched nothing, so signing in as someone else did not fix it either.
+       * Verified against query-core: the `/auth/me` fetch count stayed at 1
+       * across a full logout → login cycle.
+       *
+       * Nothing else here is expensive to lose: Discover and Search render from
        * Server Components, so the only other cached queries are the navbar
        * typeahead's, which refetch on the next keystroke.
-       *
-       * Consumers hold live observers, so `['auth','me']` is immediately
-       * refetched, answers 401, and the UI flips to signed-out on its own.
        */
-      queryClient.removeQueries();
+      queryClient.removeQueries({
+        predicate: (query) => query.queryKey[0] !== CURRENT_USER_QUERY_KEY[0],
+      });
+
+      /*
+       * Say so immediately — the cookie is gone, so signed-out is already true
+       * and there is no honest reason to keep showing the previous identity
+       * while a round trip confirms it. This is also what blanks the badges in
+       * the same tick rather than after `/auth/me` answers.
+       */
+      queryClient.setQueryData(CURRENT_USER_QUERY_KEY, null);
+
+      // Then re-verify against the server. Matches now, because the query was
+      // left in the cache above.
+      void queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY });
     },
   });
 }
 
 /**
- * `najaff.habibov@gmail.com` → `NA`.
+ * The avatar's initials: `najaf` → `NA`, `ada.lovelace` → `AL`.
  *
- * Derived from the email because the token has no name. Falls back to the
- * first two characters when the local part has no separator.
+ * Takes the **username** now that `/auth/me` supplies one; it used to take the
+ * email local part, which was a stand-in for a field the API did not yet
+ * return. The splitting rule is unchanged, so a separator-bearing value still
+ * yields one letter per part and anything else falls back to its first two
+ * characters.
  */
-export function initialsFromEmail(email: string): string {
-  const local = email.split("@")[0] ?? "";
-  const parts = local.split(/[._\-+]/).filter(Boolean);
+export function initialsFrom(value: string): string {
+  const parts = value.split(/[._\-+\s]/).filter(Boolean);
 
   if (parts.length >= 2) {
     return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
   }
 
-  return local.slice(0, 2).toUpperCase();
+  return value.slice(0, 2).toUpperCase();
 }

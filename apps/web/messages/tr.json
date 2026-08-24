@@ -30,7 +30,6 @@
     "showMore": "+{count}",
     "showMoreLabel": "{count, plural, other {# tür daha göster}}",
     "showLess": "Daha az göster",
-
     "yearRange": "{from} – {to}",
     "yearTitle": "Çıkış yılı",
     "yearSubtitle": "{from} ile {to} arasında bir aralık seçin",
@@ -41,16 +40,13 @@
     "presetLast5": "Son 5 yıl",
     "presetLast10": "Son 10 yıl",
     "presetClassics": "Klasikler",
-
     "ratingChip": "Puan",
     "ratingChipValue": "{value}+",
     "ratingTitle": "En düşük puan",
     "ratingSubtitle": "En az bu puana sahip filmleri göster",
     "anyRating": "Tüm puanlar",
-
     "reset": "Sıfırla",
     "apply": "Uygula",
-
     "sortLabel": "Sırala",
     "sort": {
       "popularity": "En popüler",
@@ -58,29 +54,24 @@
       "newest": "Önce en yeni",
       "oldest": "Önce en eski"
     },
-
     "viewLabel": "Görünüm",
     "view": {
       "grid": "Izgara görünümü",
       "list": "Liste görünümü"
     },
-
     "gridLabel": "Filmler",
     "listLabel": "Film listesi",
     "loading": "Filmler yükleniyor",
     "empty": "Bu filtreye uygun film bulunamadı",
-
     "add": "Ekle",
     "addLabel": "{title} filmini listenize ekleyin",
     "markWatched": "İzledim",
     "markWatchedLabel": "{title} filmini izlendi olarak işaretleyin",
     "tagWatched": "İzlendi",
     "tagListed": "Listede",
-
     "notRated": "—",
     "ratingLabel": "10 üzerinden {value} puan",
     "notRatedLabel": "Henüz puanlanmamış",
-
     "paginationLabel": "Sayfalama",
     "previousPage": "Önceki sayfa",
     "nextPage": "Sonraki sayfa",
@@ -198,14 +189,12 @@
     "signInOrCreate": "Giriş yapın veya hesap oluşturun",
     "logOut": "Çıkış yap",
     "loggingOut": "Çıkış yapılıyor…",
-
     "welcomeBack": "Tekrar hoş geldiniz",
     "welcomeBackSubtitle": "Kaldığınız yerden devam etmek için giriş yapın",
     "createAccountTitle": "Hesap oluşturun",
     "createAccountSubtitle": "Film koleksiyonunuzu oluşturmaya başlayın",
-
-    "nameLabel": "Ad",
-    "namePlaceholder": "Najaf",
+    "nameLabel": "Kullanıcı adı",
+    "namePlaceholder": "kullaniciadiniz",
     "emailLabel": "E-posta",
     "emailPlaceholder": "najaf@example.com",
     "passwordLabel": "Parola",
@@ -213,7 +202,6 @@
     "confirmPasswordLabel": "Parolayı doğrulayın",
     "showPassword": "Parolayı göster",
     "hidePassword": "Parolayı gizle",
-
     "rememberMe": "Beni hatırla",
     "forgotPassword": "Parolanızı mı unuttunuz?",
     "signIn": "Giriş yap",
@@ -225,25 +213,60 @@
     "noAccount": "Hesabınız yok mu?",
     "signUp": "Kayıt ol",
     "haveAccount": "Zaten hesabınız var mı?",
-
     "strengthWeak": "Zayıf",
     "strengthMedium": "Orta",
     "strengthStrong": "Güçlü",
-
     "invalidCredentials": "E-posta veya parola hatalı",
     "emailTaken": "Bu e-posta zaten kayıtlı — bunun yerine giriş yapın",
     "networkError": "Sunucularımıza ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
     "genericError": "Bir şeyler ters gitti, lütfen tekrar deneyin",
-    "accountCreated": "Hesap oluşturuldu — aşağıdan giriş yapın",
-
+    "alreadyVerified": "Bu e-posta zaten doğrulanmış — aşağıdan giriş yapın",
+    "emailNotVerified": "E-postanız henüz doğrulanmadı",
+    "verifyEmailTitle": "E-postanızı doğrulayın",
+    "verifyEmailSubtitle": "{email} adresine gönderdiğimiz 4 haneli kodu girin",
+    "otpCodeLabel": "Doğrulama kodu",
+    "otpDigitLabel": "{total} haneden {position}. hane",
+    "otpExpiresIn": "Kod {time} sonra geçersiz",
+    "otpExpiredNotice": "Kodun süresi doldu",
+    "otpResend": "Kodu tekrar gönder",
+    "otpResendIn": "{seconds, plural, other {# sn}} sonra",
+    "otpResending": "Gönderiliyor…",
+    "otpResent": "Yeni kod yolda",
+    "otpNotSent": "E-postayı gönderemedik. Birazdan tekrar göndermeyi deneyin.",
+    "otpVerify": "Doğrula",
+    "otpVerifying": "Doğrulanıyor…",
+    "otpInvalid": "Bu kod doğru değil — haneleri kontrol edip tekrar deneyin",
+    "otpExpired": "Bu kodun süresi doldu — yeni bir kod isteyin",
+    "otpTooManyAttempts": "Çok fazla hatalı deneme. Devam etmek için yeni bir kod isteyin.",
+    "otpResendCooldown": "Yeni bir kod istemeden önce biraz bekleyin",
+    "otpWrongEmail": "E-posta yanlış mı?",
+    "otpBackToLogin": "Geri dön",
+    "forgotPasswordTitle": "Şifreni sıfırla",
+    "forgotPasswordSubtitle": "E-postanı gir, sana bir kod gönderelim",
+    "forgotPasswordSubmit": "Kod gönder",
+    "forgotPasswordSending": "Gönderiliyor…",
+    "rememberedPassword": "Şifreni hatırladın mı?",
+    "resetPasswordTitle": "Şifreni sıfırla",
+    "resetCodeSubtitle": "{email} adresine ait bir hesap varsa, 4 haneli kodu gönderdik",
+    "resetPasswordSubtitle": "{email} için yeni bir şifre belirle",
+    "newPasswordLabel": "Yeni şifre",
+    "confirmNewPasswordLabel": "Yeni şifreyi doğrula",
+    "resetPasswordSubmit": "Şifreyi güncelle",
+    "resetPasswordSubmitting": "Güncelleniyor…",
+    "passwordUpdated": "Şifre güncellendi — aşağıdan giriş yap",
+    "resetTokenExpired": "Bu sıfırlama oturumu sona erdi — yeni bir kod iste",
     "validation": {
-      "nameTooShort": "Ad en az {min, plural, other {# karakter}} olmalıdır",
-      "nameTooLong": "Ad en fazla {max, plural, other {# karakter}} olabilir",
+      "nameTooShort": "Kullanıcı adı en az {min, plural, other {# karakter}} olmalıdır",
+      "nameTooLong": "Kullanıcı adı en fazla {max, plural, other {# karakter}} olabilir",
       "emailRequired": "E-posta adresinizi girin",
       "emailInvalid": "Geçerli bir e-posta adresi girin",
       "passwordTooShort": "Parola en az {min, plural, other {# karakter}} olmalıdır",
+      "passwordNeedsUppercase": "Parola en az bir büyük harf içermelidir",
+      "passwordNeedsSpecial": "Parola en az bir özel karakter içermelidir",
+      "passwordRequired": "Parolanızı girin",
       "confirmRequired": "Parolanızı tekrar girin",
-      "passwordsDoNotMatch": "Parolalar eşleşmiyor"
+      "passwordsDoNotMatch": "Parolalar eşleşmiyor",
+      "otpIncomplete": "4 hanenin tamamını girin"
     }
   }
 }

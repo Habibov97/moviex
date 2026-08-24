@@ -7,7 +7,7 @@ import { IconLogout, IconUser } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { LoginRegisterModal } from "@/components/auth/LoginRegisterModal";
 import {
-  initialsFromEmail,
+  initialsFrom,
   useCurrentUser,
   useLogoutMutation,
 } from "@/hooks/use-current-user";
@@ -58,14 +58,14 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => (isSignedIn ? setMenuOpen((open) => !open) : setAuthOpen(true))}
-        aria-label={user ? user.email : t("signInOrCreate")}
+        aria-label={user ? user.userName : t("signInOrCreate")}
         aria-haspopup={isSignedIn ? "menu" : "dialog"}
         aria-expanded={isSignedIn ? menuOpen : undefined}
         className="flex size-9 shrink-0 items-center justify-center rounded-full border-[0.5px] border-mx-avatar-border bg-mx-avatar text-[13px] font-medium text-mx-avatar-fg outline-none transition-colors hover:bg-mx-avatar-hover focus-visible:border-mx-accent md:size-8"
       >
         {user ? (
-          // The token carries no name, so initials come from the email.
-          initialsFromEmail(user.email)
+          // From the username `/auth/me` now joins in, not the email.
+          initialsFrom(user.userName)
         ) : (
           <IconUser className="size-4.5" stroke={1.75} />
         )}
@@ -76,8 +76,14 @@ export function UserMenu() {
           role="menu"
           className="absolute top-full right-0 z-50 mt-2 w-56 rounded-[12px] border-[0.5px] border-mx-border bg-mx-card p-1.5 shadow-lg"
         >
-          <p className="truncate px-2.5 py-2 text-[12px] text-mx-fg-faint">
-            {user?.email}
+          {/*
+            The username is the identifier shown here. The email is deliberately
+            not rendered — it is what you sign in *with*, not what identifies
+            you afterwards, and a dropdown pinned open in a shared or screen-shared
+            window is a poor place to put it.
+          */}
+          <p className="truncate px-2.5 py-2 text-[13px] font-medium text-mx-fg">
+            {user?.userName}
           </p>
 
           <div className="my-1 border-t-[0.5px] border-mx-border-subtle" />

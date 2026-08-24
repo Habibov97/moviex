@@ -244,21 +244,199 @@ So: A signs in, their list is cached. A signs out — cache keeps it. B signs in
 - **`MyListView` no longer builds its own key.** It had an inline `useQuery` duplicating `useUserMovies()`; that was a second place the scoping had to be remembered, so it now calls the hook. One hook, one key.
 
 **Rule for any future user-owned feature:** the id goes in the query key, and the fix belongs in *both* layers — a correctly scoped API does not save you from a cache keyed without the user. When auditing, check what `invalidateQueries` actually does: it marks stale, it does not remove. Use `removeQueries` when the goal is that data must become unreadable.
+
+### The second occurrence: badges kept showing the previous account
+
+Same symptom, reported again later — log out, log in as someone else in the same tab with no refresh, and the "In list" / "Watched" badges on Discover and Search cards and the detail page's action buttons still showed the *previous* user's saved state. **The earlier fix had not generalised**, but not for the reason it looked like: `useMovieStatuses` was already keyed with `userMoviesKey(user?.sub)`, correctly. Two different faults were behind it, and both are worth knowing because neither is visible by reading a query key.
+
+**1. `removeQueries()` does not clear what a mounted observer is already rendering, and it deletes the query `invalidateQueries` would later need to match.** Logout's unfiltered `queryClient.removeQueries()` destroyed **`['auth','me']` along with everything else**. The mounted `useCurrentUser` observer kept returning the departing user — removal empties the cache, it does not push `undefined` into live observers — and, with the entry gone from the cache, nothing re-created it. So `/auth/me` was never re-requested. `user.sub` stayed the old id, every key built from `userMoviesKey(user?.sub)` stayed pointed at that account, and the badges stayed. The next login's `invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY })` then matched **nothing** — invalidation only reaches queries the cache still holds — so signing in as someone else did not repair it either. Only a remount did, which is exactly why My List looked fine: you *navigate* to it, so its components mount fresh and re-create their queries.
+
+  Measured against `query-core` rather than reasoned about: across a full logout → login cycle the `/auth/me` fetch count stayed at **1**. With the fix it goes 1 → 2 → 3.
+
+  **Logout therefore exempts the auth key from the removal**, then `setQueryData(CURRENT_USER_QUERY_KEY, null)` (the cookie is already gone — signed-out is true now, and it blanks the UI in the same tick) and only then invalidates to re-verify. Everything else is still removed. **Do not "simplify" that back to a bare `removeQueries()`** — the exemption is the fix.
+
+**2. `enabled: false` does not blank a query's last result.** Disabling stops fetching; it does not discard what already resolved. A component reading `query.data` renders the previous account's statuses for as long as it stays mounted. `useMovieStatuses` now gates its return on `isSignedIn` explicitly, so signed-out means no badge regardless of what is sitting in the observer. `useUserMovies` needs no such gate only because its one consumer, `MyListView`, already branches on `isAuthLoading` / `!isSignedIn` before it reads `data` — if a second consumer appears, it owes the same check.
+
+**So the rule has three parts now, not one.** A new user-scoped hook is not safe merely because its key carries the user id:
+
+1. Key it with `userMoviesKey(...)`.
+2. **Gate the rendered value on `isSignedIn`**, not just the query's `enabled`.
+3. Check that whatever clears the cache on sign-out leaves `['auth','me']` alive and actually refetching — every per-user key is derived from it, so freezing that one query silently freezes all of them.
+
+Login's `useSessionEstablished` needs no change: `removeQueries({ queryKey: USER_MOVIES_KEY })` is a prefix match, so it reaches every `['user-movies', <id>, …]` entry including the `status` lookups, and its `invalidateQueries` on the auth key now matches because logout stopped destroying it.
+
+**And the general lesson: don't assume a documented fix covered a hook it was not written against.** Both times this bug shipped, the reasoning was sound for the query someone had in front of them and simply never ran against the others.
 - The unique constraint is `(userId, tmdbId)`; the index is `(userId, status)`, which is exactly what the batch lookup and the status-filtered list query on.
 - **"Mark as watched" uses POST, not PATCH.** It is reachable from a card for a movie that may not be saved yet, and PATCH 404s on a missing entry; POST covers both cases. PATCH is only used for "Move back to list", where the entry is known to exist.
 
-## Auth submit: endpoints, field mapping, and register → login
+## Auth submit: endpoints and field mapping
 
 `LoginRegisterModal` submits through `hooks/use-auth.ts`. Several details are easy to get wrong because the brief-level names do not match the API:
 
 - **The route is `POST /auth/signup`, not `/auth/register`.**
-- **`RegisterDto` wants `userName`, not `name`**, and the API's global `forbidNonWhitelisted` means any extra property is a **400**. So the signup body is exactly `{ userName, email, password }` — `confirmPassword` is client-side only — and the login body is exactly `{ email, password }`. Sending `rememberMe` returns `400 "property rememberMe should not exist"`; it is a UI concern and never goes on the wire.
+- **The register form's field is labelled "Username", and the value is `userName` everywhere except the client-side schema.** The chain is: `users.userName` column → `RegisterDto.userName` → wire body `userName` — but the zod `registerSchema` and the form's own state call it `name`, with `use-auth.ts` doing the mapping. That seam is deliberate and documented; **don't rename either side to "fix" it**, the label was the only thing that was ever wrong.
+- **`RegisterDto` wants `userName`, not `name`**, and the API's global `forbidNonWhitelisted` means any extra property is a **400**. So the signup body is exactly `{ userName, email, password }` — `confirmPassword` is client-side only — and the login body is `{ email, password, rememberMe? }`. **`rememberMe` does now go on the wire**: `LoginDto` declares it as optional, and it is what selects the session length (see below). It used to be stripped client-side precisely because the DTO did not declare it and `forbidNonWhitelisted` answered `400 "property rememberMe should not exist"` — which is still what any *other* stray property gets.
 - **A duplicate account returns `404` ("User already exists"), not `409`.** Match on the status the backend actually returns.
 - `NAME_MIN_LENGTH` in `@moviex/shared-types` is **4**, aligned with `RegisterDto`'s `@MinLength(4)`. If those drift, a name passes client validation and then 400s server-side.
 
-**Register does not sign anyone in** — `/auth/signup` deliberately sets no cookie. The modal uses **approach (b)**: on signup success it immediately chains a `/auth/login` with the same credentials, so the user never retypes what they just chose, then closes like a normal login. If that follow-up call fails it falls back to **(a)**: switch to the login view with the email pre-filled and an "Account created — sign in below" notice, rather than leaving someone holding an account they appear not to have.
+### Password rules: one policy, two enforcement copies, and never at login
+
+A **new** password needs 8+ characters, one uppercase letter and one special character. `passwordSchema` in `@moviex/shared-types` is the source of truth for what the rules *are*, and exports `PASSWORD_UPPERCASE_PATTERN` / `PASSWORD_SPECIAL_PATTERN` so the strength meter tests the very same expressions the validator does instead of keeping its own idea of "special character".
+
+- **`apps/api` restates the rules by hand in `RegisterDto`, and cannot do otherwise.** `@moviex/shared-types` ships raw `.ts`; Node cannot parse it at runtime (`node dist/main` throws on the type syntax — verified, it is not just the barrel's extensionless re-exports), so the API may import **types** from that package but never **values**. The DTO carries a comment saying so. Edit the two together. They had already drifted before anyone noticed: the schema said 8 while the DTO said 6, so any non-browser caller could register with a password the UI would have refused.
+- **Never apply the new-password policy at login.** `loginSchema` uses `loginPasswordSchema` — presence only — precisely because every account created before a rule existed would otherwise fail validation *in the browser* and be locked out of its own login form, with no request ever sent. `LoginDto` keeps its original `@MinLength(6)` for the same reason. Whether a password is correct is the service's answer, not the form's. This split is the whole reason `passwordSchema` and `loginPasswordSchema` are separate exports; do not collapse them.
+- **The strength meter scores what is *not* required.** Anything failing `passwordSchema` is "weak"; past that, length ≥ 12, a lowercase letter and a digit each earn a point, and two of three make it "strong". Uppercase and symbols deliberately stopped counting when they became mandatory — scoring a password for something it could not have omitted would rate every valid password strong.
+- **Every key `AUTH_VALIDATION_KEYS` and `OTP_VALIDATION_KEYS` can emit needs copy in all three message files.** Worth asserting when adding a rule: flatten `auth.validation` per locale and diff it against the union of those two arrays — a missing key renders an error placeholder rather than a message, and an orphan is copy for a rule that no longer exists.
+
+### "Remember me": two session lengths, and why they cannot drift
+
+The checkbox is wired to the real session. There are **two** durations and nothing else changes between them:
+
+| Checkbox | Duration | Config key | Env var |
+|---|---|---|---|
+| Unticked (or `rememberMe` omitted) | **`1d`** | `jwt.expiresIn` | `JWT_EXPIRES_IN` |
+| Ticked | **`30d`** | `jwt.rememberExpiresIn` | `JWT_REMEMBER_EXPIRES_IN` (defaults to `30d`) |
+
+- **No refresh tokens are involved, by design.** This app has none and no server-side session, so the signed lifetime *is* the session — which is why "remember me" is a change to one number rather than a new mechanism. Don't add refresh-token machinery to implement a longer session.
+- **The JWT expiry and the cookie's `maxAge` are the same value, structurally, not by convention.** `AuthService.issueSession()` picks one duration, signs with it, then reads the lifetime back off the token's own claims — `expiresInMs = (exp - iat) * 1000` — and the controller sets that as `maxAge`. The duration string is never parsed a second time, so there is no second place to update and no way for the cookie to outlive the token inside it (or expire before it). **Retune the values in `jwt.config.ts` and both move together**; a test asserts this holds on both branches and follows a config change to `90d`.
+- **`rememberMe` is not a claim.** It selects the expiry and is then discarded — the token payload stays exactly `{ sub, email, iat, exp }`. Nothing downstream needs to know which kind of session it is.
+- **Omitted means `false`, on both sides.** `LoginDto` marks it `@IsOptional()` and `loginSchema` is `z.boolean().optional().default(false)`, so an existing caller that sends nothing keeps the short session it always had.
+- **OTP verification always issues the short session.** `POST /auth/verify-otp` signs someone in, but "remember me" is a choice made on the *login* form and the register → OTP flow never presents it. Adding the field to `VerifyOtpDto` would mean inventing a preference the user was never asked for; the shorter default is the honest one, and their next sign-in is where they choose.
+
+**Register does not sign anyone in, and the reason is now structural** — see the email-verification section below. `/auth/signup` sets no cookie because the address has not been proven yet, and the API refuses to issue a session for an unverified account at all. The modal used to chain straight into `/auth/login` on signup success; that is exactly what the gate exists to prevent, and it is gone.
 
 Only `AuthError` messages (curated in `use-auth.ts`) are rendered; anything else falls back to generic copy, so raw upstream text and stack detail never reach the UI. `useLoginMutation` invalidates `['auth','me']` on success — that, not a reload, is what flips the navbar and the gated buttons.
+
+## Email verification: OTP is the gate between "account created" and "signed in"
+
+Signing up no longer produces a session. The flow is **register → account created, unverified → 4-digit code emailed → user enters it → verified *and* signed in, in one response**. Verification is the only thing that turns a row into a usable account.
+
+### The policy values, and where they live
+
+| | Value | Constant |
+|---|---|---|
+| Code | 4 digits, `1000`–`9999` | `generateOtpCode()` |
+| Lifetime | **10 minutes** | `OTP_TTL_MS` |
+| Resend cooldown | **60 seconds** per account | `OTP_RESEND_COOLDOWN_MS` |
+| Wrong guesses per code | **5**, then the code is refused outright | `OTP_MAX_ATTEMPTS` |
+
+All four live in `apps/api/src/auth/otp.constants.ts` and **nowhere else**. There is deliberately no client-side copy: every endpoint that issues a code returns the *remaining* seconds with it (`OtpChallenge` — `expiresInSeconds`, `resendAvailableInSeconds`, `emailSent`), and the modal counts down from those. A mirrored validation rule fails loudly on the next request; a mirrored **timer** just drifts silently, which is why this one is not mirrored. Retune the numbers here and the UI follows with no frontend change.
+
+Codes are generated with `randomInt` from `node:crypto`, not `Math.random` — this is a credential, and a seeded PRNG's next draw is predictable from its previous ones.
+
+### Endpoints
+
+| Route | Notes |
+|---|---|
+| `POST /auth/signup` | Creates the user with `isEmailVerified: false`, stamps a code, emails it. **No cookie, no token, and the code is not in the response.** Returns `{ status: 'pending_verification', challenge }`. |
+| `POST /auth/verify-otp` | `{ email, code }`. On success flips `isEmailVerified`, clears the code, and **sets the session cookie exactly as login does**. |
+| `POST /auth/resend-otp` | `{ email }`. New code, at most one per 60s. Already-verified is a 200 no-op (`status: 'already_verified'`), not an error. |
+| `POST /auth/login` | Unchanged for verified accounts. An unverified one is **403 with `code: 'EMAIL_NOT_VERIFIED'`** — see below. |
+
+- **`AuthService.issueSession()` is the single place a session is created.** Login and verify-otp both end there, and `AuthController.setSessionCookie()` is the single place the cookie is written. Two ways in, one definition of what a session *is* — otherwise the cookie attributes drift between them and only one of the two matches what logout clears.
+- **The unverified login is a 403 with a code, not a 401.** "Wrong password" and "right password, unproven address" need opposite responses — one says try again, the other moves the user to the OTP screen — so the client must be able to tell them apart without reading English prose. It is checked **after** the password, so an account's verification state is never disclosed to someone who cannot sign in anyway.
+- **`otpCode`, `otpExpiresAt`, `otpAttempts` and `otpLastSentAt` are stripped from every response alongside `password`.** Not theoretical: a user can hold a live code while logging in on another device, and without the strip `POST /auth/login` would hand the code straight back in its body. Covered by a test.
+- **`POST /auth/resend-otp` 404s on an unknown email, which does leak whether an address is registered** — but `signUp` already answers "User already exists" to the same question, so this closes nothing that is currently open, and a silent fake success would leave a mistyped address waiting forever on a code that was never sent. Closing enumeration properly means changing signup too, and is its own piece of work.
+
+### Guard order in `verifyOtp`, and why it is that order
+
+1. **Attempt ceiling first**, before the code is even compared — an exhausted budget must not be bypassable by a lucky guess.
+2. **Expiry before equality** — a stale-but-correct code reports `OTP_EXPIRED`, not `OTP_INVALID`. That is the difference between "wait for the new email" and "you mistyped it".
+3. **The lockout is reported on the attempt that causes it**, not the next one. Otherwise the UI keeps offering a retry that is already guaranteed to fail, and the user only learns to press Resend after wasting it.
+4. **A successful verify clears the code**, which is what stops it being replayed inside its remaining lifetime.
+5. **An unknown email answers `OTP_INVALID`**, not 404 — there is nothing to increment, and a different answer would make this a membership oracle.
+
+**Issuing a new code resets `otpAttempts` to zero.** That is what makes "request a new code" a real way out of a lockout rather than advice that changes nothing — and it is safe, because the budget is per-code, not per-account.
+
+### The migration backfilled every existing account to verified
+
+`isEmailVerified` defaults to `false`, which is right for every row created from here on and **catastrophic for rows that already existed**: they would all fail login's new check with no way back, since the only route to verified is a code emailed by signup, and signup refuses an address that is already registered. `1787498626807-AddEmailVerification` therefore ends with `UPDATE "users" SET "isEmailVerified" = true`. That statement is correct exactly once, at that moment, because the column did not exist a statement earlier. **Any future column that gates access needs the same consideration** — a default that is right for new rows is not automatically right for old ones.
+
+### Email: Nodemailer over Gmail SMTP
+
+`src/mail/` (`MailModule` / `EmailService`), kept out of `AuthModule` because "send an email" is not an auth concern. Gmail submission port **587**, `secure: false` with `requireTLS: true` — `requireTLS` is doing real work: without it Nodemailer would fall back to an unencrypted session if the server declined STARTTLS, sending the app password in the clear. `SMTP_PASS` must be a Google **App Password** (16 chars, 2FA required), never the account password; Google rejects the latter with a generic "Username and Password not accepted" that reads like a typo.
+
+- **`sendOtpEmail` never throws, on any path.** It returns a boolean. An exception escaping the mailer would fail a signup whose user row has already been committed — leaving someone with an account they can neither enter nor re-create. Losing an email is recoverable; there is a Resend button on the other side of it.
+- **`otpLastSentAt` is written only after a successful send**, so a failed delivery does not start a 60-second cooldown against a code that never arrived. The challenge carries `emailSent: false` and the modal says so instead of showing a countdown for a code that will never come.
+- **The code is never logged**, including on the error path. An error log is precisely where it would outlive its ten minutes.
+- **Gmail caps a free account at roughly 500 messages a day.** Fine at the current size, and there is no queue or retry behind it. If signups ever approach that, swap in a transactional provider (Resend, SendGrid, …) — the change is confined to `EmailService`'s transport.
+
+### The OTP view in `LoginRegisterModal`
+
+A third `AuthMode` (`"login" | "register" | "otp"`) in the same component, styled from the same tokens — not a new design.
+
+- **Two ways in.** Register success passes the challenge it just received. A login that comes back `EMAIL_NOT_VERIFIED` switches to the same view with the email pre-filled and **requests a fresh code on mount**, rather than showing an error the user cannot act on.
+- **Countdowns are absolute deadlines, not decremented counters.** A `setInterval` that subtracts one per tick drifts, and stops entirely in a backgrounded tab — so someone who switched away for two minutes would return to a clock still claiming nine minutes left. Both timers recompute from a fixed target every tick.
+- **An unknown expiry renders nothing.** The login → verify path can arrive without a challenge if the server declined to re-send; `null` is a real state and inventing "10:00" would be a claim the server never made.
+- **A cooldown rejection on the auto-request is swallowed, not shown.** The countdown on the button already says everything it means, and the user did not press anything — being told off for a request the component made on their behalf is noise. The `retryAfterSeconds` off the error re-seeds the countdown so it unlocks at the right moment.
+- **Auto-submit on the fourth digit is guarded by the last-submitted code.** Without that guard a rejected code re-submits itself on every render while it is still four digits long, burning all five attempts at once.
+- **Inputs select on focus.** That is what makes typing over a filled box replace it rather than being swallowed by `maxLength={1}`. Paste is handled separately and fills every box from the one pasted into.
+- Success invalidates `['auth','me']` and removes `['user-movies']` through the **same** `useSessionEstablished()` helper login uses — verify-otp establishes a session, so it owes the same cache hygiene, including the cross-account leak fix.
+
+### Adding to this flow
+
+The OTP copy is in the `auth` namespace of all three message files, `otpIncomplete` under `auth.validation`. One deviation from the ICU rule worth knowing: `otpResendIn` uses a single `other` branch in all three languages because the unit is **abbreviated** (`45s` / `45 sn` / `45 с`), and an abbreviation has no grammatical agreement to vary. Any count rendered as a full word still needs the complete Russian set.
+
+## Forgot password: the same OTP machinery, three deliberate differences
+
+`register → email → code → signed in` and `forgot password → email → code → new password` are the same four digits, the same columns and the same screens. **What differs is the three things below**, and each of them is the reason the flow exists rather than an implementation detail:
+
+1. **Verifying the code does not sign anyone in.** Email verification ends in a session because entering the code is the last step of creating an account. Here it is the *middle* step, and it only proves the mailbox is readable — so it returns a short-lived reset token and nothing else. Neither `verify-reset-otp` nor `reset-password` touches a cookie.
+2. **`POST /auth/forgot-password` answers identically for every input.** This is the one endpoint in the app that does not leak account existence.
+3. **The code carries a purpose**, so the two flows cannot spend each other's codes.
+
+| Route | Notes |
+|---|---|
+| `POST /auth/forgot-password` | `{ email }`. Emails a code **only** for an account that exists *and* is `isEmailVerified` *and* is outside the 60s cooldown. Always `200 { status: 'if_account_exists_code_sent', challenge }`. |
+| `POST /auth/verify-reset-otp` | `{ email, code }`. Returns `{ resetToken, expiresInSeconds }`. **No cookie, no session.** |
+| `POST /auth/reset-password` | `{ resetToken, newPassword }`. Changes the password. **Still no session** — go and sign in. |
+
+### `otpPurpose`: why the columns are shared, and what makes it safe
+
+Both flows use the same `otpCode` / `otpExpiresAt` / `otpAttempts` / `otpLastSentAt` columns, because one account is only ever part-way through one of them at a time and a second set would be four fields that are null in every row. The `otpPurpose` enum column (`'email_verification' | 'password_reset'`, nullable) is what makes that sharing safe: **without it, four digits emailed to confirm an address would also open the password-reset door.** `AuthService.consumeOtp` checks the purpose *before* comparing the code and answers `OTP_INVALID` for the other flow's code, burning no attempt — the caller is not in the right flow, so there is nothing there to brute-force.
+
+- **Issuing a code for either purpose overwrites whatever was pending for the other.** Intended, not a race: the last code the user asked for is the one in front of them.
+- **The migration backfills `otpPurpose = 'email_verification'` for rows with a code outstanding**, and leaves the rest null. Narrower than the `isEmailVerified` backfill but the same reasoning: every code alive at that moment predates password reset, so it can only be a verification code, and leaving it null would get it rejected by the very check being added. Rows with no code stay null — there is nothing to describe.
+- `clearOtp` clears it with the rest, and `issueSession` strips it alongside `otpCode` and friends. A purpose left behind labels a code that is not there.
+
+### The reset token: a JWT that is deliberately not a session
+
+Signed with the same `JWT_SECRET`, and that is exactly why the `purpose: 'password_reset'` claim is load-bearing rather than decorative. **Without it, any token signed with that secret would be accepted — including the session token in every signed-in user's cookie**, which would turn "I am signed in" into "I may change this password without knowing the current one" and a stolen cookie into a permanent takeover. The claim is what keeps the two token families apart under one secret.
+
+- Payload is exactly `{ sub, purpose, iat, exp }` — no email, nothing session-shaped.
+- **10 minutes** (`RESET_TOKEN_TTL_SECONDS` in `otp.constants.ts`, alongside the other four OTP numbers — don't fork a second set).
+- **Returned in the response body, not as a cookie.** It is a transient one-time credential the client holds across two consecutive requests; the short expiry is most of what makes a JS-readable token acceptable here. The client keeps it in `ResetPasswordForm`'s state and **never** in `localStorage`, `sessionStorage`, a cookie or the URL — unmounting the modal is what disposes of it, which is only true while both steps share one mount.
+- Bad signature, expired, wrong purpose and not-a-JWT all collapse to one `RESET_TOKEN_INVALID`. They mean the same thing to the user; distinguishing them describes the token back to whoever is probing it. The `jsonwebtoken` error is never rethrown — its message would surface raw in the body.
+
+### Non-disclosure at `forgot-password`, and where it stops
+
+Unknown address, unverified account, real send, and a request inside the cooldown all produce the same body. Everything that varies happens before the `return`; a cooldown rejection is **silence, not a 429**, because a 429 would confirm the account.
+
+- `challenge` carries **policy** figures (full TTL, full cooldown), never this account's remaining time — per-account seconds are precisely what would leak. The cost is a conservative clock: if a code really was sent 30s ago the button says 60. Pressing it early is a silent no-op, so nothing breaks.
+- **An unverified account is declined silently.** It has never proven it can receive mail at that address, so emailing a reset code there would let whoever registered it take control on the strength of an address they never proved. Their route in is the signup verification flow, which the client's copy points *everyone* at.
+- **This is stricter than the rest of the module, on purpose.** `signUp` still answers "User already exists" and `resendOtp` still 404s, so enumeration is not closed in this app — but those cost the attacker something, and reset is the endpoint an attacker actually wants an oracle on. Don't "make it consistent" by loosening this one.
+- The UI must cooperate: `ForgotPasswordForm` says *"if an account exists…"*, never "check your inbox". Saying the latter would re-open client-side exactly what the endpoint closes.
+
+### Accepted trade-off: other sessions survive a password reset
+
+Changing the password does **not** sign other devices out. This app has no refresh tokens, no server-side session and no denylist, so an already-issued token stays cryptographically valid until its own expiry — the identical limitation logout has, where clearing the cookie removes the browser's copy and revokes nothing. A reset therefore locks an attacker out of *future* sign-ins but not an existing session, for up to `JWT_EXPIRES_IN` (or 30 days on a "remember me" token).
+
+Closing it needs an actual revocation mechanism — a `passwordChangedAt` column the guard compares each token's `iat` against would do it — and that is a deliberate change to make, not something to bolt onto `resetPassword`.
+
+### The two new modal views
+
+`AuthMode` is now five: `login | register | otp | forgot | reset`. Same tokens, no new design.
+
+- **`ResetPasswordForm` is one component for two stages** (`code`, then `password`) specifically because the reset token lives between them. It reports its stage upward so the modal heading can follow; the token never leaves.
+- **The OTP boxes are extracted, not copied.** `OtpCodeInput` (with `OtpStatusRow`, `useSecondsRemaining`, `formatClock`) is shared by both code screens. Everything subtle in it — select-on-focus, backspace stepping back, paste filling forward, auto-submit guarded by the last-submitted code — was a separate small fix, and a second copy would have to rediscover all of them. It is controlled by the digit **array**, never a joined string: a user can fill box three first, and round-tripping through `join("")` would move that digit to the front.
+- **Resending a reset code re-calls `forgot-password`.** There is no separate endpoint and there should not be — a second one would need its own identical non-disclosure rules. That flow's `OtpDeadlines.emailSent` is `null` ("not disclosed"), distinct from `false` ("a send failed"), so the "we couldn't send that email" line never renders here.
+- **A reset token that expires mid-form sends the user back to the code stage** rather than leaving them on a form whose submit can no longer succeed, and the dead token goes with them. The error copy says "request a new code"; this puts them where that button is.
+- Success returns to the login view through the existing `handoff` mechanism — email pre-filled, `passwordUpdated` shown inline. No session, no reload.
+- Closing the modal clears `recovery`, which unmounts the form and discards the token. Don't hoist that state up to survive a close.
+
+### Adding to this flow
+
+Both DTOs restate the shared rules by hand for the usual reason (the API cannot import values from `@moviex/shared-types`). `ResetPasswordDto` carries a **third** copy of the password policy alongside `passwordSchema` and `RegisterDto` — edit all three together; a reset that accepted a weaker password would be a documented way around the policy. New copy goes in the `auth` namespace of all three message files, as always.
 
 ## Client auth state: `useCurrentUser` and the `['auth','me']` key
 
@@ -267,7 +445,8 @@ Only `AuthError` messages (curated in `use-auth.ts`) are rendered; anything else
 - **Query key is `['auth','me']`** (`CURRENT_USER_QUERY_KEY`). Invalidate it after any change to the session — login, register, logout — and every consumer re-reads. `useLogoutMutation` already does this in `onSettled` (settled, not success: a failed logout leaves the cookie's state unknown, so re-reading is right either way).
 - **A 401 is the logged-out answer, not an error** → the query resolves to `null`, with `retry: false` so React Query doesn't hammer a correct rejection. `staleTime` is 5 minutes.
 - **`credentials: "include"` is mandatory** on every auth call: the token is an httpOnly cookie JS cannot read, so the browser must be told to attach it cross-origin. This is also why the API's CORS has to name the exact origin — see the LAN-testing section.
-- **`/auth/me` returns the decoded JWT payload — `{ sub, email, iat, exp }`, with no name.** `initialsFromEmail()` derives the avatar's initials from the email local part. If real-name initials are wanted, `/auth/me` has to be widened to join the user row; don't invent a name client-side.
+- **`/auth/me` returns `{ sub, email, userName, iat, exp }`.** `sub`/`iat`/`exp` come from the token, but **`userName` is joined from the `users` row** — the JWT deliberately does not carry it, because the cookie rides on every request and should stay small. Reading the row also means a username change shows up on the next `/auth/me` rather than being frozen until the token expires. A structurally valid token whose account no longer exists is a **401**, not a session.
+- **The navbar menu displays `userName`, never the email**, and `initialsFrom(user.userName)` builds the avatar's initials (`najaf` → `NA`, `ada.lovelace` → `AL`). Email is what you sign in *with*, not what identifies you afterwards. This replaced an `initialsFromEmail()` that only existed because `/auth/me` had no username to offer.
 - **Gating is three-way, never two.** `useLibraryActions().requireAuth()` no-ops while auth is *loading*, opens the modal only once logged-out is **confirmed**, and runs the action when signed in. Treating "unknown" as "logged out" flashes the login modal at users who are actually signed in — that is the bug this shape exists to prevent.
 
 ## Fetch failures use `error.tsx`, not try/catch
@@ -280,6 +459,17 @@ A Server Component that cannot reach the API **throws**, and the route's `error.
 - The error is `console.error`'d in a `useEffect`; **`error.message` is never rendered** — it can carry internal hostnames and stack detail.
 - **This is not the empty state.** `discover.empty` and `SearchEmptyState` mean "the request succeeded and matched nothing"; the boundary means "we could not reach the server". Keep them distinct, or a user sees "no movies match your filter" when the API is simply down.
 - Worth knowing when testing: in a production build a thrown Server Component error returns a **500 with an empty HTML shell**, and the boundary renders on the client after hydration. `curl` will not show the styled message — check it in a browser.
+
+### A short retry sits in front of those boundaries — this is already handled, don't "fix" it again
+
+Every function in `lib/api.ts` goes through **`fetchWithRetry()`**, which retries **twice** (300ms then 600ms) and then rethrows the original error untouched. It exists because the API can be briefly unreachable at a moment nobody chose: `npm run dev` starts both apps in parallel and Next becomes ready before Nest has finished connecting to the remote Supabase Postgres, so the very first server-rendered Discover fetch could hit a port nothing was listening on and blow up with `TypeError: fetch failed` / `ECONNREFUSED`. The same window opens in production every time the API restarts during a deploy, which is why this is not a dev-only workaround.
+
+- **Only a throwing `fetch` is retried** — the connection never got made. An HTTP **response** is a real answer from a server that is up, so a 404, 400 or 503 is returned on the first attempt and never repeated. Retrying a status code would multiply load on an API that is already struggling and delay an error the user needs to see.
+- **An `AbortError` is never retried.** The typeahead cancels superseded searches; retrying one would resurrect a request whose result is already unwanted.
+- **Nothing downstream changed.** After the retries are exhausted the error propagates exactly as before, so discover/search/detail still throw into `error.tsx`, `getGenres` still degrades to `[]`, and a movie 404 still becomes `null`. This adds ~900ms of window in front of that policy and nothing else.
+- Keep the budget small. It is sized to bridge a gap of milliseconds-to-low-seconds, not to hide a backend that is genuinely down behind a long spinner.
+
+**`apps/web` also has a `predev` script** — `wait-on http-get://localhost:3000 -t 15000` against the API's `GET /` — so the web dev server usually does not start until Nest is answering. It is a convenience, not the fix: on timeout it prints a note and lets `next dev` start anyway, and it only ever helps at process startup. `fetchWithRetry` is what covers a mid-session blip. Do not remove one on the grounds that the other exists.
 
 ## Testing on a phone / LAN device
 

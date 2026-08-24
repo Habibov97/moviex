@@ -30,7 +30,6 @@
     "showMore": "+{count}",
     "showMoreLabel": "{count, plural, one {Show # more genre} other {Show # more genres}}",
     "showLess": "Show less",
-
     "yearRange": "{from} – {to}",
     "yearTitle": "Release year",
     "yearSubtitle": "Pick a range between {from} and {to}",
@@ -41,16 +40,13 @@
     "presetLast5": "Last 5 years",
     "presetLast10": "Last 10 years",
     "presetClassics": "Classics",
-
     "ratingChip": "Rating",
     "ratingChipValue": "{value}+",
     "ratingTitle": "Minimum rating",
     "ratingSubtitle": "Show movies rated at least this high",
     "anyRating": "Any rating",
-
     "reset": "Reset",
     "apply": "Apply",
-
     "sortLabel": "Sort",
     "sort": {
       "popularity": "Most popular",
@@ -58,29 +54,24 @@
       "newest": "Newest first",
       "oldest": "Oldest first"
     },
-
     "viewLabel": "View",
     "view": {
       "grid": "Grid view",
       "list": "List view"
     },
-
     "gridLabel": "Movies",
     "listLabel": "Movie list",
     "loading": "Loading movies",
     "empty": "No movies found for this filter",
-
     "add": "Add",
     "addLabel": "Add {title} to your list",
     "markWatched": "Watched",
     "markWatchedLabel": "Mark {title} as watched",
     "tagWatched": "Watched",
     "tagListed": "In list",
-
     "notRated": "—",
     "ratingLabel": "Rated {value} out of 10",
     "notRatedLabel": "Not yet rated",
-
     "paginationLabel": "Pagination",
     "previousPage": "Previous page",
     "nextPage": "Next page",
@@ -198,14 +189,12 @@
     "signInOrCreate": "Sign in or create an account",
     "logOut": "Log out",
     "loggingOut": "Logging out…",
-
     "welcomeBack": "Welcome back",
     "welcomeBackSubtitle": "Sign in to pick up where you left off",
     "createAccountTitle": "Create an account",
     "createAccountSubtitle": "Start building your movie collection",
-
-    "nameLabel": "Name",
-    "namePlaceholder": "Najaf",
+    "nameLabel": "Username",
+    "namePlaceholder": "yourusername",
     "emailLabel": "Email",
     "emailPlaceholder": "najaf@example.com",
     "passwordLabel": "Password",
@@ -213,7 +202,6 @@
     "confirmPasswordLabel": "Confirm password",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-
     "rememberMe": "Remember me",
     "forgotPassword": "Forgot password?",
     "signIn": "Sign in",
@@ -225,25 +213,60 @@
     "noAccount": "Don't have an account?",
     "signUp": "Sign up",
     "haveAccount": "Already have an account?",
-
     "strengthWeak": "Weak",
     "strengthMedium": "Medium",
     "strengthStrong": "Strong",
-
     "invalidCredentials": "Invalid email or password",
     "emailTaken": "That email is already registered — sign in instead",
     "networkError": "Couldn't reach our servers. Check your connection and try again.",
     "genericError": "Something went wrong, please try again",
-    "accountCreated": "Account created — sign in below",
-
+    "alreadyVerified": "This email is already verified — sign in below",
+    "emailNotVerified": "Your email isn't verified yet",
+    "verifyEmailTitle": "Verify your email",
+    "verifyEmailSubtitle": "Enter the 4-digit code we sent to {email}",
+    "otpCodeLabel": "Verification code",
+    "otpDigitLabel": "Digit {position} of {total}",
+    "otpExpiresIn": "Code expires in {time}",
+    "otpExpiredNotice": "Code expired",
+    "otpResend": "Resend code",
+    "otpResendIn": "Resend in {seconds, plural, other {#s}}",
+    "otpResending": "Sending…",
+    "otpResent": "A new code is on its way",
+    "otpNotSent": "We couldn't send that email. Try Resend in a moment.",
+    "otpVerify": "Verify",
+    "otpVerifying": "Verifying…",
+    "otpInvalid": "That code isn't right — check the digits and try again",
+    "otpExpired": "That code has expired — request a new one",
+    "otpTooManyAttempts": "Too many incorrect attempts. Request a new code to continue.",
+    "otpResendCooldown": "Please wait a moment before requesting another code",
+    "otpWrongEmail": "Wrong email?",
+    "otpBackToLogin": "Go back",
+    "forgotPasswordTitle": "Reset your password",
+    "forgotPasswordSubtitle": "Enter your email and we'll send you a code",
+    "forgotPasswordSubmit": "Send code",
+    "forgotPasswordSending": "Sending…",
+    "rememberedPassword": "Remembered your password?",
+    "resetPasswordTitle": "Reset your password",
+    "resetCodeSubtitle": "If an account exists for {email}, we've sent it a 4-digit code",
+    "resetPasswordSubtitle": "Choose a new password for {email}",
+    "newPasswordLabel": "New password",
+    "confirmNewPasswordLabel": "Confirm new password",
+    "resetPasswordSubmit": "Update password",
+    "resetPasswordSubmitting": "Updating…",
+    "passwordUpdated": "Password updated — sign in below",
+    "resetTokenExpired": "That reset session expired — request a new code",
     "validation": {
-      "nameTooShort": "Name must be at least {min, plural, one {# character} other {# characters}}",
-      "nameTooLong": "Name must be {max, plural, one {# character} other {# characters}} or fewer",
+      "nameTooShort": "Username must be at least {min, plural, one {# character} other {# characters}}",
+      "nameTooLong": "Username must be {max, plural, one {# character} other {# characters}} or fewer",
       "emailRequired": "Enter your email address",
       "emailInvalid": "Enter a valid email address",
       "passwordTooShort": "Password must be at least {min, plural, one {# character} other {# characters}}",
+      "passwordNeedsUppercase": "Password must contain at least one uppercase letter",
+      "passwordNeedsSpecial": "Password must contain at least one special character",
+      "passwordRequired": "Enter your password",
       "confirmRequired": "Re-enter your password",
-      "passwordsDoNotMatch": "Passwords do not match"
+      "passwordsDoNotMatch": "Passwords do not match",
+      "otpIncomplete": "Enter all 4 digits"
     }
   }
 }

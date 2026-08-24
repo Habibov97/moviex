@@ -56,6 +56,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
 
+/** One shared empty map, so a signed-out render is referentially stable. */
+const NO_STATUSES: ReadonlyMap<number, UserMovieStatus> = new Map();
+
 /**
  * Statuses for the movies currently on screen, as a lookup.
  *
@@ -65,6 +68,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  *
  * Disabled while signed out: there is no list to fetch, and firing it would
  * just produce guaranteed 401s.
+ *
+ * **`enabled: false` is not on its own enough to blank the badges**, which is
+ * the second half of the cross-account leak. Disabling a query stops it
+ * fetching; it does not discard what the observer already resolved, so a
+ * component reading `query.data` keeps rendering the previous account's
+ * statuses for as long as it stays mounted. The `isSignedIn` gate below is what
+ * actually makes signed-out mean no badge — see the data-isolation note in
+ * CLAUDE.md.
  */
 export function useMovieStatuses(tmdbIds: number[]) {
   const { user, isSignedIn } = useCurrentUser();
@@ -86,8 +97,15 @@ export function useMovieStatuses(tmdbIds: number[]) {
   });
 
   return {
-    /** Empty while loading or signed out — callers read "absent" as "not saved". */
-    statuses: query.data ?? new Map<number, UserMovieStatus>(),
+    /**
+     * Empty while loading or signed out — callers read "absent" as "not saved".
+     *
+     * The `isSignedIn` check is not redundant with `enabled`: it is the thing
+     * that stops a stale resolved result being rendered after a sign-out.
+     */
+    statuses: isSignedIn
+      ? (query.data ?? NO_STATUSES)
+      : NO_STATUSES,
     isLoading: query.isPending,
   };
 }

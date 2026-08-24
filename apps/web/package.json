@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "predev": "wait-on http-get://localhost:3000 -t 15000 || echo \"[moviex] API not up after 15s — starting anyway; lib/api.ts retries.\"",
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
@@ -39,6 +40,7 @@
     "postcss": "^8.5.26",
     "shadcn": "^4.18.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "wait-on": "^9.1.0"
   }
 }

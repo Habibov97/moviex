@@ -30,7 +30,6 @@
     "showMore": "+{count}",
     "showMoreLabel": "{count, plural, one {Показать ещё # жанр} few {Показать ещё # жанра} many {Показать ещё # жанров} other {Показать ещё # жанра}}",
     "showLess": "Свернуть",
-
     "yearRange": "{from} – {to}",
     "yearTitle": "Год выхода",
     "yearSubtitle": "Выберите диапазон между {from} и {to}",
@@ -41,16 +40,13 @@
     "presetLast5": "Последние 5 лет",
     "presetLast10": "Последние 10 лет",
     "presetClassics": "Классика",
-
     "ratingChip": "Рейтинг",
     "ratingChipValue": "{value}+",
     "ratingTitle": "Минимальный рейтинг",
     "ratingSubtitle": "Показывать фильмы с рейтингом не ниже указанного",
     "anyRating": "Любой рейтинг",
-
     "reset": "Сбросить",
     "apply": "Применить",
-
     "sortLabel": "Сортировка",
     "sort": {
       "popularity": "Самые популярные",
@@ -58,29 +54,24 @@
       "newest": "Сначала новые",
       "oldest": "Сначала старые"
     },
-
     "viewLabel": "Вид",
     "view": {
       "grid": "Сеткой",
       "list": "Списком"
     },
-
     "gridLabel": "Фильмы",
     "listLabel": "Список фильмов",
     "loading": "Загрузка фильмов",
     "empty": "По этому фильтру фильмов не найдено",
-
     "add": "Добавить",
     "addLabel": "Добавить «{title}» в список",
     "markWatched": "Просмотрено",
     "markWatchedLabel": "Отметить «{title}» просмотренным",
     "tagWatched": "Просмотрено",
     "tagListed": "В списке",
-
     "notRated": "—",
     "ratingLabel": "Рейтинг {value} из 10",
     "notRatedLabel": "Ещё нет оценок",
-
     "paginationLabel": "Постраничная навигация",
     "previousPage": "Предыдущая страница",
     "nextPage": "Следующая страница",
@@ -198,14 +189,12 @@
     "signInOrCreate": "Войти или создать аккаунт",
     "logOut": "Выйти",
     "loggingOut": "Выходим…",
-
     "welcomeBack": "С возвращением",
     "welcomeBackSubtitle": "Войдите, чтобы продолжить с того же места",
     "createAccountTitle": "Создайте аккаунт",
     "createAccountSubtitle": "Начните собирать свою коллекцию фильмов",
-
-    "nameLabel": "Имя",
-    "namePlaceholder": "Najaf",
+    "nameLabel": "Имя пользователя",
+    "namePlaceholder": "имя_пользователя",
     "emailLabel": "Эл. почта",
     "emailPlaceholder": "najaf@example.com",
     "passwordLabel": "Пароль",
@@ -213,7 +202,6 @@
     "confirmPasswordLabel": "Подтвердите пароль",
     "showPassword": "Показать пароль",
     "hidePassword": "Скрыть пароль",
-
     "rememberMe": "Запомнить меня",
     "forgotPassword": "Забыли пароль?",
     "signIn": "Войти",
@@ -225,25 +213,60 @@
     "noAccount": "Нет аккаунта?",
     "signUp": "Зарегистрироваться",
     "haveAccount": "Уже есть аккаунт?",
-
     "strengthWeak": "Слабый",
     "strengthMedium": "Средний",
     "strengthStrong": "Надёжный",
-
     "invalidCredentials": "Неверная почта или пароль",
     "emailTaken": "Эта почта уже зарегистрирована — войдите вместо этого",
     "networkError": "Не удалось связаться с серверами. Проверьте подключение и попробуйте снова.",
     "genericError": "Что-то пошло не так, попробуйте ещё раз",
-    "accountCreated": "Аккаунт создан — войдите ниже",
-
+    "alreadyVerified": "Эта почта уже подтверждена — войдите ниже",
+    "emailNotVerified": "Ваша почта ещё не подтверждена",
+    "verifyEmailTitle": "Подтвердите почту",
+    "verifyEmailSubtitle": "Введите 4-значный код, отправленный на {email}",
+    "otpCodeLabel": "Код подтверждения",
+    "otpDigitLabel": "Цифра {position} из {total}",
+    "otpExpiresIn": "Код действует ещё {time}",
+    "otpExpiredNotice": "Срок кода истёк",
+    "otpResend": "Отправить снова",
+    "otpResendIn": "Через {seconds, plural, other {# с}}",
+    "otpResending": "Отправляем…",
+    "otpResent": "Новый код уже в пути",
+    "otpNotSent": "Не удалось отправить письмо. Попробуйте отправить ещё раз через мгновение.",
+    "otpVerify": "Подтвердить",
+    "otpVerifying": "Проверяем…",
+    "otpInvalid": "Код неверный — проверьте цифры и попробуйте снова",
+    "otpExpired": "Срок действия кода истёк — запросите новый",
+    "otpTooManyAttempts": "Слишком много неверных попыток. Запросите новый код, чтобы продолжить.",
+    "otpResendCooldown": "Подождите немного, прежде чем запрашивать новый код",
+    "otpWrongEmail": "Не та почта?",
+    "otpBackToLogin": "Назад",
+    "forgotPasswordTitle": "Сброс пароля",
+    "forgotPasswordSubtitle": "Введите email — мы отправим вам код",
+    "forgotPasswordSubmit": "Отправить код",
+    "forgotPasswordSending": "Отправляем…",
+    "rememberedPassword": "Вспомнили пароль?",
+    "resetPasswordTitle": "Сброс пароля",
+    "resetCodeSubtitle": "Если аккаунт с адресом {email} существует, мы отправили на него код из 4 цифр",
+    "resetPasswordSubtitle": "Придумайте новый пароль для {email}",
+    "newPasswordLabel": "Новый пароль",
+    "confirmNewPasswordLabel": "Подтвердите новый пароль",
+    "resetPasswordSubmit": "Обновить пароль",
+    "resetPasswordSubmitting": "Обновляем…",
+    "passwordUpdated": "Пароль обновлён — войдите ниже",
+    "resetTokenExpired": "Сессия сброса истекла — запросите новый код",
     "validation": {
-      "nameTooShort": "Имя должно содержать минимум {min, plural, one {# символ} few {# символа} many {# символов} other {# символа}}",
-      "nameTooLong": "Имя должно содержать не более {max, plural, one {# символа} few {# символов} many {# символов} other {# символов}}",
+      "nameTooShort": "Имя пользователя должно содержать минимум {min, plural, one {# символ} few {# символа} many {# символов} other {# символа}}",
+      "nameTooLong": "Имя пользователя должно содержать не более {max, plural, one {# символа} few {# символов} many {# символов} other {# символов}}",
       "emailRequired": "Введите адрес эл. почты",
       "emailInvalid": "Введите корректный адрес эл. почты",
       "passwordTooShort": "Пароль должен содержать минимум {min, plural, one {# символ} few {# символа} many {# символов} other {# символа}}",
+      "passwordNeedsUppercase": "Пароль должен содержать хотя бы одну заглавную букву",
+      "passwordNeedsSpecial": "Пароль должен содержать хотя бы один специальный символ",
+      "passwordRequired": "Введите пароль",
       "confirmRequired": "Введите пароль ещё раз",
-      "passwordsDoNotMatch": "Пароли не совпадают"
+      "passwordsDoNotMatch": "Пароли не совпадают",
+      "otpIncomplete": "Введите все 4 цифры"
     }
   }
 }
