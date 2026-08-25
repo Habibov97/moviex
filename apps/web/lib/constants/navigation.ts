@@ -5,6 +5,20 @@ export type NavLink = {
   href: string;
   /** Key under the `nav` namespace, not a label. */
   messageKey: string;
+  /**
+   * Whether clicking this needs a session.
+   *
+   * A gated link still renders a real `<a href>` — the navbar only intercepts
+   * the click, so middle-click, "copy link address" and a JS-less load all
+   * still reach the route, where its own signed-out state takes over. This
+   * flag is the common-path UX, not the protection.
+   *
+   * It lives here rather than as an `href === '/my-list'` test in `Navbar`
+   * for the usual reason: the list of routes and their properties is this
+   * file's job, and a hard-coded path in the component is one more place to
+   * remember when a route is renamed.
+   */
+  requiresAuth?: boolean;
 };
 
 /**
@@ -25,5 +39,12 @@ export type NavLink = {
  */
 export const NAV_LINKS: NavLink[] = [
   { href: DISCOVER_HREF, messageKey: 'discover' },
-  { href: '/my-list', messageKey: 'myList' },
+  /*
+   * Gated: a signed-out click opens the auth modal instead of navigating.
+   * The link is deliberately *not* hidden for signed-out visitors — it is the
+   * clearest reason this app has to offer for creating an account, which is
+   * the same argument that keeps the detail page's Add/Watched buttons
+   * enabled and full-colour rather than disabled.
+   */
+  { href: '/my-list', messageKey: 'myList', requiresAuth: true },
 ];

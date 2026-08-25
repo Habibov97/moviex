@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { Link, usePathname } from "@/i18n/navigation";
+import { useLibraryActions } from "@/hooks/use-library-actions";
 import { BrandMark } from "@/components/layout/BrandMark";
 import { SearchTypeahead } from "@/components/search/SearchTypeahead";
 import { UserMenu } from "@/components/layout/UserMenu";
@@ -13,6 +14,17 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { NAV_LINKS, type NavLink } from "@/lib/constants/navigation";
 import type { Genre } from "@moviex/shared-types";
+
+/**
+ * The "action" handed to `requireAuth` for a gated *link*.
+ *
+ * Empty on purpose. Navigating is what the anchor does by itself, and the
+ * caller returns before this ever reaches `requireAuth`'s signed-in branch —
+ * the call is made purely for the other two, where `requireAuth` either opens
+ * the modal or (auth still unknown) does nothing at all. Module-level so its
+ * identity is stable across renders.
+ */
+const NO_ACTION = () => {};
 
 export type NavbarProps = {
   /** Passed to the typeahead so result rows can name their genre. */
@@ -30,9 +42,40 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
    */
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  /*
+   * The same gate the Add / Mark-as-watched buttons use, not a second auth
+   * check written for the navbar. `requireAuth` owns the three-way decision
+   * and `authModal` is the one `LoginRegisterModal` instance it opens, already
+   * on its login view.
+   */
+  const { isSignedIn, isAuthLoading, requireAuth, authModal } =
+    useLibraryActions();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  /**
+   * Intercepts a click on a gated link. Returns whether the anchor was left to
+   * navigate, which the mobile sheet uses to decide about closing itself.
+   *
+   * Only `isSignedIn` — confirmed, not merely "not loading" — lets the click
+   * through. Everything else is prevented and handed to `requireAuth`, which
+   * opens the modal once logged-out is certain and stays silent while
+   * `/auth/me` is still in flight. Treating that unknown moment as logged-out
+   * would flash the modal at someone who is in fact signed in; the link is
+   * simply inert for those few milliseconds.
+   *
+   * `preventDefault` on the click is all this does — the `href` is untouched,
+   * so a middle-click or a direct visit still reaches `/my-list` and meets the
+   * page's own signed-out state. That guard is the protection; this is the UX.
+   */
+  const handleNavClick = (link: NavLink, event: MouseEvent<HTMLAnchorElement>) => {
+    if (!link.requiresAuth || isSignedIn) return true;
+
+    event.preventDefault();
+    requireAuth(NO_ACTION);
+    return false;
+  };
 
   return (
     <>
@@ -72,6 +115,7 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={(event) => handleNavClick(link, event)}
                 aria-current={isActive(link.href) ? "page" : undefined}
                 className={cn(
                   "relative py-2 text-[15px] outline-none transition-colors",
@@ -122,7 +166,16 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
               <Link
                 key={link.href}
                 href={link.href}
-                onClick={() => setMenuOpen(false)}
+                onClick={(event) => {
+                  const navigated = handleNavClick(link, event);
+                  /*
+                   * Stay open only for the inert loading moment, where the tap
+                   * visibly did nothing — closing the sheet then would read as
+                   * a broken link. Otherwise it either navigated or the modal
+                   * is now covering the sheet.
+                   */
+                  if (navigated || !isAuthLoading) setMenuOpen(false);
+                }}
                 aria-current={isActive(link.href) ? "page" : undefined}
                 className={cn(
                   "flex h-10 items-center rounded-[10px] px-2 text-[15px] outline-none transition-colors",
@@ -149,6 +202,13 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
         )}
 
       </header>
+
+      {/*
+        The gate's own modal. `UserMenu` renders a second, separate instance for
+        the avatar's signed-out click — two mount points, one component, and
+        only ever one open at a time.
+      */}
+      {authModal}
     </>
   );
 }
