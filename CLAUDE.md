@@ -541,7 +541,29 @@ Both ends need pointing at the dev machine's LAN IP; changing only one leaves re
 
 **Mind the ports:** the **API is on 3000**, the **web app on 3001**. `FRONTEND_URLS` lists *frontend* origins (`:3001`); `API_URL` / `NEXT_PUBLIC_API_URL` point at the *API* (`:3000`). Mixing them up is the usual reason "it works on localhost but not on the phone".
 
-1. **`apps/api/.env` — `FRONTEND_URLS`**: a comma-separated list of allowed CORS origins, e.g. `http://localhost:3001,http://192.168.1.10:3001`. Both stay valid at once, so adding the phone does not break localhost. `main.ts` passes a validation function (not a static string) to `enableCors` in development; a request with no `Origin` header (curl, health checks) is allowed, an unlisted origin gets no allow-header and the browser blocks it. **Production is unchanged and still strict**: it pins to the *first* entry only, and logs a warning if more are supplied. `FRONTEND_URL` (singular) is still read as a fallback.
+1. **`apps/api/.env` — `FRONTEND_URLS`**: a comma-separated list of allowed CORS origins, e.g. `http://localhost:3001,http://192.168.1.10:3001`. Every entry stays valid at once, so adding the phone does not break localhost. `main.ts` passes a **validation function, never a static string**, to `enableCors` — in *every* environment, production included (see below for why that distinction cost a debugging pass). A request with no `Origin` header (curl, health checks, same-origin Swagger UI) is allowed; an unlisted origin gets no allow-header and the browser blocks it. `FRONTEND_URL` (singular) is still read as a fallback, and origins are normalised (trimmed, trailing `/` stripped) because an `Origin` header never carries one.
+
+### The production CORS bug: a static `origin` asserts a value the caller never sent
+
+Deployed on Render with the frontend on Vercel, every browser call failed with `Access-Control-Allow-Origin: http://localhost:3001` — an origin that appears nowhere in the deployed config. Two faults compounded, and only the first is a code bug.
+
+**1. Production used to pin to `allowedOrigins[0]` — a static string.** The multi-origin validation function ran only in development. Handing the `cors` package a static origin makes it echo that value back **regardless of who asked**, so the API answered a request from `https://moviex-web-one.vercel.app` by asserting `http://localhost:3001`. Measured against the real `cors` package rather than reasoned about:
+
+| Config | `Origin: https://moviex-web-one.vercel.app` → ACAO |
+|---|---|
+| Old, static, `FRONTEND_URLS` **missing** | `http://localhost:3001` ← the reported symptom |
+| Old, static, `FRONTEND_URLS` set | `https://moviex-web-one.vercel.app` |
+| New, function, `FRONTEND_URLS` missing | *no header* |
+| New, function, list includes Vercel | `https://moviex-web-one.vercel.app` |
+
+**`DEFAULT_FRONTEND_ORIGIN` was blamed and was not the bug.** It is reached through `??`, so a `FRONTEND_URLS` that is set — however wrong-looking — is always used; grepping the constant and finding it *near* the CORS config is not evidence it was in play. Read row 2 of that table: with the variable set, the old code emitted the right origin. **The symptom is only reproducible when the variable is genuinely absent from the running process**, which is the second fault.
+
+**2. The variable was set in the dashboard but not in the process serving traffic.** Worth knowing because it is invisible from the code: a failed Render build leaves the *previous* instance running, and that instance carries the environment it started with. During this period Render builds were failing (`EBADDEVENGINES`, then Turborepo's missing `packageManager`), so a variable added between deploys never reached the live process. **Confirm a config change actually landed by reading the startup log of the deploy that is serving, not the dashboard.**
+
+**The durable fix is the function.** A validation function can only ever echo the caller's own origin or send no header at all, so a misconfigured list now fails honestly as "origin not allowed" instead of asserting a third origin nobody mentioned. It also lets production allow several origins — a deployed frontend, Vercel preview URLs, localhost — which the old first-entry pin structurally could not.
+
+- **An env var that is present but *empty* is treated as unset.** `??` accepts `''` and would leave the allow-list empty, allowing nothing; parsing uses `||` on the trimmed value so the fallback applies to genuinely-missing config only.
+- **Production logs an error when it falls back to `DEFAULT_FRONTEND_ORIGIN`** — that state means no deployed frontend can call the API, and it used to be silent because the `CORS allows:` line was wrapped in `if (!isProduction)`. **Don't make CORS diagnostics dev-only**; production is the environment where the config is hardest to see.
 2. **`apps/web/.env` — `NEXT_PUBLIC_API_URL`**: must be the LAN IP, e.g. `http://192.168.1.10:3000`. A phone cannot resolve `localhost` to your machine, and the typeahead and every auth call fetch from the **browser**, so they use this public variable rather than the server-only `API_URL`. **`NEXT_PUBLIC_*` is inlined at build time — restart the dev server after changing it**, or the old value stays compiled into the client bundle.
 
 > **The API host must match the host the browser is on.** This is not a preference — it is what makes auth work at all. The session is a `SameSite=Lax` cookie, so a browser at `http://localhost:3001` calling an API at `http://192.168.31.53:3000` is a **cross-site** request: the cookie is never stored or sent, `/auth/me` answers 401 forever, and the whole app looks signed out — while `POST /auth/login` still returns 200 with a `Set-Cookie` header, which is exactly what makes this so hard to spot. It cost a full debugging pass once.

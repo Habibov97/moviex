@@ -7,7 +7,13 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { ACCESS_TOKEN_COOKIE } from './auth/auth.constants';
 
-/** The web app's dev origin. Note it is 3001 — the API itself is on 3000. */
+/**
+ * Last-resort origin for local dev with no `.env` at all. Note it is 3001 —
+ * the API itself is on 3000.
+ *
+ * It applies **only** when neither `FRONTEND_URLS` nor `FRONTEND_URL` is set;
+ * a value that is present is always used, however wrong it looks.
+ */
 const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3001';
 
 async function bootstrap() {
@@ -82,84 +88,108 @@ async function bootstrap() {
    * `credentials` is on. A wildcard origin is rejected outright in that mode,
    * so every allowed origin has to be named.
    *
-   * `FRONTEND_URLS` is a comma-separated list so a phone on the LAN and the
-   * dev machine's `localhost` can both be allowed at once — previously
-   * switching one broke the other. `FRONTEND_URL` (singular) still works for
+   * `FRONTEND_URLS` is a comma-separated list so several origins can be
+   * allowed at once — the deployed frontend plus a phone on the LAN plus the
+   * dev machine's `localhost`. `FRONTEND_URL` (singular) still works for
    * anything already configured with it.
    */
+  const configuredOrigins =
+    process.env.FRONTEND_URLS?.trim() || process.env.FRONTEND_URL?.trim() || '';
+
+  /*
+   * The fallback applies only when the value is genuinely absent — local dev
+   * with no `.env` at all. Note `||` rather than `??`: an env var that is
+   * present but *empty* is a misconfiguration, not a value, and `??` would
+   * accept it and leave the allow-list empty.
+   */
+  const usingDefaultOrigin = configuredOrigins === '';
+
   const allowedOrigins = (
-    process.env.FRONTEND_URLS ??
-    process.env.FRONTEND_URL ??
-    DEFAULT_FRONTEND_ORIGIN
+    usingDefaultOrigin ? DEFAULT_FRONTEND_ORIGIN : configuredOrigins
   )
     .split(',')
-    .map((origin) => origin.trim())
+    // A browser's `Origin` is scheme + host [+ port] and never carries a
+    // trailing slash, so a pasted `https://example.com/` would silently match
+    // nothing. Normalise it rather than making that a deployment puzzle.
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean);
 
   const isProduction = process.env.NODE_ENV === 'production';
 
   /* ------------------------------------------------------------------ *
-   * TEMPORARY CORS DIAGNOSTIC — remove once the production origin is
-   * confirmed from the Render logs. Deliberately logs in production too;
-   * the permanent `CORS allows:` line below is dev-only, which is why a
+   * TEMPORARY CORS DIAGNOSTIC — remove once the deployed origin is
+   * confirmed from Render's logs. Deliberately logs in production too; the
+   * permanent `CORS allows:` line below is dev-only, which is why a
    * misconfigured deployment gave no signal at all.
    * ------------------------------------------------------------------ */
-  const originSource = process.env.FRONTEND_URLS
-    ? 'FRONTEND_URLS'
-    : process.env.FRONTEND_URL
-      ? 'FRONTEND_URL (legacy singular)'
-      : 'BUILT-IN DEFAULT — neither env var is set!';
-
-  logger.log(`[CORS-DEBUG] NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} isProduction=${isProduction}`);
-  logger.log(`[CORS-DEBUG] origin source: ${originSource}`);
-  logger.log(`[CORS-DEBUG] raw value: ${JSON.stringify(process.env.FRONTEND_URLS ?? process.env.FRONTEND_URL ?? DEFAULT_FRONTEND_ORIGIN)}`);
-  logger.log(`[CORS-DEBUG] parsed origins (${allowedOrigins.length}): ${JSON.stringify(allowedOrigins)}`);
   logger.log(
-    isProduction
-      ? `[CORS-DEBUG] production pins to the FIRST entry only -> Access-Control-Allow-Origin will always be: ${allowedOrigins[0]}`
-      : `[CORS-DEBUG] development matches the request Origin against the full list above`,
+    `[CORS-DEBUG] NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} isProduction=${isProduction}`,
+  );
+  logger.log(
+    `[CORS-DEBUG] raw FRONTEND_URLS=${JSON.stringify(process.env.FRONTEND_URLS ?? null)} raw FRONTEND_URL=${JSON.stringify(process.env.FRONTEND_URL ?? null)}`,
+  );
+  logger.log(
+    `[CORS-DEBUG] resolved allowed origins (${allowedOrigins.length}): ${JSON.stringify(allowedOrigins)}`,
   );
 
-  // An Origin header is always scheme + host [+ port]. A bare hostname can
-  // never match one, and in production it is echoed back verbatim as an
-  // invalid ACAO value, which the browser rejects.
+  if (usingDefaultOrigin) {
+    logger.error(
+      `[CORS-DEBUG] Neither FRONTEND_URLS nor FRONTEND_URL reached this process — falling back to the built-in ${DEFAULT_FRONTEND_ORIGIN}. If the variable is set in the dashboard, this process is not the one running that config.`,
+    );
+  }
+
   for (const origin of allowedOrigins) {
     if (!/^https?:\/\//.test(origin)) {
-      logger.error(`[CORS-DEBUG] "${origin}" has no http(s):// scheme — it can never match a browser Origin.`);
-    }
-    if (origin.endsWith('/')) {
-      logger.error(`[CORS-DEBUG] "${origin}" has a trailing slash — an Origin header never has one, so this will not match.`);
+      logger.error(
+        `[CORS-DEBUG] "${origin}" has no http(s):// scheme — it can never match a browser Origin.`,
+      );
     }
   }
   /* ------------------ end TEMPORARY CORS DIAGNOSTIC ------------------ */
 
-  if (isProduction && allowedOrigins.length > 1) {
-    // Loud, because a stray extra origin in production is a real exposure.
+  if (isProduction && usingDefaultOrigin) {
     logger.warn(
-      `FRONTEND_URLS lists ${allowedOrigins.length} origins; production uses only the first (${allowedOrigins[0]}).`,
+      `No FRONTEND_URLS set in production; CORS allows only ${DEFAULT_FRONTEND_ORIGIN}, so no deployed frontend can call this API.`,
     );
   }
 
   app.enableCors({
     /*
-     * Production stays a single fixed origin — the multi-origin check exists
-     * for local device testing and must not loosen a deployed environment.
+     * One validation function in every environment, matching the request's
+     * own `Origin` against the parsed list.
+     *
+     * Production used to pin to `allowedOrigins[0]` — a *static* origin,
+     * which the `cors` package echoes back regardless of who asked. That is
+     * what let a deployment answer a request from the Vercel frontend with
+     * `Access-Control-Allow-Origin: http://localhost:3001`: an origin the
+     * caller never sent, asserted as though it had. A function can only ever
+     * echo the caller's own origin or send no header at all, so a
+     * misconfigured list now fails as "not allowed" instead of as a
+     * confusing mismatch — and several origins (a deployed frontend plus
+     * preview URLs plus localhost) can be allowed at once.
      */
-    origin: isProduction
-      ? allowedOrigins[0]
-      : (origin, callback) => {
-          /*
-           * No `Origin` header means it is not a cross-origin browser request
-           * — curl, a health check, or same-origin Swagger UI. Those were
-           * never subject to CORS, so allow them through.
-           */
-          if (!origin) return callback(null, true);
+    origin: (origin, callback) => {
+      /*
+       * No `Origin` header means it is not a cross-origin browser request —
+       * curl, a health check, or same-origin Swagger UI. Those were never
+       * subject to CORS, so allow them through.
+       */
+      if (!origin) return callback(null, true);
 
-          // `false`, not an Error: an Error surfaces as a 500, whereas this
-          // just omits the header and lets the browser block it, which is
-          // what a rejected origin should look like.
-          callback(null, allowedOrigins.includes(origin));
-        },
+      const isAllowed = allowedOrigins.includes(origin);
+
+      // TEMPORARY: remove with the diagnostic block above.
+      if (!isAllowed) {
+        logger.warn(
+          `[CORS-DEBUG] rejected Origin ${JSON.stringify(origin)} — not in ${JSON.stringify(allowedOrigins)}`,
+        );
+      }
+
+      // `false`, not an Error: an Error surfaces as a 500, whereas this just
+      // omits the header and lets the browser block it, which is what a
+      // rejected origin should look like.
+      callback(null, isAllowed);
+    },
     credentials: true,
   });
 
