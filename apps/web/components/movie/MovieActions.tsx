@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   IconBookmark,
@@ -9,13 +8,13 @@ import {
   IconCircleCheckFilled,
   IconEyeCheck,
   IconRotate,
-  IconShare,
   IconX,
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { useLibraryActions } from "@/hooks/use-library-actions";
 import { useMovieStatuses } from "@/hooks/use-user-movies";
+import { SharePopover } from "@/components/movie/SharePopover";
 
 /**
  * Where a movie sits in the signed-in user's library.
@@ -64,7 +63,6 @@ export function MovieActions({
   watchedOn = null,
 }: MovieActionsProps) {
   const t = useTranslations("detail");
-  const [copied, setCopied] = useState(false);
 
   // A one-id batch lookup: same query key shape as the grids, so this shares
   // the cache and re-renders when any mutation invalidates the root key.
@@ -82,16 +80,6 @@ export function MovieActions({
     moveBackToList,
     authModal,
   } = useLibraryActions();
-
-  const share = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard access can be denied; failing quietly is better than a throw.
-    }
-  };
 
   return (
     <>
@@ -164,28 +152,13 @@ export function MovieActions({
           </>
         )}
 
-        <button
-          type="button"
-          onClick={share}
-          aria-label={t("share")}
-          className={cn(
-            "ml-auto flex size-10 shrink-0 items-center justify-center rounded-[10px] border-[0.5px] border-mx-border outline-none transition-colors focus-visible:border-mx-accent md:size-[46px]",
-            copied
-              ? "text-mx-success"
-              : "text-mx-fg-muted hover:text-mx-fg",
-          )}
-        >
-          {copied ? (
-            <IconCheck className="size-4" stroke={2} />
-          ) : (
-            <IconShare className="size-4" stroke={1.75} />
-          )}
-        </button>
-
-        {/* Polite, so it does not interrupt whatever is being read. */}
-        <span role="status" aria-live="polite" className="sr-only">
-          {copied ? t("shareCopied") : ""}
-        </span>
+        {/*
+          `ml-auto` moves to the wrapper, since the trigger now needs a
+          positioned parent for its panel to anchor to. It still parks at the
+          right end of the row, which is why the panel hangs from the right
+          edge by default — see `SharePopover`.
+        */}
+        <SharePopover className="ml-auto" />
       </div>
 
       {authModal}
