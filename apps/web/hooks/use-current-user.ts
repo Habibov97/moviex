@@ -2,7 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useRouter } from "@/i18n/navigation";
 import { API_BASE_URL } from "@/lib/api";
+import { DISCOVER_HREF } from "@/lib/constants/discover";
 
 /**
  * What `GET /auth/me` returns.
@@ -77,11 +79,20 @@ export function useCurrentUser() {
 }
 
 /**
- * Clears the session cookie server-side, then **drops every cached query**, so
- * nothing the previous account fetched can be read by whoever signs in next.
+ * Clears the session cookie server-side, **drops every cached query** so
+ * nothing the previous account fetched can be read by whoever signs in next,
+ * and then sends the user to Discover.
  */
 export function useLogoutMutation() {
   const queryClient = useQueryClient();
+  /*
+   * From `@/i18n/navigation`, never `next/navigation` — that is what keeps the
+   * active language on the way out. `DISCOVER_HREF` is the locale-free `/`, and
+   * this router turns it into `/tr` for someone browsing in Turkish. Next then
+   * adds the `/moviex` base path on top, so the destination is
+   * `/moviex/tr`. A hard-coded path would get both of those wrong.
+   */
+  const router = useRouter();
 
   return useMutation({
     mutationKey: ["auth", "logout"],
@@ -143,6 +154,25 @@ export function useLogoutMutation() {
       // Then re-verify against the server. Matches now, because the query was
       // left in the cache above.
       void queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY });
+
+      /*
+       * Leave whatever page they were on. Signing out in place is what made
+       * this worth fixing: on `/my-list` it swaps the list for the
+       * "sign in required" screen, and on a movie detail page the action
+       * buttons quietly revert — both read as something having gone wrong
+       * rather than as a logout that worked.
+       *
+       * `replace`, not `push`: the page they just signed out of is not
+       * somewhere Back should return to, since it would only render that same
+       * signed-out state again.
+       *
+       * In `onSettled` with the rest, for the reason stated at the top of it —
+       * a failed request leaves the cookie's state unknown, and this hook has
+       * already discarded the session either way. Navigating only on success
+       * would strand exactly the case where the UI has gone signed-out but the
+       * page has not.
+       */
+      router.replace(DISCOVER_HREF);
     },
   });
 }
