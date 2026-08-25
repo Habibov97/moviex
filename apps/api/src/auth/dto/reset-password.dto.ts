@@ -24,7 +24,7 @@ const PASSWORD_SPECIAL_PATTERN = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/;
 
 export class ResetPasswordDto {
   /**
-   * The token from `POST /auth/verify-reset-otp`.
+   * The token from `POST /auth/verify-recovery-code`.
    *
    * Only checked for being a non-empty string here — whether it is genuine,
    * unexpired and signed for this purpose is a signature question, and belongs
@@ -35,7 +35,7 @@ export class ResetPasswordDto {
   @ApiProperty({
     required: true,
     description:
-      'The short-lived token returned by `POST /auth/verify-reset-otp`. Not a ' +
+      'The short-lived token returned by `POST /auth/verify-recovery-code`. Not a ' +
       'session token: it is never accepted as the `access_token` cookie.',
   })
   resetToken!: string;

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   IconCheck,
+  IconCopy,
   IconEye,
   IconEyeOff,
   IconLock,
@@ -14,103 +15,48 @@ import {
 import {
   NAME_MAX_LENGTH,
   NAME_MIN_LENGTH,
-  OTP_CODE_LENGTH,
   PASSWORD_MIN_LENGTH,
   PASSWORD_SPECIAL_PATTERN,
   PASSWORD_UPPERCASE_PATTERN,
-  forgotPasswordSchema,
+  RECOVERY_CODE_ALPHABET,
+  RECOVERY_CODE_LENGTH,
   loginSchema,
   registerSchema,
   resetPasswordFormSchema,
-} from "@moviex/shared-types";
-import type {
-  OtpChallenge,
-  PasswordResetChallenge,
+  verifyRecoveryCodeSchema,
 } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/shared/LogoMark";
 import {
   AuthError,
-  isChallenge,
-  useForgotPasswordMutation,
   useLoginMutation,
-  useResendOtpMutation,
   useResetPasswordMutation,
   useSignupMutation,
-  useVerifyOtpMutation,
-  useVerifyResetOtpMutation,
+  useVerifyRecoveryCodeMutation,
 } from "@/hooks/use-auth";
 
 /**
- * The five screens this modal is.
+ * The four screens this modal is.
  *
- * `otp` finishes a signup; `forgot` and `reset` are the password-recovery pair.
- * They are views of one component rather than separate modals because every one
- * of them can hand off to another — a login can turn out to need verification,
- * a reset ends back at login with the address pre-filled — and that handoff is
- * just a `setMode` when they share a parent.
+ * `saveCode` is shown once, straight after a successful signup, and is the only
+ * one the user cannot leave without acknowledging. `reset` carries both halves
+ * of the password recovery. They are views of one component rather than
+ * separate modals because each hands off to another — a reset ends back at
+ * login with the address pre-filled — and that handoff is just a `setMode`
+ * when they share a parent.
  */
-type AuthMode = "login" | "register" | "otp" | "forgot" | "reset";
+type AuthMode = "login" | "register" | "saveCode" | "reset";
 
 /** The two halves of the `reset` view: enter the code, then choose a password. */
 type ResetStage = "code" | "password";
 
 /**
- * What the OTP view is counting down to, as absolute timestamps.
- *
- * Deadlines rather than durations: a `setInterval` that decrements a number
- * drifts, and stops entirely when the tab is backgrounded — so a user who
- * switches away for two minutes would come back to a clock that still claims
- * nine minutes left. Recomputing from a fixed target on every tick is immune to
- * both.
- *
- * `null` means "unknown", which is a real state: the login → verify path can
- * arrive without a challenge if the server declined to re-send. An unknown
- * expiry renders nothing rather than a made-up number.
+ * Six empty boxes. The array is the source of truth, not the joined string —
+ * a user can fill box 3 before box 1, and joining would silently lose that.
  */
-type OtpDeadlines = {
-  expiresAt: number | null;
-  resendAt: number | null;
-  /**
-   * `null` means **not disclosed**, which only the password-reset flow produces:
-   * `POST /auth/forgot-password` answers identically whether or not it sent
-   * anything, so reporting delivery there would leak the account's existence.
-   * Distinct from `false`, which is a positive statement that a send failed.
-   */
-  emailSent: boolean | null;
-};
-
-function toDeadlines(challenge: OtpChallenge): OtpDeadlines {
-  const now = Date.now();
-
-  return {
-    expiresAt: now + challenge.expiresInSeconds * 1000,
-    resendAt: now + challenge.resendAvailableInSeconds * 1000,
-    emailSent: challenge.emailSent,
-  };
-}
-
-/**
- * Same shape from the reset challenge, whose figures are policy windows rather
- * than this account's remaining time — see `PasswordResetChallenge`. The clock
- * is therefore conservative, never wrong in the direction that matters: it can
- * only ever claim *more* time remains than a resend would actually need.
- */
-function toResetDeadlines(challenge: PasswordResetChallenge): OtpDeadlines {
-  const now = Date.now();
-
-  return {
-    expiresAt: now + challenge.expiresInSeconds * 1000,
-    resendAt: now + challenge.resendAvailableInSeconds * 1000,
-    emailSent: null,
-  };
-}
-
-/** Four empty boxes. The array is the source of truth, not the joined string —
- *  a user can fill box 3 before box 1, and joining would silently lose that. */
-function emptyDigits(): string[] {
-  return Array.from({ length: OTP_CODE_LENGTH }, () => "");
+function emptyCharacters(): string[] {
+  return Array.from({ length: RECOVERY_CODE_LENGTH }, () => "");
 }
 
 /**
@@ -163,6 +109,7 @@ type FieldName =
   | "name"
   | "email"
   | "password"
+  | "recoveryCode"
   | "newPassword"
   | "confirmPassword";
 
@@ -199,29 +146,18 @@ export function LoginRegisterModal({
    * user does not retype an address they just entered. Cleared on every
    * reopen along with the mode.
    */
-  const [handoff, setHandoff] = useState<{ email: string; notice: string } | null>(
-    null,
-  );
-  /*
-   * The account waiting on a code. `deadlines` is null on the login → verify
-   * path, where the OTP view asks for a fresh code itself on mount.
-   */
-  const [pending, setPending] = useState<{
+  const [handoff, setHandoff] = useState<{
     email: string;
-    deadlines: OtpDeadlines | null;
+    notice: string;
   } | null>(null);
   /*
-   * The password-reset flow's own pair. Separate from `pending` on purpose: the
-   * two flows use the same codes and the same screens, and sharing one slot is
-   * how a half-finished signup verification would end up rendering as a reset.
-   * `null` until `forgot` produces a challenge.
+   * The one-time recovery code, held only while the `saveCode` view is on
+   * screen. Nothing more durable than state, deliberately: this is the only
+   * copy that will ever exist, and it must not outlive the modal showing it.
    */
-  const [recovery, setRecovery] = useState<{
-    email: string;
-    deadlines: OtpDeadlines;
-  } | null>(null);
-  /** Seeds the `forgot` view, so an address typed on the login form carries. */
-  const [forgotEmail, setForgotEmail] = useState("");
+  const [savedCode, setSavedCode] = useState<string | null>(null);
+  /** Seeds the reset view, so an address typed on the login form carries. */
+  const [resetEmail, setResetEmail] = useState("");
   // Lives here only so the heading can follow it; the reset token does not.
   const [resetStage, setResetStage] = useState<ResetStage>("code");
 
@@ -232,23 +168,26 @@ export function LoginRegisterModal({
     if (isOpen) {
       setMode(defaultMode);
       // Closing clears the handoff too, so a later open never shows a stale
-      // "Account created" notice.
+      // "Password updated" notice.
       setHandoff(null);
-      // An abandoned verification does not survive a reopen: the code may well
-      // have expired, and resuming against a dead clock is worse than
-      // restarting.
-      setPending(null);
       /*
-       * The same for an abandoned reset — and here it is not only about a stale
-       * clock. Dropping `recovery` unmounts `ResetPasswordForm`, which is what
-       * discards the reset token with it. Closing the modal must not leave a
-       * live credential sitting in memory for the next person to open it.
+       * An abandoned reset does not survive a reopen. Dropping this state
+       * unmounts `ResetPasswordForm`, which is what discards the reset token
+       * with it — closing must not leave a live credential in memory for the
+       * next person to open the modal.
        */
-      setRecovery(null);
-      setForgotEmail("");
+      setResetEmail("");
       setResetStage("code");
+      setSavedCode(null);
     }
   }
+
+  /*
+   * Read by the Escape handler below, which is bound once per open. A ref
+   * rather than a dependency so switching views does not re-run the effect —
+   * and it is assigned during render, before any keystroke can be handled.
+   */
+  const canDismissRef = useRef(true);
 
   // The only side effect the modal needs: Esc to close + body scroll lock,
   // both tied to the same open/closed lifetime.
@@ -256,7 +195,10 @@ export function LoginRegisterModal({
     if (!isOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      // `canDismissRef`, not `canDismiss`: the listener is bound once for the
+      // modal's open lifetime, and re-binding it on every view change just to
+      // read a boolean would also re-run the scroll lock beside it.
+      if (event.key === "Escape" && canDismissRef.current) onClose();
     };
 
     const previousOverflow = document.body.style.overflow;
@@ -271,61 +213,52 @@ export function LoginRegisterModal({
 
   if (!isOpen) return null;
 
-  const isOtp = mode === "otp" && pending !== null;
-  const isReset = mode === "reset" && recovery !== null;
-  const isForgot = mode === "forgot";
+  const isSaveCode = mode === "saveCode" && savedCode !== null;
+  const isReset = mode === "reset";
   const isRegister = mode === "register";
 
-  /** Register and login both arrive at the OTP view; only the payload differs. */
-  const startVerification = (email: string, challenge?: OtpChallenge) => {
-    setHandoff(null);
-    setPending({
-      email,
-      deadlines: challenge ? toDeadlines(challenge) : null,
-    });
-    setMode("otp");
-  };
+  /**
+   * The recovery-code view is the one screen that must not be dismissible.
+   *
+   * Losing this code costs the account, so a stray backdrop click or a reflexive
+   * Escape is not an acceptable way to leave it — the user acknowledges, or
+   * they stay. Every other view keeps the ordinary behaviour.
+   */
+  const canDismiss = !isSaveCode;
 
   /** Back to a clean login form, optionally with something to say. */
   const returnToLogin = (next?: { email: string; notice: string }) => {
-    setPending(null);
-    setRecovery(null);
     setResetStage("code");
     setHandoff(next ?? null);
     setMode("login");
   };
 
-  const heading = isOtp
+  const heading = isSaveCode
     ? {
-        title: t("verifyEmailTitle"),
-        // The address is echoed back so a typo is caught here rather than after
-        // ten minutes of waiting for an email that went somewhere else.
-        subtitle: t("verifyEmailSubtitle", { email: pending.email }),
+        title: t("saveCodeTitle"),
+        subtitle: t("saveCodeSubtitle"),
       }
     : isReset
       ? {
           title: t("resetPasswordTitle"),
           subtitle:
             resetStage === "code"
-              ? t("resetCodeSubtitle", { email: recovery.email })
-              : t("resetPasswordSubtitle", { email: recovery.email }),
+              ? t("resetCodeSubtitle")
+              : t("resetPasswordSubtitle"),
         }
-      : isForgot
+      : isRegister
         ? {
-            title: t("forgotPasswordTitle"),
-            subtitle: t("forgotPasswordSubtitle"),
+            title: t("createAccountTitle"),
+            subtitle: t("createAccountSubtitle"),
           }
-        : isRegister
-          ? {
-              title: t("createAccountTitle"),
-              subtitle: t("createAccountSubtitle"),
-            }
-          : { title: t("welcomeBack"), subtitle: t("welcomeBackSubtitle") };
+        : { title: t("welcomeBack"), subtitle: t("welcomeBackSubtitle") };
+
+  canDismissRef.current = canDismiss;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-mx-backdrop p-4 font-mx"
-      onClick={onClose}
+      onClick={canDismiss ? onClose : undefined}
     >
       <div
         role="dialog"
@@ -352,7 +285,10 @@ export function LoginRegisterModal({
         >
           {heading.title}
         </h2>
-        <p id="auth-modal-description" className="mt-1 text-[13px] text-mx-fg-subtle">
+        <p
+          id="auth-modal-description"
+          className="mt-1 text-[13px] text-mx-fg-subtle"
+        >
           {heading.subtitle}
         </p>
 
@@ -360,22 +296,24 @@ export function LoginRegisterModal({
           Keying by mode remounts the form on every switch, so field values,
           errors and the mutation state reset themselves — no reset effect.
         */}
-        {isOtp ? (
-          <OtpForm
-            key="otp"
-            email={pending.email}
-            initialDeadlines={pending.deadlines}
-            onSuccess={onClose}
-            onAlreadyVerified={(email) =>
-              returnToLogin({ email, notice: t("alreadyVerified") })
-            }
-            onBack={() => returnToLogin()}
+        {isSaveCode ? (
+          <SaveRecoveryCodeView
+            key="saveCode"
+            code={savedCode}
+            onAcknowledge={() => {
+              /*
+               * Signup already established the session, so there is nothing to
+               * do here but drop the code and get out of the way — the user is
+               * signed in the moment the modal closes.
+               */
+              setSavedCode(null);
+              onClose();
+            }}
           />
         ) : isReset ? (
           <ResetPasswordForm
             key="reset"
-            email={recovery.email}
-            initialDeadlines={recovery.deadlines}
+            initialEmail={resetEmail}
             onStageChange={setResetStage}
             onPasswordUpdated={(email) =>
               /*
@@ -388,21 +326,14 @@ export function LoginRegisterModal({
             }
             onBackToLogin={() => returnToLogin()}
           />
-        ) : isForgot ? (
-          <ForgotPasswordForm
-            key="forgot"
-            initialEmail={forgotEmail}
-            onCodeRequested={(email, challenge) => {
-              setRecovery({ email, deadlines: toResetDeadlines(challenge) });
-              setResetStage("code");
-              setMode("reset");
-            }}
-            onBackToLogin={() => returnToLogin()}
-          />
         ) : isRegister ? (
           <RegisterForm
             key="register"
-            onRegistered={startVerification}
+            onRegistered={(code) => {
+              setHandoff(null);
+              setSavedCode(code);
+              setMode("saveCode");
+            }}
             onSwitchMode={() => setMode("login")}
           />
         ) : (
@@ -411,13 +342,13 @@ export function LoginRegisterModal({
             initialEmail={handoff?.email ?? ""}
             notice={handoff?.notice ?? null}
             onSuccess={onClose}
-            onNeedsVerification={startVerification}
             onForgotPassword={(email) => {
               // Carry whatever they had already typed, so the next screen is
-              // usually just "press send".
-              setForgotEmail(email);
+              // usually just the code.
+              setResetEmail(email);
               setHandoff(null);
-              setMode("forgot");
+              setResetStage("code");
+              setMode("reset");
             }}
             onSwitchMode={() => {
               setHandoff(null);
@@ -434,7 +365,6 @@ function LoginForm({
   initialEmail,
   notice,
   onSuccess,
-  onNeedsVerification,
   onForgotPassword,
   onSwitchMode,
 }: {
@@ -443,7 +373,6 @@ function LoginForm({
   notice: string | null;
   onSuccess: () => void;
   /** Correct password, unverified address — finish signing up instead. */
-  onNeedsVerification: (email: string) => void;
   /** Receives whatever is currently in the email field, typed or not. */
   onForgotPassword: (email: string) => void;
   onSwitchMode: () => void;
@@ -471,22 +400,13 @@ function LoginForm({
     setErrors({});
     // The cookie is set by the response; `useLoginMutation` invalidates
     // ['auth','me'] on success, so closing is all that is left to do here.
-    login.mutate(result.data, {
-      onSuccess,
-      onError: (error) => {
-        /*
-         * An unverified address is not a dead end. The credentials were right,
-         * so send the user to the OTP view rather than showing an error they
-         * cannot act on — `OtpForm` asks for a fresh code on arrival.
-         */
-        if (
-          error instanceof AuthError &&
-          error.code === "EMAIL_NOT_VERIFIED"
-        ) {
-          onNeedsVerification(result.data.email);
-        }
-      },
-    });
+    /*
+     * No `onError` branch any more. A login used to have a third outcome —
+     * right password, unverified address — which moved the user to a code
+     * screen instead of showing an error. With verification gone, a login
+     * either succeeds or the credentials are wrong, and `FormError` says so.
+     */
+    login.mutate(result.data, { onSuccess });
   };
 
   return (
@@ -595,8 +515,12 @@ function RegisterForm({
   onRegistered,
   onSwitchMode,
 }: {
-  /** Account created — move to the OTP view with the challenge it returned. */
-  onRegistered: (email: string, challenge: OtpChallenge) => void;
+  /**
+   * Account created **and signed in** — hand the one-time recovery code up so
+   * the next view can show it. The session already exists at this point; the
+   * code screen is the only thing between the user and the app.
+   */
+  onRegistered: (recoveryCode: string) => void;
   onSwitchMode: () => void;
 }) {
   const t = useTranslations("auth");
@@ -640,8 +564,7 @@ function RegisterForm({
     setErrors({});
 
     signup.mutate(result.data, {
-      onSuccess: (response) =>
-        onRegistered(result.data.email, response.challenge),
+      onSuccess: (response) => onRegistered(response.recoveryCode),
     });
   };
 
@@ -793,320 +716,137 @@ function RegisterForm({
 }
 
 /**
- * The verification step: four digits, an expiry clock and a rate-limited
- * resend.
+ * The recovery code, shown exactly once.
  *
- * This is the view that actually signs a new user in — `/auth/verify-otp` sets
- * the same cookie a password login does — so its success path is `onSuccess`
- * and nothing else, exactly like `LoginForm`.
+ * **This is the only screen in the app that cannot be dismissed casually.**
+ * Escape and backdrop clicks are disabled by the modal for this view, and the
+ * Continue button stays disabled until the checkbox is ticked — because the
+ * cost of leaving by accident is not "reopen it later", it is the account. The
+ * server keeps a bcrypt hash and nothing else, so once this unmounts the code
+ * is gone for everyone including us.
+ *
+ * The account is already created and already signed in by the time this
+ * renders. Acknowledging closes the modal into the signed-in app; there is no
+ * further step and nothing left to fail.
  */
-function OtpForm({
-  email,
-  initialDeadlines,
-  onSuccess,
-  onAlreadyVerified,
-  onBack,
+function SaveRecoveryCodeView({
+  code,
+  onAcknowledge,
 }: {
-  email: string;
-  /** `null` when arriving from a login: no code was issued on that request. */
-  initialDeadlines: OtpDeadlines | null;
-  onSuccess: () => void;
-  onAlreadyVerified: (email: string) => void;
-  onBack: () => void;
+  code: string;
+  onAcknowledge: () => void;
 }) {
   const t = useTranslations("auth");
-  const [digits, setDigits] = useState<string[]>(emptyDigits);
-  const [deadlines, setDeadlines] = useState<OtpDeadlines | null>(
-    initialDeadlines,
-  );
-  const [resent, setResent] = useState(false);
-  const inputsRef = useRef<OtpCodeInputHandle>(null);
-  /*
-   * The last code sent to the server. Guards the auto-submit below: without it,
-   * a rejected code re-submits itself on every render while it is still four
-   * digits long, burning the five-attempt budget in one go.
-   */
-  const submittedRef = useRef<string | null>(null);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const verify = useVerifyOtpMutation();
-  const resend = useResendOtpMutation();
-
-  const code = digits.join("");
-  const isComplete = code.length === OTP_CODE_LENGTH;
-
-  const expirySeconds = useSecondsRemaining(deadlines?.expiresAt ?? null);
-  const resendSeconds = useSecondsRemaining(deadlines?.resendAt ?? null);
-
-  const isLocked =
-    verify.error instanceof AuthError &&
-    verify.error.code === "OTP_TOO_MANY_ATTEMPTS";
-  // Only once a challenge is known: an unknown expiry is not an expired one.
-  const isExpired = deadlines?.expiresAt != null && expirySeconds === 0;
-  const canSubmit = isComplete && !verify.isPending && !isLocked && !isExpired;
-
-  const requestCode = () => {
-    setResent(false);
-
-    resend.mutate(
-      { email },
-      {
-        onSuccess: (result) => {
-          if (!isChallenge(result)) {
-            // Verified in another tab, or the account was already done. There
-            // is nothing to enter here any more.
-            onAlreadyVerified(email);
-            return;
-          }
-
-          setDeadlines(toDeadlines(result.challenge));
-          setDigits(emptyDigits());
-          // A new code means a new attempt budget server-side; drop the stale
-          // rejection so the inputs come back to life.
-          verify.reset();
-          submittedRef.current = null;
-          setResent(true);
-          inputsRef.current?.focusFirst();
-        },
-        onError: (error) => {
-          /*
-           * A cooldown is not really a failure — a code is already outstanding.
-           * Seed the countdown from the server's own figure so the button
-           * unlocks at the right moment rather than at a guessed one.
-           */
-          if (
-            error instanceof AuthError &&
-            error.code === "OTP_RESEND_COOLDOWN" &&
-            error.retryAfterSeconds !== undefined
-          ) {
-            const retryAt = Date.now() + error.retryAfterSeconds * 1000;
-            setDeadlines((current) =>
-              current
-                ? { ...current, resendAt: retryAt }
-                : { expiresAt: null, resendAt: retryAt, emailSent: true },
-            );
-
-            /*
-             * Drop the error rather than render it. The countdown on the button
-             * already says everything a cooldown means, and on the login → verify
-             * path the user did not press anything — being told off for a request
-             * this component made on their behalf is just noise.
-             */
-            resend.reset();
-          }
-        },
-      },
-    );
-  };
-
-  const submit = (value: string) => {
-    submittedRef.current = value;
-    verify.mutate({ email, code: value }, { onSuccess });
-  };
-
-  /*
-   * Arriving from a login: the address is unverified but no code was issued by
-   * that request, so ask for one. Runs once — `email` is fixed for this mount.
-   */
-  const requestedRef = useRef(false);
-  useEffect(() => {
-    if (initialDeadlines !== null || requestedRef.current) return;
-
-    requestedRef.current = true;
-    requestCode();
-    // `requestCode` is recreated each render; the ref above is what bounds this
-    // to a single call, so it is deliberately not a dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDeadlines]);
-
-  /*
-   * Auto-submit on the fourth digit. Four boxes set the expectation that
-   * filling them is the action, and the guards make it safe: never while a
-   * request is in flight, never against a code already tried, never once the
-   * code is dead.
-   */
-  useEffect(() => {
-    if (!canSubmit || submittedRef.current === code) return;
-
-    submit(code);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, canSubmit]);
-
-  const canResend = resendSeconds === 0 && !resend.isPending;
-
-  return (
-    <>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (canSubmit && submittedRef.current !== code) submit(code);
-        }}
-        className="mt-5"
-        noValidate
-      >
-        <OtpCodeInput
-          ref={inputsRef}
-          digits={digits}
-          onDigitsChange={setDigits}
-          disabled={isLocked}
-          invalid={Boolean(verify.error)}
-        />
-
-        <OtpStatusRow
-          isExpired={isExpired}
-          hasExpiry={deadlines?.expiresAt != null}
-          expirySeconds={expirySeconds}
-          resendSeconds={resendSeconds}
-          isResending={resend.isPending}
-          canResend={canResend}
-          onResend={requestCode}
-        />
-
-        {/*
-          A send that never left the building. The user is not waiting on a slow
-          email, they are waiting on one that does not exist, and the only thing
-          that helps is Resend.
-        */}
-        {deadlines?.emailSent === false && (
-          <p role="alert" className="mb-3 text-[12px] text-mx-accent">
-            {t("otpNotSent")}
-          </p>
-        )}
-
-        {resent && !resend.error && !verify.error && (
-          <p role="status" className="mb-3 text-[12px] text-mx-success">
-            {t("otpResent")}
-          </p>
-        )}
-
-        <FormError error={verify.error ?? resend.error} />
-
-        <SubmitButton isPending={verify.isPending} disabled={!canSubmit}>
-          {verify.isPending ? t("otpVerifying") : t("otpVerify")}
-        </SubmitButton>
-      </form>
-
-      <ModeSwitch
-        prompt={t("otpWrongEmail")}
-        action={t("otpBackToLogin")}
-        onSwitchMode={onBack}
-      />
-    </>
-  );
-}
-
-/**
- * Step 1 of a reset: which address.
- *
- * **The confirmation is deliberately non-committal**, and this is the one place
- * the UI has to actively cooperate with the backend rather than just render it.
- * `POST /auth/forgot-password` answers identically for an address with an
- * account, one without, and one whose account is unverified — so this screen
- * says "if an account exists…" and moves on for all three. Saying "check your
- * inbox" would re-open, client-side, exactly the enumeration the endpoint is
- * built to close.
- */
-function ForgotPasswordForm({
-  initialEmail,
-  onCodeRequested,
-  onBackToLogin,
-}: {
-  /** Carried over from whatever the user had already typed on the login form. */
-  initialEmail: string;
-  onCodeRequested: (email: string, challenge: PasswordResetChallenge) => void;
-  onBackToLogin: () => void;
-}) {
-  const t = useTranslations("auth");
-  const translateValidation = useValidationMessage();
-  const [email, setEmail] = useState(initialEmail);
-  const [errors, setErrors] = useState<FormErrors>({});
-
-  const forgotPassword = useForgotPasswordMutation();
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const result = forgotPasswordSchema.safeParse({ email });
-
-    if (!result.success) {
-      setErrors(toFieldErrors(result.error.issues, translateValidation));
-      return;
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+    } catch {
+      /*
+       * Clipboard access can be refused — an insecure origin, a permission
+       * policy, an older browser. Deliberately silent: the code is displayed in
+       * full right above the button, so a failed copy costs the user nothing
+       * and an error message here would imply something had gone wrong with
+       * the account.
+       */
     }
-
-    setErrors({});
-
-    forgotPassword.mutate(result.data, {
-      onSuccess: (response) =>
-        onCodeRequested(result.data.email, response.challenge),
-    });
   };
 
   return (
-    <>
-      <form onSubmit={handleSubmit} className="mt-5" noValidate>
-        <div className="mb-4">
-          <label htmlFor="auth-email" className={labelClass}>
-            {t("emailLabel")}
-          </label>
-          <div className="relative">
-            <IconMail className={inputIconClass} stroke={1.75} />
-            <input
-              autoFocus
-              id="auth-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="najaf@example.com"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                clearError(setErrors, "email");
-              }}
-              aria-invalid={Boolean(errors.email)}
-              className={inputClass}
-            />
-          </div>
-          <FieldError message={errors.email} />
-        </div>
+    <div className="mt-5">
+      <div className="rounded-[10px] border-[0.5px] border-mx-border bg-mx-field p-4">
+        <p
+          // `select-all` so a click-drag or double-click takes the whole code
+          // rather than one "word" of it.
+          className="text-center font-mono text-[26px] leading-none font-semibold tracking-[0.28em] text-mx-fg select-all"
+          // The tracking above adds a trailing gap after the last character;
+          // this pulls the block back into visual centre.
+          style={{ textIndent: "0.28em" }}
+        >
+          {code}
+        </p>
+      </div>
 
-        <FormError error={forgotPassword.error} />
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-[10px] border-[0.5px] border-mx-border bg-mx-field-raised py-2.5 text-[13px] text-mx-fg transition-colors hover:bg-mx-field"
+      >
+        {copied ? (
+          <>
+            <IconCheck className="size-4 text-mx-success" stroke={2} />
+            {t("saveCodeCopied")}
+          </>
+        ) : (
+          <>
+            <IconCopy className="size-4" stroke={1.75} />
+            {t("saveCodeCopy")}
+          </>
+        )}
+      </button>
 
-        <SubmitButton isPending={forgotPassword.isPending}>
-          {forgotPassword.isPending
-            ? t("forgotPasswordSending")
-            : t("forgotPasswordSubmit")}
-        </SubmitButton>
-      </form>
+      {/*
+        The warning is `role="note"` rather than an alert: it is present from
+        the moment the view renders rather than announced in response to
+        something, and an assertive live region would interrupt the screen
+        reader mid-heading.
+      */}
+      <p
+        role="note"
+        className="mt-4 rounded-[10px] border-[0.5px] border-mx-accent/40 bg-mx-accent/5 p-3 text-[12.5px] leading-relaxed text-mx-fg-muted"
+      >
+        {t("saveCodeWarning")}
+      </p>
 
-      <ModeSwitch
-        prompt={t("rememberedPassword")}
-        action={t("signIn")}
-        onSwitchMode={onBackToLogin}
-      />
-    </>
+      <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-[13px] text-mx-fg-muted">
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(event) => setAcknowledged(event.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-mx-accent"
+        />
+        <span>{t("saveCodeAcknowledge")}</span>
+      </label>
+
+      <button
+        type="button"
+        onClick={onAcknowledge}
+        disabled={!acknowledged}
+        className={cn(
+          "mt-4 w-full rounded-[10px] bg-mx-accent py-2.5 text-[14px] font-medium text-mx-on-accent transition-colors",
+          "hover:bg-mx-accent-hover disabled:cursor-not-allowed disabled:opacity-50",
+        )}
+      >
+        {t("saveCodeContinue")}
+      </button>
+    </div>
   );
 }
 
 /**
- * Steps 2 and 3: the code, then the new password.
+ * The whole password reset: recovery code, then the new password.
  *
- * One component for both because of the token between them. `verify-reset-otp`
- * hands back a short-lived credential that step 3 spends, and it must live
- * **only** in this component's state — never `localStorage`, `sessionStorage`,
- * a cookie or the URL. Unmounting the modal is what disposes of it, which is
- * only true while the two steps share a mount.
+ * **One component for both stages because of the token between them.**
+ * `verify-recovery-code` hands back a short-lived credential that the second
+ * stage spends, and it must live **only** in this component's state — never
+ * `localStorage`, `sessionStorage`, a cookie or the URL. Unmounting is what
+ * disposes of it, which is only true while both stages share one mount.
  *
- * The stage is reported upward (`onStageChange`) purely so the modal's heading
- * can follow; the token itself never leaves.
+ * This is two steps where the emailed-code flow needed three. That flow had to
+ * ask the server to *send* something and then wait for it to arrive; a recovery
+ * code the user already has needs no such round trip, so the address and the
+ * code are collected together in one form.
  */
 function ResetPasswordForm({
-  email,
-  initialDeadlines,
+  initialEmail,
   onStageChange,
   onPasswordUpdated,
   onBackToLogin,
 }: {
-  email: string;
-  initialDeadlines: OtpDeadlines;
+  initialEmail: string;
   onStageChange: (stage: ResetStage) => void;
   /** Password changed — back to login, pre-filled, with a confirmation. */
   onPasswordUpdated: (email: string) => void;
@@ -1116,13 +856,12 @@ function ResetPasswordForm({
   const translateValidation = useValidationMessage();
 
   const [stage, setStage] = useState<ResetStage>("code");
-  const [digits, setDigits] = useState<string[]>(emptyDigits);
-  const [deadlines, setDeadlines] = useState<OtpDeadlines>(initialDeadlines);
-  const [resent, setResent] = useState(false);
+  const [email, setEmail] = useState(initialEmail);
+  const [characters, setCharacters] = useState<string[]>(emptyCharacters);
   /*
-   * The one-time credential from step 2. State, not a ref, because the password
-   * stage's submit depends on it — and nothing more durable than state, so it
-   * cannot outlive the flow that minted it.
+   * The one-time credential from stage one. State, not a ref, because the
+   * password stage's submit depends on it — and nothing more durable than
+   * state, so it cannot outlive the flow that minted it.
    */
   const [resetToken, setResetToken] = useState<string | null>(null);
 
@@ -1131,84 +870,48 @@ function ResetPasswordForm({
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  const inputsRef = useRef<OtpCodeInputHandle>(null);
-  // Same guard as `OtpForm`: without it a rejected code re-submits itself on
-  // every render while it is still four digits long, burning all five attempts.
-  const submittedRef = useRef<string | null>(null);
-
-  const verify = useVerifyResetOtpMutation();
-  // Resending a reset code is the same request as asking for the first one —
-  // there is no separate endpoint, and there should not be: a second one would
-  // need its own identical non-disclosure rules.
-  const resend = useForgotPasswordMutation();
+  const verify = useVerifyRecoveryCodeMutation();
   const reset = useResetPasswordMutation();
 
-  const code = digits.join("");
-  const isComplete = code.length === OTP_CODE_LENGTH;
-
-  const expirySeconds = useSecondsRemaining(deadlines.expiresAt);
-  const resendSeconds = useSecondsRemaining(deadlines.resendAt);
-
-  const isLocked =
-    verify.error instanceof AuthError &&
-    verify.error.code === "OTP_TOO_MANY_ATTEMPTS";
-  const isExpired = deadlines.expiresAt != null && expirySeconds === 0;
-  const canSubmitCode =
-    isComplete && !verify.isPending && !isLocked && !isExpired;
-  const canResend = resendSeconds === 0 && !resend.isPending;
+  const code = characters.join("");
+  const isComplete = code.length === RECOVERY_CODE_LENGTH;
+  const canSubmitCode = isComplete && email.length > 0 && !verify.isPending;
 
   const goToStage = (next: ResetStage) => {
     setStage(next);
     onStageChange(next);
   };
 
-  const requestCode = () => {
-    setResent(false);
-
-    resend.mutate(
-      { email },
-      {
-        onSuccess: (response) => {
-          setDeadlines(toResetDeadlines(response.challenge));
-          setDigits(emptyDigits());
-          // A new code means a new attempt budget server-side; drop the stale
-          // rejection so the boxes come back to life.
-          verify.reset();
-          submittedRef.current = null;
-          setResent(true);
-          inputsRef.current?.focusFirst();
-        },
-      },
-    );
-  };
-
-  const submitCode = (value: string) => {
-    submittedRef.current = value;
-
-    verify.mutate(
-      { email, code: value },
-      {
-        onSuccess: (response) => {
-          setResetToken(response.resetToken);
-          setResent(false);
-          goToStage("password");
-        },
-      },
-    );
-  };
-
   /*
-   * Auto-submit on the fourth digit, exactly as the verification screen does —
-   * four boxes set the expectation that filling them *is* the action.
+   * **No auto-submit on the last character**, deliberately unlike the OTP
+   * screen this replaced. There, the boxes were the only field and filling them
+   * plainly *was* the action. Here the form also carries an email, which may
+   * still be empty or wrong when the sixth letter lands — and submitting early
+   * would spend one of only five attempts a minute against a code that has no
+   * expiry and no second chance. The user presses the button.
    */
-  useEffect(() => {
-    if (stage !== "code" || !canSubmitCode || submittedRef.current === code) {
+  const handleCodeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const result = verifyRecoveryCodeSchema.safeParse({
+      email,
+      recoveryCode: code,
+    });
+
+    if (!result.success) {
+      setErrors(toFieldErrors(result.error.issues, translateValidation));
       return;
     }
 
-    submitCode(code);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, canSubmitCode, stage]);
+    setErrors({});
+
+    verify.mutate(result.data, {
+      onSuccess: (response) => {
+        setResetToken(response.resetToken);
+        goToStage("password");
+      },
+    });
+  };
 
   const handlePasswordSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1234,18 +937,18 @@ function ResetPasswordForm({
         onSuccess: () => onPasswordUpdated(email),
         onError: (error) => {
           /*
-           * The ten-minute token ran out while they were choosing. The message
-           * says "request a new code", so put them where that button is rather
-           * than leaving them on a form whose submit can no longer succeed.
-           * The dead token goes with them.
+           * The ten-minute token ran out while they were choosing. Send them
+           * back to the code stage rather than leaving them on a form whose
+           * submit can no longer succeed — and the dead token goes with them.
+           * The code itself does not expire, so it is still the right one to
+           * type again.
            */
           if (
             error instanceof AuthError &&
             error.code === "RESET_TOKEN_INVALID"
           ) {
             setResetToken(null);
-            setDigits(emptyDigits());
-            submittedRef.current = null;
+            setCharacters(emptyCharacters());
             verify.reset();
             goToStage("code");
           }
@@ -1257,57 +960,53 @@ function ResetPasswordForm({
   if (stage === "code") {
     return (
       <>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSubmitCode && submittedRef.current !== code) submitCode(code);
-          }}
-          className="mt-5"
-          noValidate
-        >
-          <OtpCodeInput
-            ref={inputsRef}
-            digits={digits}
-            onDigitsChange={setDigits}
-            disabled={isLocked}
-            invalid={Boolean(verify.error)}
+        <form onSubmit={handleCodeSubmit} className="mt-5" noValidate>
+          <div className="mb-3.5">
+            <label htmlFor="auth-reset-email" className={labelClass}>
+              {t("emailLabel")}
+            </label>
+            <div className="relative">
+              <IconMail className={inputIconClass} stroke={1.75} />
+              <input
+                autoFocus
+                id="auth-reset-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder={t("emailPlaceholder")}
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  clearError(setErrors, "email");
+                }}
+                aria-invalid={Boolean(errors.email)}
+                className={inputClass}
+              />
+            </div>
+            <FieldError message={errors.email} />
+          </div>
+
+          <RecoveryCodeInput
+            characters={characters}
+            onCharactersChange={setCharacters}
+            invalid={Boolean(verify.error || errors.recoveryCode)}
           />
+          <FieldError message={errors.recoveryCode} />
 
-          <OtpStatusRow
-            isExpired={isExpired}
-            hasExpiry={deadlines.expiresAt != null}
-            expirySeconds={expirySeconds}
-            resendSeconds={resendSeconds}
-            isResending={resend.isPending}
-            canResend={canResend}
-            onResend={requestCode}
-          />
+          <p className="mt-1 mb-4 text-[12px] text-mx-fg-faint">
+            {t("recoveryCodeHint")}
+          </p>
 
-          {/*
-            No "we couldn't send that email" line on this flow: forgot-password
-            never reports delivery, because doing so would confirm the account
-            exists. `emailSent` is null here, not false — see `OtpDeadlines`.
-          */}
-          {resent && !resend.error && !verify.error && (
-            <p role="status" className="mb-3 text-[12px] text-mx-success">
-              {t("otpResent")}
-            </p>
-          )}
-
-          {/*
-            The token expiring mid-form lands here rather than on the password
-            stage, having sent the user back — so its message is shown too.
-          */}
-          <FormError error={verify.error ?? resend.error ?? reset.error} />
+          <FormError error={verify.error ?? reset.error} />
 
           <SubmitButton isPending={verify.isPending} disabled={!canSubmitCode}>
-            {verify.isPending ? t("otpVerifying") : t("otpVerify")}
+            {verify.isPending ? t("recoveryVerifying") : t("recoveryVerify")}
           </SubmitButton>
         </form>
 
         <ModeSwitch
-          prompt={t("otpWrongEmail")}
-          action={t("otpBackToLogin")}
+          prompt={t("rememberedPassword")}
+          action={t("signIn")}
           onSwitchMode={onBackToLogin}
         />
       </>
@@ -1414,58 +1113,63 @@ function ResetPasswordForm({
   );
 }
 
-type OtpCodeInputHandle = {
-  /** Puts the caret back in box one — after a resend clears the boxes. */
-  focusFirst: () => void;
-};
-
 /**
- * The four code boxes, with the keyboard and paste behaviour that makes them
+ * The six code boxes, with the keyboard and paste behaviour that makes them
  * feel like one field.
  *
- * Extracted so email verification and password reset share **one**
- * implementation. Everything subtle lives here — select-on-focus, backspace
- * stepping back, paste filling forward — and each of those was a separate small
- * fix; a second copy would have to rediscover all of them.
+ * Adapted from the four-digit OTP input this replaced rather than rewritten,
+ * because everything subtle in it was a separate small fix — select-on-focus,
+ * backspace stepping back, paste filling forward — and a fresh implementation
+ * would have to rediscover all of them. What changed is the alphabet: letters
+ * instead of digits, upper-cased as they are typed, and anything outside
+ * `RECOVERY_CODE_ALPHABET` is dropped rather than shown and then rejected.
  *
- * Controlled with the digit **array**, never a joined string: a user can click
- * box three and type before filling box one, and round-tripping through
- * `join("")` would silently move that digit to the front.
+ * Controlled with the character **array**, never a joined string: a user can
+ * click box three and type before filling box one, and round-tripping through
+ * `join("")` would silently move that character to the front.
+ *
+ * No `ref` handle, unlike its predecessor: that existed only so a resend could
+ * put the caret back in box one, and nothing is resent any more.
  */
-function OtpCodeInput({
-  ref,
-  digits,
-  onDigitsChange,
-  disabled,
+function RecoveryCodeInput({
+  characters,
+  onCharactersChange,
   invalid,
 }: {
-  ref?: React.Ref<OtpCodeInputHandle>;
-  digits: string[];
-  onDigitsChange: (digits: string[]) => void;
-  disabled: boolean;
+  characters: string[];
+  onCharactersChange: (characters: string[]) => void;
   invalid: boolean;
 }) {
   const t = useTranslations("auth");
   const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
-  useImperativeHandle(ref, () => ({
-    focusFirst: () => inputsRef.current[0]?.focus(),
-  }));
+  /**
+   * Upper-cases, then drops anything outside the alphabet.
+   *
+   * Order matters: a lowercase `b` has to become `B` *before* the filter, or a
+   * user typing in lowercase would watch every keystroke vanish.
+   */
+  const clean = (raw: string) =>
+    raw
+      .toUpperCase()
+      .split("")
+      .filter((character) => RECOVERY_CODE_ALPHABET.includes(character))
+      .join("");
 
-  const setDigitAt = (index: number, value: string) => {
-    const next = [...digits];
+  const setCharacterAt = (index: number, value: string) => {
+    const next = [...characters];
     next[index] = value;
-    onDigitsChange(next);
+    onCharactersChange(next);
   };
 
   const handleChange = (index: number, raw: string) => {
     // `slice(-1)`: with select-on-focus, retyping over a filled box arrives as
     // both characters, and the new one is the one that was meant.
-    const digit = raw.replace(/\D/g, "").slice(-1);
+    const character = clean(raw).slice(-1);
 
-    setDigitAt(index, digit);
+    setCharacterAt(index, character);
 
-    if (digit && index < OTP_CODE_LENGTH - 1) {
+    if (character && index < RECOVERY_CODE_LENGTH - 1) {
       inputsRef.current[index + 1]?.focus();
     }
   };
@@ -1474,11 +1178,11 @@ function OtpCodeInput({
     index: number,
     event: React.KeyboardEvent<HTMLInputElement>,
   ) => {
-    if (event.key === "Backspace" && !digits[index] && index > 0) {
+    if (event.key === "Backspace" && !characters[index] && index > 0) {
       // Empty box: step back and clear the one behind, so a single Backspace
       // does something rather than nothing.
       event.preventDefault();
-      setDigitAt(index - 1, "");
+      setCharacterAt(index - 1, "");
       inputsRef.current[index - 1]?.focus();
       return;
     }
@@ -1488,68 +1192,68 @@ function OtpCodeInput({
       inputsRef.current[index - 1]?.focus();
     }
 
-    if (event.key === "ArrowRight" && index < OTP_CODE_LENGTH - 1) {
+    if (event.key === "ArrowRight" && index < RECOVERY_CODE_LENGTH - 1) {
       event.preventDefault();
       inputsRef.current[index + 1]?.focus();
     }
   };
 
-  /** Codes are usually pasted from the email, so one paste fills every box. */
+  /** Codes are usually pasted from wherever the user saved them. */
   const handlePaste = (
     index: number,
     event: React.ClipboardEvent<HTMLInputElement>,
   ) => {
-    const pasted = event.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, OTP_CODE_LENGTH - index);
+    const pasted = clean(event.clipboardData.getData("text")).slice(
+      0,
+      RECOVERY_CODE_LENGTH - index,
+    );
 
     if (!pasted) return;
 
     event.preventDefault();
 
-    const next = [...digits];
+    const next = [...characters];
     for (let offset = 0; offset < pasted.length; offset += 1) {
       next[index + offset] = pasted[offset]!;
     }
-    onDigitsChange(next);
+    onCharactersChange(next);
 
     inputsRef.current[
-      Math.min(index + pasted.length, OTP_CODE_LENGTH - 1)
+      Math.min(index + pasted.length, RECOVERY_CODE_LENGTH - 1)
     ]?.focus();
   };
 
   return (
-    <div className="mb-3.5">
-      <span id="auth-otp-label" className={labelClass}>
-        {t("otpCodeLabel")}
+    <div className="mb-1.5">
+      <span id="auth-recovery-label" className={labelClass}>
+        {t("recoveryCodeLabel")}
       </span>
       <div
         role="group"
-        aria-labelledby="auth-otp-label"
-        className="flex items-center justify-center gap-2.5"
+        aria-labelledby="auth-recovery-label"
+        className="flex items-center justify-center gap-1.5"
       >
-        {digits.map((digit, index) => (
+        {characters.map((character, index) => (
           <input
             key={index}
             ref={(element) => {
               inputsRef.current[index] = element;
             }}
-            // Focus lands on the first box as the view opens.
-            autoFocus={index === 0}
             type="text"
-            inputMode="numeric"
-            autoComplete={index === 0 ? "one-time-code" : "off"}
+            inputMode="text"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="off"
             maxLength={1}
-            disabled={disabled}
             // Strings, not numbers: ICU would group a bare number, and these
             // are positions, not counts.
-            aria-label={t("otpDigitLabel", {
+            aria-label={t("recoveryCharacterLabel", {
               position: String(index + 1),
-              total: String(OTP_CODE_LENGTH),
+              total: String(RECOVERY_CODE_LENGTH),
             })}
             aria-invalid={invalid}
-            value={digit}
+            value={character}
             // Selecting on focus is what makes typing over a filled box replace
             // it instead of being swallowed by `maxLength`.
             onFocus={(event) => event.target.select()}
@@ -1557,7 +1261,9 @@ function OtpCodeInput({
             onKeyDown={(event) => handleKeyDown(index, event)}
             onPaste={(event) => handlePaste(index, event)}
             className={cn(
-              "size-12 rounded-[10px] border-[0.5px] border-mx-border bg-mx-field text-center text-[18px] font-medium text-mx-fg outline-none transition-colors",
+              // Narrower than the four OTP boxes were: six have to fit the same
+              // 352px panel, with the same gap rhythm.
+              "size-11 rounded-[10px] border-[0.5px] border-mx-border bg-mx-field text-center text-[17px] font-medium text-mx-fg uppercase outline-none transition-colors",
               "focus:border-mx-accent disabled:cursor-not-allowed disabled:opacity-60",
               invalid && "border-mx-accent",
             )}
@@ -1566,110 +1272,6 @@ function OtpCodeInput({
       </div>
     </div>
   );
-}
-
-/**
- * The line under the boxes: how long the code lives, and the rate-limited way
- * to get another. Shared by both code screens.
- *
- * `hasExpiry` is separate from the seconds because **an unknown expiry renders
- * nothing at all**. The login → verify path can arrive with no challenge, and
- * inventing "10:00" would be a claim the server never made.
- */
-function OtpStatusRow({
-  isExpired,
-  hasExpiry,
-  expirySeconds,
-  resendSeconds,
-  isResending,
-  canResend,
-  onResend,
-}: {
-  isExpired: boolean;
-  hasExpiry: boolean;
-  expirySeconds: number;
-  resendSeconds: number;
-  isResending: boolean;
-  canResend: boolean;
-  onResend: () => void;
-}) {
-  const t = useTranslations("auth");
-
-  return (
-    <div className="mb-4 flex min-h-5 items-center justify-between text-[12px]">
-      <span className="text-mx-fg-faint">
-        {isExpired
-          ? t("otpExpiredNotice")
-          : hasExpiry
-            ? t("otpExpiresIn", { time: formatClock(expirySeconds) })
-            : ""}
-      </span>
-
-      <button
-        type="button"
-        onClick={onResend}
-        disabled={!canResend}
-        className={cn(
-          "outline-none transition-colors",
-          canResend
-            ? linkClass
-            : "cursor-not-allowed text-mx-fg-faint opacity-60",
-        )}
-      >
-        {isResending
-          ? t("otpResending")
-          : resendSeconds > 0
-            ? t("otpResendIn", { seconds: resendSeconds })
-            : t("otpResend")}
-      </button>
-    </div>
-  );
-}
-
-/**
- * Seconds left until `deadline`, re-derived every tick.
- *
- * Recomputed from the target rather than decremented, so a throttled or
- * backgrounded tab catches up on return instead of drifting further behind with
- * every second it was not running.
- */
-function useSecondsRemaining(deadline: number | null): number {
-  const [remaining, setRemaining] = useState(() => secondsLeft(deadline));
-
-  useEffect(() => {
-    setRemaining(secondsLeft(deadline));
-
-    if (deadline === null) return;
-
-    const id = window.setInterval(
-      () => setRemaining(secondsLeft(deadline)),
-      1000,
-    );
-
-    return () => window.clearInterval(id);
-  }, [deadline]);
-
-  return remaining;
-}
-
-function secondsLeft(deadline: number | null): number {
-  if (deadline === null) return 0;
-
-  return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-}
-
-/**
- * `MM:SS`. Both halves padded — a clock that alternates between `9:59` and
- * `10:00` shifts width as it counts down.
- *
- * Deliberately not `format.dateTime`: this is elapsed time, not a time of day,
- * and `MM:SS` reads the same in all three languages.
- */
-function formatClock(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function PasswordInput({
@@ -1729,7 +1331,7 @@ function SubmitButton({
   children,
 }: {
   isPending: boolean;
-  /** Additionally unavailable — e.g. an incomplete or dead OTP code. */
+  /** Additionally unavailable — e.g. an incomplete recovery code. */
   disabled?: boolean;
   children: React.ReactNode;
 }) {

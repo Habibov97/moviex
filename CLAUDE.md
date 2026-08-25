@@ -316,7 +316,7 @@ A **new** password needs 8+ characters, one uppercase letter and one special cha
   - **This reversed an earlier decision, and the reversal matters.** The meter used to return "weak" for anything `passwordSchema` rejected and then score only the *optional* criteria beyond it, reasoning that crediting a password for something it could not have omitted would rate every valid password strong. Correct in isolation, wrong in practice: the bar sat flat at weak however long or varied the password became, then usually jumped straight past medium to strong the instant the last mandatory rule (a special character) was met — because a password that far along already satisfied most of the bonus criteria. It communicated nothing during the stretch of typing where feedback is worth having. **Don't reinstate the schema gate**; it is what produced that bug.
   - **The meter's job is progressive feedback, not a verdict.** "Strong" is earned by a high running total rather than by a special zero-credit rule for the required criteria. A consequence to expect rather than fix: a perfectly valid password can read "medium" (`PASSWOR!` scores 3), because the meter answers "how good is this?" while the schema answers "does it meet the bar?" — conflating those two questions is the original bug.
   - **Display only.** Submit-blocking validation, the error messages and `passwordSchema` itself are untouched. The meter still imports `PASSWORD_MIN_LENGTH` / `PASSWORD_UPPERCASE_PATTERN` / `PASSWORD_SPECIAL_PATTERN` from `@moviex/shared-types` rather than restating them, so it and the validator cannot disagree about what a symbol is. Lowercase and digit are local patterns purely because they are meter-only heuristics with no rule in the schema to import.
-- **Every key `AUTH_VALIDATION_KEYS` and `OTP_VALIDATION_KEYS` can emit needs copy in all three message files.** Worth asserting when adding a rule: flatten `auth.validation` per locale and diff it against the union of those two arrays — a missing key renders an error placeholder rather than a message, and an orphan is copy for a rule that no longer exists.
+- **Every key `AUTH_VALIDATION_KEYS` and `RECOVERY_VALIDATION_KEYS` can emit needs copy in all three message files.** Worth asserting when adding a rule: flatten `auth.validation` per locale and diff it against the union of those two arrays — a missing key renders an error placeholder rather than a message, and an orphan is copy for a rule that no longer exists.
 
 ### "Remember me": two session lengths, and why they cannot drift
 
@@ -331,203 +331,133 @@ The checkbox is wired to the real session. There are **two** durations and nothi
 - **The JWT expiry and the cookie's `maxAge` are the same value, structurally, not by convention.** `AuthService.issueSession()` picks one duration, signs with it, then reads the lifetime back off the token's own claims — `expiresInMs = (exp - iat) * 1000` — and the controller sets that as `maxAge`. The duration string is never parsed a second time, so there is no second place to update and no way for the cookie to outlive the token inside it (or expire before it). **Retune the values in `jwt.config.ts` and both move together**; a test asserts this holds on both branches and follows a config change to `90d`.
 - **`rememberMe` is not a claim.** It selects the expiry and is then discarded — the token payload stays exactly `{ sub, email, iat, exp }`. Nothing downstream needs to know which kind of session it is.
 - **Omitted means `false`, on both sides.** `LoginDto` marks it `@IsOptional()` and `loginSchema` is `z.boolean().optional().default(false)`, so an existing caller that sends nothing keeps the short session it always had.
-- **OTP verification always issues the short session.** `POST /auth/verify-otp` signs someone in, but "remember me" is a choice made on the *login* form and the register → OTP flow never presents it. Adding the field to `VerifyOtpDto` would mean inventing a preference the user was never asked for; the shorter default is the honest one, and their next sign-in is where they choose.
+- **Signup always issues the short session.** `POST /auth/signup` signs the new user in, but "remember me" is a choice made on the *login* form and the register form never presents it. Adding the field to `RegisterDto` would mean inventing a preference the user was never asked for; the shorter default is the honest one, and their next sign-in is where they choose.
 
-**Register does not sign anyone in, and the reason is now structural** — see the email-verification section below. `/auth/signup` sets no cookie because the address has not been proven yet, and the API refuses to issue a session for an unverified account at all. The modal used to chain straight into `/auth/login` on signup success; that is exactly what the gate exists to prevent, and it is gone.
+**Register *does* sign the user in, and that is a deliberate reversal** — see the account-recovery section below. `/auth/signup` sets the session cookie itself and returns the one-time recovery code; the modal shows that code and then closes into the signed-in app. It used to set no cookie at all, because an unverified address could not hold a session. With email verification gone there is nothing left to wait for, and the modal does **not** chain into a second `/auth/login` call — it never did, and reintroducing one would ask for a password typed seconds earlier and prove nothing.
 
 Only `AuthError` messages (curated in `use-auth.ts`) are rendered; anything else falls back to generic copy, so raw upstream text and stack detail never reach the UI. `useLoginMutation` invalidates `['auth','me']` on success — that, not a reload, is what flips the navbar and the gated buttons.
 
-## Email verification: OTP is the gate between "account created" and "signed in"
+## Account recovery: a one-time code, and no other way back in
 
-Signing up no longer produces a session. The flow is **register → account created, unverified → 4-digit code emailed → user enters it → verified *and* signed in, in one response**. Verification is the only thing that turns a row into a usable account.
+**There is no email in this application.** The emailed-OTP system that used to gate signup and drive password reset was removed wholesale, because the deployment host blocks outbound SMTP at the network level — see the platform post-mortem at the end of this section, kept because the *lesson* generalises even though the code it describes is gone. No code this app generates could ever reach a user, so the flow was replaced rather than repaired.
 
-### The policy values, and where they live
+What replaced it: **a 6-character recovery code, shown exactly once at signup, which the user saves themselves.** It is the only thing that can authorise a password reset.
 
-| | Value | Constant |
+**State the consequence plainly, because it is the design and not a gap to fix later: a user who loses both their password and their recovery code has permanently lost the account.** There is no reset-by-email, no support path, and no way to regenerate the code — the server stores a bcrypt hash and nothing else. The UI says this in as many words (`auth.saveCodeWarning`), and any change here has to keep saying it.
+
+### The code itself
+
+| | Value | Where |
 |---|---|---|
-| Code | 4 digits, `1000`–`9999` | `generateOtpCode()` |
-| Lifetime | **10 minutes** | `OTP_TTL_MS` |
-| Resend cooldown | **60 seconds** per account | `OTP_RESEND_COOLDOWN_MS` |
-| Wrong guesses per code | **5**, then the code is refused outright | `OTP_MAX_ATTEMPTS` |
+| Length | **6 characters** | `RECOVERY_CODE_LENGTH` |
+| Alphabet | **23 uppercase letters** — A–Z minus `I`, `O`, `L` | `RECOVERY_CODE_ALPHABET` |
+| Hashing | bcrypt, **the same salt rounds as the password** | `AuthService.saltRounds` |
+| Expiry | **none** | — |
+| Reset-token TTL | 10 minutes | `RESET_TOKEN_TTL_SECONDS` |
 
-All four live in `apps/api/src/auth/otp.constants.ts` and **nowhere else**. There is deliberately no client-side copy: every endpoint that issues a code returns the *remaining* seconds with it (`OtpChallenge` — `expiresInSeconds`, `resendAvailableInSeconds`, `emailSent`), and the modal counts down from those. A mirrored validation rule fails loudly on the next request; a mirrored **timer** just drifts silently, which is why this one is not mirrored. Retune the numbers here and the UI follows with no frontend change.
+- **`I`, `O` and `L` are excluded because this is transcribed by hand.** `I`/`1`, `O`/`0` and `l`/`1` are the classic misreadings, and a wrong character is indistinguishable from a wrong code. Digits are left out entirely so no `0` can be confused with an `O`. That costs ~0.4 bits per character against a full 26-letter alphabet, which is the right trade: a code that is mistyped is not more secure, it is unusable.
+- **Generated with `randomInt` from `node:crypto`, never `Math.random`.** It is a credential that never expires, and a seeded PRNG's next draw is predictable from its previous ones — one leaked code would leak its neighbours.
+- **Hashed exactly like a password**, because it *is* a second password: it alone is enough to take the account. Reusing `saltRounds` rather than introducing a second constant is deliberate; two knobs would eventually disagree.
+- **The alphabet and length exist in three places** — `@moviex/shared-types`, `apps/api/src/auth/recovery.constants.ts`, and the regex in `VerifyRecoveryCodeDto`. The usual constraint: the API may import *types* from that package but never values. **Edit all three together**; a mismatch means the server generates a code its own validator rejects.
 
-Codes are generated with `randomInt` from `node:crypto`, not `Math.random` — this is a credential, and a seeded PRNG's next draw is predictable from its previous ones.
+### No expiry means rate limiting is the defence, not a supplement
+
+23^6 ≈ 1.5×10^8 possibilities. Unlike the OTP it replaced, a recovery code has **no lifetime and no per-code attempt ceiling** — so `POST /auth/verify-recovery-code` is limited to **5 attempts per minute per IP** (`RECOVERY_CODE_LIMIT`), the same budget a password gets at login. That puts a single-address exhaustive search at roughly 58 years.
+
+**This is the only thing between an attacker and an unlimited guessing run.** Loosening that limit is a security decision, not a tuning one. The bcrypt hash at rest is the second layer, for the case where the limit is bypassed by distributing across addresses.
 
 ### Endpoints
 
 | Route | Notes |
 |---|---|
-| `POST /auth/signup` | Creates the user with `isEmailVerified: false`, stamps a code, emails it. **No cookie, no token, and the code is not in the response.** Returns `{ status: 'pending_verification', challenge }`. |
-| `POST /auth/verify-otp` | `{ email, code }`. On success flips `isEmailVerified`, clears the code, and **sets the session cookie exactly as login does**. |
-| `POST /auth/resend-otp` | `{ email }`. New code, at most one per 60s. Already-verified is a 200 no-op (`status: 'already_verified'`), not an error. |
-| `POST /auth/login` | Unchanged for verified accounts. An unverified one is **403 with `code: 'EMAIL_NOT_VERIFIED'`** — see below. |
+| `POST /auth/signup` | Creates the account, **signs the user in** (sets the cookie), and returns the plaintext recovery code. The only time it is ever retrievable. |
+| `POST /auth/verify-recovery-code` | `{ email, recoveryCode }` → a short-lived reset token. **No cookie, no session.** |
+| `POST /auth/reset-password` | `{ resetToken, newPassword }`. **Still no session** — go and sign in. |
 
-- **`AuthService.issueSession()` is the single place a session is created.** Login and verify-otp both end there, and `AuthController.setSessionCookie()` is the single place the cookie is written. Two ways in, one definition of what a session *is* — otherwise the cookie attributes drift between them and only one of the two matches what logout clears.
-- **The unverified login is a 403 with a code, not a 401.** "Wrong password" and "right password, unproven address" need opposite responses — one says try again, the other moves the user to the OTP screen — so the client must be able to tell them apart without reading English prose. It is checked **after** the password, so an account's verification state is never disclosed to someone who cannot sign in anyway.
-- **`otpCode`, `otpExpiresAt`, `otpAttempts` and `otpLastSentAt` are stripped from every response alongside `password`.** Not theoretical: a user can hold a live code while logging in on another device, and without the strip `POST /auth/login` would hand the code straight back in its body. Covered by a test.
-- **`POST /auth/resend-otp` 404s on an unknown email, which does leak whether an address is registered** — but `signUp` already answers "User already exists" to the same question, so this closes nothing that is currently open, and a silent fake success would leave a mistyped address waiting forever on a code that was never sent. Closing enumeration properly means changing signup too, and is its own piece of work.
+**Signup now signs the user in, which is a deliberate reversal.** It used to set no cookie at all, because the address had not been proven and holding the password was explicitly not sufficient. With email gone there is nothing left to wait for, and a separate login step immediately afterwards would ask for the password typed seconds earlier and prove nothing this request has not already established. `AuthService.issueSession()` is still the single place a session is created — `login` and `signUp` both end there.
 
-### Guard order in `verifyOtp`, and why it is that order
+**Verifying the recovery code does *not* sign anyone in**, and that asymmetry is the point. Possessing the code proves the user can authorise a reset; it does not prove intent to sign in, and an abandoned reset must not leave someone holding a session for an account whose password they still do not know.
 
-1. **Attempt ceiling first**, before the code is even compared — an exhausted budget must not be bypassable by a lucky guess.
-2. **Expiry before equality** — a stale-but-correct code reports `OTP_EXPIRED`, not `OTP_INVALID`. That is the difference between "wait for the new email" and "you mistyped it".
-3. **The lockout is reported on the attempt that causes it**, not the next one. Otherwise the UI keeps offering a retry that is already guaranteed to fail, and the user only learns to press Resend after wasting it.
-4. **A successful verify clears the code**, which is what stops it being replayed inside its remaining lifetime.
-5. **An unknown email answers `OTP_INVALID`**, not 404 — there is nothing to increment, and a different answer would make this a membership oracle.
+### Non-disclosure at `verify-recovery-code`
 
-**Issuing a new code resets `otpAttempts` to zero.** That is what makes "request a new code" a real way out of a lockout rather than advice that changes nothing — and it is safe, because the budget is per-code, not per-account.
+Three different failures answer **identically** (`400`, `code: "RECOVERY_CODE_INVALID"`):
 
-### The migration backfilled every existing account to verified
+- no account for that address,
+- an account with no `recoveryCodeHash`,
+- a genuine mismatch.
 
-`isEmailVerified` defaults to `false`, which is right for every row created from here on and **catastrophic for rows that already existed**: they would all fail login's new check with no way back, since the only route to verified is a code emailed by signup, and signup refuses an address that is already registered. `1787498626807-AddEmailVerification` therefore ends with `UPDATE "users" SET "isEmailVerified" = true`. That statement is correct exactly once, at that moment, because the column did not exist a statement earlier. **Any future column that gates access needs the same consideration** — a default that is right for new rows is not automatically right for old ones.
+Distinguishing any of them makes the endpoint an account oracle, and the user's next action is the same in all three cases. Note this is stricter than `signUp`, which still answers "User already exists" — enumeration is not closed in this app, but reset is the endpoint an attacker actually wants an oracle on. **Don't "make it consistent" by loosening this one.**
 
-### Email: Nodemailer over Gmail SMTP
+The null-hash branch is a **defensive** check, not a user-facing case: it also stops `bcrypt.compare` throwing on a null digest. Pre-migration accounts are being deleted manually rather than migrated.
 
-`src/mail/` (`MailModule` / `EmailService`), kept out of `AuthModule` because "send an email" is not an auth concern. Gmail submission port **587**, `secure: false` with `requireTLS: true` — `requireTLS` is doing real work: without it Nodemailer would fall back to an unencrypted session if the server declined STARTTLS, sending the app password in the clear. `SMTP_PASS` must be a Google **App Password** (16 chars, 2FA required), never the account password; Google rejects the latter with a generic "Username and Password not accepted" that reads like a typo.
+**Timing is deliberately not equalised** with a dummy-hash comparison. The 5/minute limit is the defence that matters for a code with no expiry; a timing side-channel measured through it is not the weak link, and equalising would add bcrypt's cost to every request for an unknown address.
 
-- **`sendOtpEmail` never throws, on any path.** It returns a boolean. An exception escaping the mailer would fail a signup whose user row has already been committed — leaving someone with an account they can neither enter nor re-create. Losing an email is recoverable; there is a Resend button on the other side of it.
-- **`otpLastSentAt` is written only after a successful send**, so a failed delivery does not start a 60-second cooldown against a code that never arrived. The challenge carries `emailSent: false` and the modal says so instead of showing a countdown for a code that will never come.
-- **The code is never logged**, including on the error path. An error log is precisely where it would outlive its ten minutes.
-- **Gmail caps a free account at roughly 500 messages a day.** Fine at the current size, and there is no queue or retry behind it. If signups ever approach that, swap in a transactional provider (Resend, SendGrid, …) — the change is confined to `EmailService`'s transport.
-- **SMTP timeouts are set explicitly, and the defaults are the reason.** Nodemailer defaults to a **2-minute** `connectionTimeout` (socket 10 minutes, greeting 30 seconds) — sized for a background batch job, not for a request a person is watching a spinner on. `EmailService` overrides them to 8s connection / 8s greeting / 12s socket / 5s DNS.
+### The reset token: a JWT that is deliberately not a session
 
-### "Create account does nothing": the signup request was waiting on SMTP
+Unchanged from the flow this replaced — only what must be proven before it is issued changed.
 
-Clicking **Create account** in production appeared to do nothing — no OTP view, no error. `issueOtp()` **awaits** the email send inside `POST /auth/signup`, so the HTTP response is gated on SMTP completing. Against a host that *drops* outbound port 587 rather than refusing it (several PaaS providers block SMTP on cheaper tiers), the connection attempt sat there for nodemailer's full default two minutes before failing. From the browser that is indistinguishable from a dead button: the request is simply still in flight, and nobody waits out 120 seconds.
+Signed with the same `JWT_SECRET`, which is exactly why the `purpose: 'password_reset'` claim is load-bearing rather than decorative. **Without it, any token signed with that secret would be accepted — including the session token in every signed-in user's cookie**, turning "I am signed in" into "I may change this password without knowing the current one" and a stolen cookie into a permanent takeover.
 
-Measured against a blackholed address: **8007ms with `ETIMEDOUT`** using the bounded timeouts, versus a 120000ms default. Signup now answers in seconds either way, the OTP view appears, and `emailSent: false` is what tells the modal to say the mail did not go out rather than start a countdown.
+- Payload is exactly `{ sub, purpose, iat, exp }` — no email, nothing session-shaped.
+- **10 minutes** (`RESET_TOKEN_TTL_SECONDS`).
+- **Returned in the response body, not as a cookie.** It is a transient one-time credential the client holds across two consecutive requests; the short expiry is most of what makes a JS-readable token acceptable. The client keeps it in `ResetPasswordForm`'s state and **never** in `localStorage`, `sessionStorage`, a cookie or the URL — unmounting the modal disposes of it, which is only true while both stages share one mount.
+- Bad signature, expired, wrong purpose and not-a-JWT all collapse to one `RESET_TOKEN_INVALID`. They mean the same thing to the user; distinguishing them describes the token back to whoever is probing it.
 
-**Reading the failure log to tell the two causes apart.** `EmailService.send` logs elapsed time and the SMTP error code (never the OTP code) precisely because these look identical from outside:
+### The recovery code is not rotated by a password reset
 
-| Log signature | Cause |
-|---|---|
-| `code: ENETUNREACH` on an address containing `:` | Nodemailer picked Gmail's **IPv6** address on a host with no outbound IPv6 route. See the section below — this was the actual cause here. |
-| `~8000ms (code: ETIMEDOUT` / `ESOCKET)` | The connection never left the host — a blocked port. Bounding the timeout makes it fail fast; it does not make mail work. Fix is a transport that leaves over HTTPS. |
-| Fast failure, `code: EAUTH` | The server answered and rejected the login — wrong or revoked App Password, or Gmail flagged the sign-in from an unfamiliar datacenter address. Check the account's Recent security activity for a "Was this you?" prompt, approve it, and regenerate the App Password. |
-| `SMTP_USER / SMTP_PASS are not set` | Credentials never reached the process. |
-| No mail log at all | The send was never attempted — look upstream of `issueOtp`. |
+`resetPassword` changes the password and nothing else. Rotating the code there would replace it with a value the user has never seen and lock them out of the *next* reset — the exact failure this system exists to avoid. Someone reaching that point already proved possession of the code, so using it has not compromised it.
 
-**If it is a blocked port, bounded timeouts are not the fix, only the symptom relief** — no code will ever arrive over a port the host does not let out. That is the point at which the transactional-provider swap above stops being a scale concern and becomes the only way to send mail at all: those APIs go out over HTTPS, which is not blocked. The change stays confined to `EmailService`.
+### Accepted trade-off: other sessions survive a password reset
 
-### `ENETUNREACH`: Render has no outbound IPv6, and nodemailer picks an address at random
+Unchanged, and worth restating. This app has no refresh tokens, no server-side session and no denylist, so an already-issued token stays cryptographically valid until its own expiry — the identical limitation logout has. A reset locks an attacker out of *future* sign-ins but not an existing session, for up to `JWT_EXPIRES_IN` (or 30 days on a "remember me" token). Closing it needs a real revocation mechanism — a `passwordChangedAt` column the guard compares each token's `iat` against would do it — and is a deliberate change to make, not something to bolt onto `resetPassword`.
 
-**This was the real cause of the failing verification emails**, sitting behind the timeout symptom above. `smtp.gmail.com` has both an A and a AAAA record. Render's outbound network does not route IPv6, so any attempt against `2a00:1450:...:587` fails with `ENETUNREACH`.
+### The migration drops the verification columns and does not backfill
 
-**What makes it intermittent rather than total is worth understanding, because it is not the usual "Node prefers IPv6" story.** Nodemailer does its **own** DNS resolution — `dns.Resolver().resolve4()` and `resolve6()` directly (`lib/shared/index.js:54`), never `dns.lookup` — concatenates the results IPv4-then-IPv6, and then picks **one at random**:
+`1787680000000-ReplaceOtpWithRecoveryCode` drops `otpCode`, `otpExpiresAt`, `otpAttempts`, `otpLastSentAt`, `otpPurpose` and **`isEmailVerified`**, and adds nullable `recoveryCodeHash`.
 
-```js
-// nodemailer/lib/shared/index.js:83
-const host = addresses.length > 0 ? addresses[Math.floor(Math.random() * addresses.length)] : null;
-```
+- **`isEmailVerified` had to go, not just be ignored.** It was the login gate, and the only thing that could ever flip it was an emailed code. Keeping it would leave every new account locked out by a gate with no key.
+- **There is deliberately no backfill, and this is the opposite choice from `AddEmailVerification`**, which backfilled `isEmailVerified = true` precisely so existing accounts were not locked out. The difference is that a recovery code cannot be invented on a user's behalf — the whole security property is that exactly one person has ever seen it, and a value generated by a migration is one nobody has. **Pre-migration accounts are being deleted manually rather than migrated**; they cannot reset a password and there is no honest way to give them one.
+- `down()` restores the columns with `isEmailVerified` defaulted to **`true`** (matching the old backfill), so a rollback does not lock everyone out of a gate this migration removed. The OTP values themselves are gone for good.
 
-With one A and one AAAA record that is a coin flip per send. Measured locally over 40 resolutions: **18/40 chose IPv6.**
+### The modal: four views, one of which cannot be dismissed
 
-**Neither of the two standard fixes works here, and both look like they should.** Measured over 40 trials each, against nodemailer 9.0.5:
+`AuthMode` is `login | register | saveCode | reset`. Same tokens, no new design.
+
+- **`saveCode` is the one modal in this app that ignores Escape and backdrop clicks.** The cost of leaving it by accident is not "reopen it later", it is the account — so a checkbox gates the Continue button and there is no other way out. `canDismiss` drives both the backdrop handler and the Escape listener; the listener reads it through `canDismissRef` because it is bound once per open and re-binding it on every view change would also re-run the scroll lock beside it.
+- **Acknowledging just closes the modal.** Signup already established the session and `useSignupMutation` already ran the same cache hygiene login does, so branch-3 auth state is live before this view even renders. There is no separate login step and nothing left to fail.
+- **`ResetPasswordForm` is one component for two stages** (`code`, then `password`) specifically because the reset token lives between them, and unmounting is what disposes of it. It reports its stage upward so the heading can follow; the token never leaves.
+- **The reset flow is two steps where the emailed one needed three.** The middle step existed only because email delivery is asynchronous — request a code, wait, then verify. A code the user already has needs no such round trip, so the address and the code are collected in one form. `ForgotPasswordForm` is gone.
+- **`RecoveryCodeInput` is the old `OtpCodeInput`, adapted rather than rewritten.** Everything subtle in it was a separate small fix — select-on-focus, backspace stepping back, paste filling forward — and a fresh implementation would have to rediscover all of them. What changed: six boxes instead of four, letters instead of digits, upper-cased as typed, and anything outside the alphabet dropped rather than shown and then rejected. It is still controlled by the character **array**, never a joined string. The `ref` handle is gone — it existed only so a resend could refocus box one, and nothing is resent any more.
+- **No auto-submit on the last character**, deliberately unlike the OTP screen. There the boxes were the only field, so filling them plainly *was* the action. Here the form also carries an email that may still be empty when the sixth letter lands, and submitting early would spend one of only five attempts a minute against a code with no expiry.
+- **A reset token that expires mid-form sends the user back to the code stage** with the dead token discarded. The recovery code itself does not expire, so it is still the right one to retype.
+- Success returns to the login view through the existing `handoff` mechanism — email pre-filled, `passwordUpdated` shown inline.
+
+### Why there is no email: the platform post-mortem, kept for the lesson
+
+The mail code is gone; this stays because the constraint is the *platform's*, not Gmail's, and the next outbound service will meet it too.
+
+Verification emails failed in production with `ENETUNREACH` against `2a00:1450:...:587`. `smtp.gmail.com` has both an A and a AAAA record, and Render's outbound network does not route IPv6.
+
+**What made it intermittent is the part worth remembering.** Nodemailer does its **own** DNS resolution — `dns.Resolver().resolve4()` and `resolve6()` directly, never `dns.lookup` — concatenates the results IPv4-then-IPv6, and then picks **one at random**. With one A and one AAAA record that is a coin flip per send; measured, 18 of 40 resolutions chose IPv6.
+
+Both standard fixes were measured and **neither worked**, which is the actual lesson:
 
 | Configuration | IPv4 chosen | IPv6 chosen |
 |---|---|---|
 | Plain | 22/40 | 18/40 |
 | `family: 4` in the transport options | 21/40 | 19/40 |
 | `dns.setDefaultResultOrder('ipv4first')` | 23/40 | 17/40 |
-| Both together | 24/40 | 16/40 |
 
-- **`family: 4` never reaches the socket.** The options nodemailer passes to `net.connect` are a fixed set — `{port, host, allowInternalNetworkInterfaces, timeout}` plus optional `localAddress` (`smtp-connection/index.js:264`). `family` is not among them, and `resolve()` does not consult it either. Even if it arrived, it would be moot: `opts.host` has already been overwritten with an IP **literal**, and `family` only steers `dns.lookup`, which no longer runs.
-- **`setDefaultResultOrder('ipv4first')` only affects `dns.lookup`**, which nodemailer bypasses entirely in favour of `resolve4`/`resolve6`. It cannot reorder a list it never produces.
+- **`family: 4` never reaches the socket.** The options nodemailer passes to `net.connect` are a fixed set, and `family` is not among them. Even if it arrived it would be moot: the host has already been overwritten with an IP **literal**, and `family` only steers `dns.lookup`, which no longer runs.
+- **`setDefaultResultOrder('ipv4first')` only affects `dns.lookup`**, which nodemailer bypasses entirely. It cannot reorder a list it never produces.
 
-**The fix is to resolve the A record ourselves and hand nodemailer an IPv4 literal.** `EmailService.resolveIpv4Host()` calls `dns/promises.resolve4('smtp.gmail.com')` and the transporter is built against that address; nodemailer short-circuits its own resolution when the host is already an IP (`shared/index.js:105`). Measured after the change: **40/40 IPv4, 0 IPv6.**
-
-- **`tls: { servername: 'smtp.gmail.com' }` is mandatory, not decorative.** With an IP as `host`, nodemailer sets the TLS servername to `false` (`smtp-connection/index.js:84`), and the STARTTLS upgrade would then carry no SNI and have no hostname to validate the certificate against — encrypted, and trivially interceptable. It is passed under `tls` rather than top-level only because that is the spelling `@types/nodemailer` 8.0.1 knows; both land in the same handshake options.
-- **The address is cached for 5 minutes** (`DNS_CACHE_TTL_MS`), then re-resolved, because Gmail rotates SMTP addresses. The transporter is only rebuilt when the address actually changes.
-- **A failed lookup falls back to the hostname** rather than failing the send — that restores the coin flip, which is worse than working and better than nothing.
-
-**Generalise this to any outbound service from this environment.** No outbound IPv6 is a property of the *platform*, not of Gmail. If a transactional email provider is adopted, or any other external TCP/HTTPS call starts behaving oddly here, check whether the client library resolves DNS itself and whether it can be steered — and note that Node's own `fetch`/undici use `dns.lookup`, where `setDefaultResultOrder('ipv4first')` *does* work. The lesson is that the fix depends entirely on which resolution path the library takes, so establish that first rather than reaching for `family: 4` by reflex.
-
-### Signup does not, and structurally cannot, bypass verification
-
-Worth stating plainly because "account created but no OTP" reads like a bypass and is not one. There are exactly **two** writes to `isEmailVerified` in the codebase:
-
-- `auth.service.ts:81` — `createdUser.isEmailVerified = false`, set explicitly at signup on top of the column's own `default: false`.
-- `auth.service.ts:109` — `= true`, inside `verifyOtp`, reachable only *after* `consumeOtp` has matched a correct, unexpired code carrying the right `otpPurpose`.
-
-`login` refuses any account with `!user.isEmailVerified` (403 `EMAIL_NOT_VERIFIED`, checked after the password so it discloses nothing to someone who could not sign in anyway). So an account stranded by a mail failure is **unverified and unusable, not verified-without-OTP** — broken but safe. The only other route to `true` is the one-time backfill in `1787498626807-AddEmailVerification`, which ran against rows that predate the column.
-
-### The OTP view in `LoginRegisterModal`
-
-A third `AuthMode` (`"login" | "register" | "otp"`) in the same component, styled from the same tokens — not a new design.
-
-- **Two ways in.** Register success passes the challenge it just received. A login that comes back `EMAIL_NOT_VERIFIED` switches to the same view with the email pre-filled and **requests a fresh code on mount**, rather than showing an error the user cannot act on.
-- **Countdowns are absolute deadlines, not decremented counters.** A `setInterval` that subtracts one per tick drifts, and stops entirely in a backgrounded tab — so someone who switched away for two minutes would return to a clock still claiming nine minutes left. Both timers recompute from a fixed target every tick.
-- **An unknown expiry renders nothing.** The login → verify path can arrive without a challenge if the server declined to re-send; `null` is a real state and inventing "10:00" would be a claim the server never made.
-- **A cooldown rejection on the auto-request is swallowed, not shown.** The countdown on the button already says everything it means, and the user did not press anything — being told off for a request the component made on their behalf is noise. The `retryAfterSeconds` off the error re-seeds the countdown so it unlocks at the right moment.
-- **Auto-submit on the fourth digit is guarded by the last-submitted code.** Without that guard a rejected code re-submits itself on every render while it is still four digits long, burning all five attempts at once.
-- **Inputs select on focus.** That is what makes typing over a filled box replace it rather than being swallowed by `maxLength={1}`. Paste is handled separately and fills every box from the one pasted into.
-- Success invalidates `['auth','me']` and removes `['user-movies']` through the **same** `useSessionEstablished()` helper login uses — verify-otp establishes a session, so it owes the same cache hygiene, including the cross-account leak fix.
+**Generalise this, don't memorise the fix.** No outbound IPv6 is a property of the environment. When any external TCP/HTTPS call from here behaves oddly, establish **which resolution path the library takes** before reaching for `family: 4` by reflex — Node's own `fetch`/undici use `dns.lookup`, where `setDefaultResultOrder('ipv4first')` *does* work, and a library that resolves for itself needs the address resolved on its behalf instead. Separately, several PaaS tiers block outbound SMTP ports outright; if email is ever reintroduced, use a provider whose API goes over HTTPS rather than SMTP.
 
 ### Adding to this flow
 
-The OTP copy is in the `auth` namespace of all three message files, `otpIncomplete` under `auth.validation`. One deviation from the ICU rule worth knowing: `otpResendIn` uses a single `other` branch in all three languages because the unit is **abbreviated** (`45s` / `45 sn` / `45 с`), and an abbreviation has no grammatical agreement to vary. Any count rendered as a full word still needs the complete Russian set.
+Both DTOs restate the shared rules by hand for the usual reason. `ResetPasswordDto` carries a **third** copy of the password policy alongside `passwordSchema` and `RegisterDto` — edit all three together; a reset that accepted a weaker password would be a documented way around the policy. New copy goes in the `auth` namespace of all three message files, as always.
 
-## Forgot password: the same OTP machinery, three deliberate differences
-
-`register → email → code → signed in` and `forgot password → email → code → new password` are the same four digits, the same columns and the same screens. **What differs is the three things below**, and each of them is the reason the flow exists rather than an implementation detail:
-
-1. **Verifying the code does not sign anyone in.** Email verification ends in a session because entering the code is the last step of creating an account. Here it is the *middle* step, and it only proves the mailbox is readable — so it returns a short-lived reset token and nothing else. Neither `verify-reset-otp` nor `reset-password` touches a cookie.
-2. **`POST /auth/forgot-password` answers identically for every input.** This is the one endpoint in the app that does not leak account existence.
-3. **The code carries a purpose**, so the two flows cannot spend each other's codes.
-
-| Route | Notes |
-|---|---|
-| `POST /auth/forgot-password` | `{ email }`. Emails a code **only** for an account that exists *and* is `isEmailVerified` *and* is outside the 60s cooldown. Always `200 { status: 'if_account_exists_code_sent', challenge }`. |
-| `POST /auth/verify-reset-otp` | `{ email, code }`. Returns `{ resetToken, expiresInSeconds }`. **No cookie, no session.** |
-| `POST /auth/reset-password` | `{ resetToken, newPassword }`. Changes the password. **Still no session** — go and sign in. |
-
-### `otpPurpose`: why the columns are shared, and what makes it safe
-
-Both flows use the same `otpCode` / `otpExpiresAt` / `otpAttempts` / `otpLastSentAt` columns, because one account is only ever part-way through one of them at a time and a second set would be four fields that are null in every row. The `otpPurpose` enum column (`'email_verification' | 'password_reset'`, nullable) is what makes that sharing safe: **without it, four digits emailed to confirm an address would also open the password-reset door.** `AuthService.consumeOtp` checks the purpose *before* comparing the code and answers `OTP_INVALID` for the other flow's code, burning no attempt — the caller is not in the right flow, so there is nothing there to brute-force.
-
-- **Issuing a code for either purpose overwrites whatever was pending for the other.** Intended, not a race: the last code the user asked for is the one in front of them.
-- **The migration backfills `otpPurpose = 'email_verification'` for rows with a code outstanding**, and leaves the rest null. Narrower than the `isEmailVerified` backfill but the same reasoning: every code alive at that moment predates password reset, so it can only be a verification code, and leaving it null would get it rejected by the very check being added. Rows with no code stay null — there is nothing to describe.
-- `clearOtp` clears it with the rest, and `issueSession` strips it alongside `otpCode` and friends. A purpose left behind labels a code that is not there.
-
-### The reset token: a JWT that is deliberately not a session
-
-Signed with the same `JWT_SECRET`, and that is exactly why the `purpose: 'password_reset'` claim is load-bearing rather than decorative. **Without it, any token signed with that secret would be accepted — including the session token in every signed-in user's cookie**, which would turn "I am signed in" into "I may change this password without knowing the current one" and a stolen cookie into a permanent takeover. The claim is what keeps the two token families apart under one secret.
-
-- Payload is exactly `{ sub, purpose, iat, exp }` — no email, nothing session-shaped.
-- **10 minutes** (`RESET_TOKEN_TTL_SECONDS` in `otp.constants.ts`, alongside the other four OTP numbers — don't fork a second set).
-- **Returned in the response body, not as a cookie.** It is a transient one-time credential the client holds across two consecutive requests; the short expiry is most of what makes a JS-readable token acceptable here. The client keeps it in `ResetPasswordForm`'s state and **never** in `localStorage`, `sessionStorage`, a cookie or the URL — unmounting the modal is what disposes of it, which is only true while both steps share one mount.
-- Bad signature, expired, wrong purpose and not-a-JWT all collapse to one `RESET_TOKEN_INVALID`. They mean the same thing to the user; distinguishing them describes the token back to whoever is probing it. The `jsonwebtoken` error is never rethrown — its message would surface raw in the body.
-
-### Non-disclosure at `forgot-password`, and where it stops
-
-Unknown address, unverified account, real send, and a request inside the cooldown all produce the same body. Everything that varies happens before the `return`; a cooldown rejection is **silence, not a 429**, because a 429 would confirm the account.
-
-- `challenge` carries **policy** figures (full TTL, full cooldown), never this account's remaining time — per-account seconds are precisely what would leak. The cost is a conservative clock: if a code really was sent 30s ago the button says 60. Pressing it early is a silent no-op, so nothing breaks.
-- **An unverified account is declined silently.** It has never proven it can receive mail at that address, so emailing a reset code there would let whoever registered it take control on the strength of an address they never proved. Their route in is the signup verification flow, which the client's copy points *everyone* at.
-- **This is stricter than the rest of the module, on purpose.** `signUp` still answers "User already exists" and `resendOtp` still 404s, so enumeration is not closed in this app — but those cost the attacker something, and reset is the endpoint an attacker actually wants an oracle on. Don't "make it consistent" by loosening this one.
-- The UI must cooperate: `ForgotPasswordForm` says *"if an account exists…"*, never "check your inbox". Saying the latter would re-open client-side exactly what the endpoint closes.
-
-### Accepted trade-off: other sessions survive a password reset
-
-Changing the password does **not** sign other devices out. This app has no refresh tokens, no server-side session and no denylist, so an already-issued token stays cryptographically valid until its own expiry — the identical limitation logout has, where clearing the cookie removes the browser's copy and revokes nothing. A reset therefore locks an attacker out of *future* sign-ins but not an existing session, for up to `JWT_EXPIRES_IN` (or 30 days on a "remember me" token).
-
-Closing it needs an actual revocation mechanism — a `passwordChangedAt` column the guard compares each token's `iat` against would do it — and that is a deliberate change to make, not something to bolt onto `resetPassword`.
-
-### The two new modal views
-
-`AuthMode` is now five: `login | register | otp | forgot | reset`. Same tokens, no new design.
-
-- **`ResetPasswordForm` is one component for two stages** (`code`, then `password`) specifically because the reset token lives between them. It reports its stage upward so the modal heading can follow; the token never leaves.
-- **The OTP boxes are extracted, not copied.** `OtpCodeInput` (with `OtpStatusRow`, `useSecondsRemaining`, `formatClock`) is shared by both code screens. Everything subtle in it — select-on-focus, backspace stepping back, paste filling forward, auto-submit guarded by the last-submitted code — was a separate small fix, and a second copy would have to rediscover all of them. It is controlled by the digit **array**, never a joined string: a user can fill box three first, and round-tripping through `join("")` would move that digit to the front.
-- **Resending a reset code re-calls `forgot-password`.** There is no separate endpoint and there should not be — a second one would need its own identical non-disclosure rules. That flow's `OtpDeadlines.emailSent` is `null` ("not disclosed"), distinct from `false` ("a send failed"), so the "we couldn't send that email" line never renders here.
-- **A reset token that expires mid-form sends the user back to the code stage** rather than leaving them on a form whose submit can no longer succeed, and the dead token goes with them. The error copy says "request a new code"; this puts them where that button is.
-- Success returns to the login view through the existing `handoff` mechanism — email pre-filled, `passwordUpdated` shown inline. No session, no reload.
-- Closing the modal clears `recovery`, which unmounts the form and discards the token. Don't hoist that state up to survive a close.
-
-### Adding to this flow
-
-Both DTOs restate the shared rules by hand for the usual reason (the API cannot import values from `@moviex/shared-types`). `ResetPasswordDto` carries a **third** copy of the password policy alongside `passwordSchema` and `RegisterDto` — edit all three together; a reset that accepted a weaker password would be a documented way around the policy. New copy goes in the `auth` namespace of all three message files, as always.
+**Never log the plaintext recovery code**, on any path, including error paths — the same rule the OTP code had, for the same reason, except that this one has no ten-minute expiry to outlive.
 
 ## Rate limiting and security headers — both are already there, don't add a second copy
 
@@ -542,14 +472,12 @@ Two API-wide layers, added together. Neither is visible in normal use, which is 
 | Everything, by default | **100** | `DEFAULT_LIMIT` |
 | `POST /auth/login` | **5** | `LOGIN_LIMIT` |
 | `POST /auth/signup` | **10** | `SIGNUP_LIMIT` |
-| `POST /auth/forgot-password` | **10** | `EMAIL_DISPATCH_LIMIT` |
-| `POST /auth/resend-otp` | **10** | `EMAIL_DISPATCH_LIMIT` |
+| `POST /auth/verify-recovery-code` | **5** | `RECOVERY_CODE_LIMIT` |
 
 - **The window is per *route*, not per app.** `ThrottlerGuard`'s key is `sha256(<Controller>-<handler>-<throttler name>-<ip>)`, so `DEFAULT_LIMIT` is 100 requests/minute *to each endpoint* from one address, not 100 across the API. That is what lets the default be generous: a browsing session spends its budget on `/tmdb/discover` and `/tmdb/search` separately and cannot eat into what the next `/auth/login` gets. **Don't "fix" this into one app-wide bucket** — the per-route overrides reuse the same throttler name (`default`), so a global key would make them share that bucket at their own much smaller limit, and any five requests anywhere would lock login.
-- **`POST /auth/login` is the gap this closed.** The OTP flow's `OTP_MAX_ATTEMPTS` protects a *code*, not a password, and there is no account lockout anywhere — so before this, password guessing against a known address was unlimited. The other three are defence in depth on top of per-account cooldowns that already exist; they cover the case a per-account cooldown structurally cannot see, one IP walking many addresses.
+- **Two of these limits are the only defence, not a supplement.** There is no account lockout anywhere in this app, so `POST /auth/login` has nothing else limiting password guesses against a known address. `POST /auth/verify-recovery-code` is stricter still in what it protects: a recovery code has **no expiry and no per-code attempt ceiling**, so this limit is the entire thing standing between an attacker and an unlimited guessing run. Loosening either is a security decision. `SIGNUP_LIMIT` is the ordinary kind of backstop — it blunts scripted mass account creation without punishing a shared egress IP.
 - **The 429 body is the throttler's own and is deliberately left alone**: `{ "statusCode": 429, "message": "ThrottlerException: Too Many Requests" }`. It names no account, echoes no input and carries no `code`. Verified on the wire.
-- **`resend-otp` now returns 429 for two different reasons.** The per-account cooldown carries `code: "OTP_RESEND_COOLDOWN"` and `retryAfterSeconds`; the per-IP limit carries neither. **Any client branching on this must read `code`, not the status.** `forgot-password` is unaffected — its cooldown deliberately answers 200, because a 429 there would confirm the account exists.
-- **Rate limiting does not weaken `forgot-password`'s non-disclosure.** The limit counts the caller's address, never the submitted email, so the answer to any given address is still identical whether or not it has an account.
+- **Rate limiting does not weaken `verify-recovery-code`'s non-disclosure.** The limit counts the caller's address, never the submitted email, so the answer for any given address is still identical whether or not it has an account. Its 429 carries no `code`, unlike the endpoint's own 400 — the client shows a "wait a minute" message for it rather than falling through to a generic error.
 - `X-RateLimit-{Limit,Remaining,Reset}` are on every response, and `Retry-After` on a block. Handy for checking a limit applied without exhausting it: `curl -sD - -o /dev/null -X POST localhost:3000/auth/login` should show `X-RateLimit-Limit: 5`.
 - **Storage is in-memory, per process.** Counters reset on restart and each instance keeps its own, so **running more than one instance multiplies every limit by the instance count** — that is the point at which this needs a shared store (`ThrottlerStorageRedisService`), not a bigger number.
 - **`TRUST_PROXY` is load-bearing once deployed.** The tracker is `req.ip`, which Express reads off the socket unless told a proxy is in front. Behind a load balancer without it, every request carries the balancer's address and the entire internet shares one bucket. It is unset by default because the opposite mistake is worse: trusting `X-Forwarded-For` when nothing rewrites it lets a client forge a fresh address per request and the limits stop meaning anything. Set `TRUST_PROXY=1` (one hop) only where a proxy really is in front.
@@ -628,7 +556,7 @@ Deployed on Render with the frontend on Vercel, every browser call failed with `
 
 ### Cross-site cookies: production must be `SameSite=None; Secure`
 
-`accessTokenCookieOptions()` in `apps/api/src/auth/auth.constants.ts` is the single definition of the session cookie's attributes, used by **both** the write (`AuthController.setSessionCookie()`, which login *and* OTP verification go through) and the clear (`logout`). There are no inline options at any call site, and there must not be: the two have to match attribute-for-attribute or the browser scopes the clear to a different cookie and the original survives.
+`accessTokenCookieOptions()` in `apps/api/src/auth/auth.constants.ts` is the single definition of the session cookie's attributes, used by **both** the write (`AuthController.setSessionCookie()`, which login *and* signup go through) and the clear (`logout`). There are no inline options at any call site, and there must not be: the two have to match attribute-for-attribute or the browser scopes the clear to a different cookie and the original survives.
 
 | | `sameSite` | `secure` |
 |---|---|---|

@@ -4,18 +4,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type {
   AuthErrorCode,
-  ForgotPasswordInput,
-  ForgotPasswordResponse,
   LoginInput,
-  OtpChallenge,
-  OtpChallengeResponse,
   RegisterInput,
-  ResendOtpInput,
   ResetPasswordInput,
   ResetPasswordResponse,
-  VerifyOtpInput,
-  VerifyResetOtpInput,
-  VerifyResetOtpResponse,
+  SignupResponse,
+  VerifyRecoveryCodeInput,
+  VerifyRecoveryCodeResponse,
 } from "@moviex/shared-types";
 
 import { API_BASE_URL } from "@/lib/api";
@@ -40,18 +35,15 @@ export class AuthError extends Error {
   /**
    * The API's machine-readable reason, when it gave one.
    *
-   * Callers branch on this rather than on the rendered message — an unverified
-   * address and a wrong password are both "the login failed", but one of them
-   * has to move the user to the OTP screen instead of showing an error at all.
+   * Callers branch on this rather than on the rendered message — the reset flow
+   * has to tell an expired token apart from a wrong recovery code, because one
+   * sends the user back a step and the other does not.
    */
   readonly code?: AuthErrorCode;
-  /** Seconds to wait, on `OTP_RESEND_COOLDOWN`. */
-  readonly retryAfterSeconds?: number;
 
   constructor(message: string, payload?: NestErrorBody) {
     super(message);
     this.code = payload?.code;
-    this.retryAfterSeconds = payload?.retryAfterSeconds;
   }
 }
 
@@ -60,7 +52,6 @@ type NestErrorBody = {
   message?: string | string[];
   error?: string;
   code?: AuthErrorCode;
-  retryAfterSeconds?: number;
 };
 
 /** Just enough of next-intl's translator for the shapers below. */
@@ -154,16 +145,15 @@ export function useLoginMutation() {
           rememberMe: input.rememberMe,
         },
         t,
-        (status, payload) => {
+        (status) => {
           /*
-           * 403 + EMAIL_NOT_VERIFIED is not a failed login, it is an unfinished
-           * signup. The caller reads `error.code` and moves to the OTP view, so
-           * this text is a fallback that should not normally be seen.
+           * There is no longer a third outcome here. Login used to be able to
+           * fail with 403 `EMAIL_NOT_VERIFIED` — a correct password against an
+           * account whose address had not been proven — which the caller
+           * handled by moving to a code screen rather than showing an error.
+           * With verification gone, a login either works or the credentials
+           * are wrong.
            */
-          if (payload.code === "EMAIL_NOT_VERIFIED") {
-            return t("emailNotVerified");
-          }
-
           return status === 401 || status === 400
             ? t("invalidCredentials")
             : t("genericError");
@@ -177,15 +167,23 @@ export function useLoginMutation() {
 }
 
 /**
- * Creates the account. **Does not sign the user in.**
+ * Creates the account **and signs the user in**, returning the one-time
+ * recovery code.
  *
- * The account starts unverified and the backend emails a code; the session is
- * established later by `useVerifyOtpMutation`. This used to be followed by an
- * immediate `/auth/login`, which is exactly what the verification gate exists
- * to prevent — holding the password is no longer enough.
+ * This used to create an unverified account that could not log in until an
+ * emailed code was entered. That gate is gone — with no email there is nothing
+ * to verify — so the API sets the session cookie on this response and the
+ * caller runs the same cache hygiene login does.
+ *
+ * **The `recoveryCode` in the result is the only copy that will ever exist.**
+ * It is handed straight to the view that displays it and is never stored,
+ * logged, or written to any cache. Note it is deliberately *not* put in a query
+ * cache for the same reason — a mutation result lives exactly as long as the
+ * component holding it.
  */
 export function useSignupMutation() {
   const t = useTranslations("auth");
+  const onSessionEstablished = useSessionEstablished();
 
   return useMutation({
     mutationKey: ["auth", "signup"],
@@ -195,7 +193,7 @@ export function useSignupMutation() {
        * and `RegisterDto` wants `userName`, not `name`. `confirmPassword` is
        * client-side only and would be rejected as an unknown property.
        */
-      return postAuth<OtpChallengeResponse>(
+      return postAuth<SignupResponse>(
         "/auth/signup",
         {
           userName: input.name,
@@ -214,12 +212,11 @@ export function useSignupMutation() {
           }
 
           /*
-           * Nest's ValidationPipe returns an array of field messages. They are
-           * written for humans but only exist in English — the API has no
-           * notion of the caller's language — so they are surfaced as-is
-           * rather than being faked into a translation. The client-side zod
-           * schemas catch the same rules first and *are* translated, so this
-           * path is a backstop, not the normal one.
+           * `RegisterDto`'s field messages, surfaced verbatim. English-only,
+           * and the deliberate exception to the translation rule: the API has
+           * no notion of the caller's language and faking one would be worse.
+           * The client-side zod rules catch these first and *are* translated,
+           * so this is a backstop.
            */
           if (status === 400 && payload.message) {
             return Array.isArray(payload.message)
@@ -231,140 +228,50 @@ export function useSignupMutation() {
         },
       );
     },
-  });
-}
-
-/**
- * Submits the emailed code. **This is what signs the user in** — the response
- * sets the same httpOnly cookie a password login does, so the success path is
- * identical to `useLoginMutation`'s and the modal only has to close.
- */
-export function useVerifyOtpMutation() {
-  const t = useTranslations("auth");
-  const onSessionEstablished = useSessionEstablished();
-
-  return useMutation({
-    mutationKey: ["auth", "verify-otp"],
-    mutationFn: async (input: VerifyOtpInput) => {
-      return postAuth<{ status: string; user: unknown }>(
-        "/auth/verify-otp",
-        input,
-        t,
-        (_status, payload) => {
-          /*
-           * Branch on the code, never the status: expired and mistyped are both
-           * 400 and need different copy — one says "check the digits", the
-           * other says "that email is stale, get a new one".
-           */
-          switch (payload.code) {
-            case "OTP_EXPIRED":
-              return t("otpExpired");
-            case "OTP_TOO_MANY_ATTEMPTS":
-              return t("otpTooManyAttempts");
-            case "OTP_INVALID":
-              return t("otpInvalid");
-            default:
-              return t("genericError");
-          }
-        },
-      );
-    },
+    // The cookie is set on this response, exactly as it is at login, so the
+    // navbar and every gated button flip without a reload.
     onSuccess: onSessionEstablished,
   });
 }
 
-/** The response shape when there was nothing left to verify. */
-type AlreadyVerifiedResponse = { status: "already_verified"; message: string };
-
-export type ResendOtpResult = OtpChallengeResponse | AlreadyVerifiedResponse;
-
 /**
- * Requests a fresh code.
+ * Step 1 of the password reset: exchange the recovery code for a reset token.
  *
- * Also the recovery path from a lockout: issuing a new code resets the server's
- * attempt counter, so this is genuinely the way out rather than advice that
- * changes nothing.
- *
- * A 429 is **not** a failure to hide — the caller reads `retryAfterSeconds` off
- * the error to re-seed its countdown, which is how the cooldown stays accurate
- * across a page the user came back to.
- */
-export function useResendOtpMutation() {
-  const t = useTranslations("auth");
-
-  return useMutation({
-    mutationKey: ["auth", "resend-otp"],
-    mutationFn: async (input: ResendOtpInput) => {
-      return postAuth<ResendOtpResult>("/auth/resend-otp", input, t, (_s, payload) =>
-        payload.code === "OTP_RESEND_COOLDOWN"
-          ? t("otpResendCooldown")
-          : t("genericError"),
-      );
-    },
-  });
-}
-
-/**
- * Step 1 of a password reset: ask for a code.
- *
- * **Success here means nothing about the account.** The endpoint answers the
- * same way for an unknown address, an unverified one, and a real send, so this
- * resolving is not evidence a code was sent — the UI must say "if an account
- * exists…" rather than "check your inbox", or it re-opens client-side the
- * enumeration the server closed.
- *
- * Only transport and validation can fail, which is why there is no code-based
- * branch below.
- */
-export function useForgotPasswordMutation() {
-  const t = useTranslations("auth");
-
-  return useMutation({
-    mutationKey: ["auth", "forgot-password"],
-    mutationFn: async (input: ForgotPasswordInput) => {
-      return postAuth<ForgotPasswordResponse>(
-        "/auth/forgot-password",
-        { email: input.email },
-        t,
-        () => t("genericError"),
-      );
-    },
-  });
-}
-
-/**
- * Step 2: submit the code and receive the reset token.
- *
- * **Establishes no session**, unlike `useVerifyOtpMutation` — so, deliberately,
- * no `onSessionEstablished`. Nothing about the signed-in user has changed and
+ * Establishes **no session** — the token is not a cookie and authenticates
+ * nothing but the single `reset-password` call it was minted for, so
  * invalidating `['auth','me']` here would claim otherwise.
  *
  * The token in the response is transient: the caller holds it in component
  * state for the length of the next request and never persists it.
  */
-export function useVerifyResetOtpMutation() {
+export function useVerifyRecoveryCodeMutation() {
   const t = useTranslations("auth");
 
   return useMutation({
-    mutationKey: ["auth", "verify-reset-otp"],
-    mutationFn: async (input: VerifyResetOtpInput) => {
-      return postAuth<VerifyResetOtpResponse>(
-        "/auth/verify-reset-otp",
+    mutationKey: ["auth", "verify-recovery-code"],
+    mutationFn: async (input: VerifyRecoveryCodeInput) => {
+      return postAuth<VerifyRecoveryCodeResponse>(
+        "/auth/verify-recovery-code",
         input,
         t,
-        (_status, payload) => {
-          // Same three outcomes as email verification — including a code that
-          // was issued for that other flow, which comes back as OTP_INVALID.
-          switch (payload.code) {
-            case "OTP_EXPIRED":
-              return t("otpExpired");
-            case "OTP_TOO_MANY_ATTEMPTS":
-              return t("otpTooManyAttempts");
-            case "OTP_INVALID":
-              return t("otpInvalid");
-            default:
-              return t("genericError");
+        (status, payload) => {
+          if (payload.code === "RECOVERY_CODE_INVALID") {
+            return t("recoveryCodeInvalid");
           }
+
+          /*
+           * The endpoint's own 429 has no `code`, unlike the module's other
+           * ones — it is the throttler's generic body. Worth its own message
+           * here rather than falling through to the generic error, because
+           * "you have tried too many times, wait a minute" is actionable and
+           * "something went wrong" is not. This limit is low (5/min) precisely
+           * because it is the only thing rate-limiting recovery-code guesses.
+           */
+          if (status === 429) {
+            return t("tooManyAttempts");
+          }
+
+          return t("genericError");
         },
       );
     },
@@ -372,7 +279,7 @@ export function useVerifyResetOtpMutation() {
 }
 
 /**
- * Step 3: set the new password.
+ * Step 2 of the password reset: set the new password.
  *
  * Also establishes no session — the user is sent back to the login form to sign
  * in with what they just chose.
@@ -410,12 +317,3 @@ export function useResetPasswordMutation() {
     },
   });
 }
-
-/** Narrows a resend result to the case that actually issued a code. */
-export function isChallenge(
-  result: ResendOtpResult,
-): result is OtpChallengeResponse {
-  return result.status === "pending_verification";
-}
-
-export type { OtpChallenge };

@@ -3,7 +3,6 @@
     "title": "MovieX",
     "description": "İzlemek istediklerinizi takip edin, izlediklerinizi işaretleyin."
   },
-
   "nav": {
     "discover": "Keşfet",
     "myList": "Listem",
@@ -14,12 +13,10 @@
     "closeMenu": "Menüyü kapat",
     "toggleTheme": "Açık ve koyu modu değiştir"
   },
-
   "language": {
     "label": "Dili değiştir",
     "menuLabel": "Dil"
   },
-
   "discover": {
     "title": "Keşfet",
     "subtitle": "Popüler filmlere göz atın, listenize ekleyin, izlediklerinizi işaretleyin",
@@ -78,7 +75,6 @@
     "goToPage": "{page}. sayfaya git",
     "pageSummary": "{totalPages} sayfadan {page}. sayfa — {count, plural, other {# sonuç}}"
   },
-
   "detail": {
     "back": "Geri",
     "watchTrailer": "Fragmanı izle",
@@ -109,7 +105,6 @@
     "runtimeShortMinutes": "{minutes} dk",
     "runtimeLong": "{count, plural, other {# dakika}}"
   },
-
   "search": {
     "placeholder": "Film ara…",
     "label": "Film ara",
@@ -129,7 +124,6 @@
     "browsePopular": "Popülerlere göz at",
     "popularRightNow": "Şu anda popüler"
   },
-
   "myList": {
     "title": "Listem",
     "subtitle": "Kaydettiğiniz ve izlediğiniz her şey",
@@ -160,13 +154,11 @@
       "rating": "Puan"
     }
   },
-
   "footer": {
     "author": "Najaf Habibov tarafından yapıldı",
     "copyright": "© {year} MovieX",
     "attribution": "Film verileri TMDB tarafından sağlanmaktadır"
   },
-
   "errors": {
     "discoverTitle": "Filmler yüklenemedi",
     "searchTitle": "Arama sonuçları yüklenemedi",
@@ -174,7 +166,6 @@
     "body": "Sunucularımıza ulaşırken bir sorun oluştu. Bağlantınızı kontrol edip tekrar deneyin.",
     "tryAgain": "Tekrar dene"
   },
-
   "auth": {
     "signInOrCreate": "Giriş yapın veya hesap oluşturun",
     "logOut": "Çıkış yap",
@@ -210,35 +201,10 @@
     "emailTaken": "Bu e-posta zaten kayıtlı — bunun yerine giriş yapın",
     "networkError": "Sunucularımıza ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
     "genericError": "Bir şeyler ters gitti, lütfen tekrar deneyin",
-    "alreadyVerified": "Bu e-posta zaten doğrulanmış — aşağıdan giriş yapın",
-    "emailNotVerified": "E-postanız henüz doğrulanmadı",
-    "verifyEmailTitle": "E-postanızı doğrulayın",
-    "verifyEmailSubtitle": "{email} adresine gönderdiğimiz 4 haneli kodu girin",
-    "otpCodeLabel": "Doğrulama kodu",
-    "otpDigitLabel": "{total} haneden {position}. hane",
-    "otpExpiresIn": "Kod {time} sonra geçersiz",
-    "otpExpiredNotice": "Kodun süresi doldu",
-    "otpResend": "Kodu tekrar gönder",
-    "otpResendIn": "{seconds, plural, other {# sn}} sonra",
-    "otpResending": "Gönderiliyor…",
-    "otpResent": "Yeni kod yolda",
-    "otpNotSent": "E-postayı gönderemedik. Birazdan tekrar göndermeyi deneyin.",
-    "otpVerify": "Doğrula",
-    "otpVerifying": "Doğrulanıyor…",
-    "otpInvalid": "Bu kod doğru değil — haneleri kontrol edip tekrar deneyin",
-    "otpExpired": "Bu kodun süresi doldu — yeni bir kod isteyin",
-    "otpTooManyAttempts": "Çok fazla hatalı deneme. Devam etmek için yeni bir kod isteyin.",
-    "otpResendCooldown": "Yeni bir kod istemeden önce biraz bekleyin",
-    "otpWrongEmail": "E-posta yanlış mı?",
-    "otpBackToLogin": "Geri dön",
-    "forgotPasswordTitle": "Şifreni sıfırla",
-    "forgotPasswordSubtitle": "E-postanı gir, sana bir kod gönderelim",
-    "forgotPasswordSubmit": "Kod gönder",
-    "forgotPasswordSending": "Gönderiliyor…",
     "rememberedPassword": "Şifreni hatırladın mı?",
     "resetPasswordTitle": "Şifreni sıfırla",
-    "resetCodeSubtitle": "{email} adresine ait bir hesap varsa, 4 haneli kodu gönderdik",
-    "resetPasswordSubtitle": "{email} için yeni bir şifre belirle",
+    "resetCodeSubtitle": "E-postanı ve kaydettiğin kurtarma kodunu gir",
+    "resetPasswordSubtitle": "Yeni bir şifre belirle",
     "newPasswordLabel": "Yeni şifre",
     "confirmNewPasswordLabel": "Yeni şifreyi doğrula",
     "resetPasswordSubmit": "Şifreyi güncelle",
@@ -256,7 +222,21 @@
       "passwordRequired": "Parolanızı girin",
       "confirmRequired": "Parolanızı tekrar girin",
       "passwordsDoNotMatch": "Parolalar eşleşmiyor",
-      "otpIncomplete": "4 hanenin tamamını girin"
-    }
+      "recoveryCodeIncomplete": "6 karakterin tamamını gir"
+    },
+    "saveCodeTitle": "Kurtarma kodunu kaydet",
+    "saveCodeSubtitle": "Devam etmeden önce bunu bir yere not et",
+    "saveCodeCopy": "Panoya kopyala",
+    "saveCodeCopied": "Kopyalandı",
+    "saveCodeWarning": "Bu kod bir daha gösterilmeyecek. Şifreni unutursan hesabına dönmenin tek yolu budur — ikisini birden kaybedersen hesabın hiç kimse tarafından, bizim tarafımızdan da kurtarılamaz.",
+    "saveCodeAcknowledge": "Kurtarma kodumu güvenli bir yere kaydettim",
+    "saveCodeContinue": "Devam et",
+    "recoveryCodeLabel": "Kurtarma kodu",
+    "recoveryCharacterLabel": "Kurtarma kodu karakteri {position} / {total}",
+    "recoveryCodeHint": "Hesabını oluştururken kaydettiğin 6 harfli kod.",
+    "recoveryVerify": "Devam et",
+    "recoveryVerifying": "Kontrol ediliyor…",
+    "recoveryCodeInvalid": "E-posta ve kurtarma kodu eşleşmiyor",
+    "tooManyAttempts": "Çok fazla deneme — bir dakika bekleyip tekrar dene"
   }
 }

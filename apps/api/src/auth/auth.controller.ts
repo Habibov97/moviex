@@ -13,18 +13,15 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import {
-  EMAIL_DISPATCH_LIMIT,
   LOGIN_LIMIT,
+  RECOVERY_CODE_LIMIT,
   SIGNUP_LIMIT,
   THROTTLE_WINDOW_MS,
 } from '../throttle.constants';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
+import { VerifyRecoveryCodeDto } from './dto/verify-recovery-code.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { JwtPayload } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -35,8 +32,8 @@ import {
 
 /**
  * The body every endpoint that establishes a session returns. Declared once so
- * `POST /auth/login` and `POST /auth/verify-otp` document the same shape — they
- * are the same event reached two ways.
+ * `POST /auth/login` documents the same shape signup's session does — they are
+ * the same event reached two ways.
  */
 const SESSION_RESPONSE_SCHEMA = {
   type: 'object',
@@ -49,25 +46,37 @@ const SESSION_RESPONSE_SCHEMA = {
         email: { type: 'string', example: 'user@moviex.dev' },
         userName: { type: 'string', example: 'najaf' },
         role: { type: 'string', example: 'user' },
-        isEmailVerified: { type: 'boolean', example: true },
       },
     },
   },
 } as const;
 
-/** What the OTP screen needs. Never includes the code itself. */
-const CHALLENGE_RESPONSE_SCHEMA = {
+/**
+ * `POST /auth/signup`'s body.
+ *
+ * **`recoveryCode` is the plaintext, and this response is the only place it
+ * ever appears.** Only a bcrypt hash is stored, so it cannot be re-read or
+ * re-sent by any later call — which is exactly what makes "save it now" a real
+ * instruction rather than a suggestion.
+ */
+const SIGNUP_RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
-    status: { type: 'string', example: 'pending_verification' },
-    challenge: {
+    status: { type: 'string', example: 'success' },
+    user: {
       type: 'object',
       properties: {
+        id: { type: 'number', example: 1 },
         email: { type: 'string', example: 'user@moviex.dev' },
-        expiresInSeconds: { type: 'number', example: 600 },
-        resendAvailableInSeconds: { type: 'number', example: 60 },
-        emailSent: { type: 'boolean', example: true },
+        userName: { type: 'string', example: 'najaf' },
       },
+    },
+    recoveryCode: {
+      type: 'string',
+      example: 'HBKMNP',
+      description:
+        'Shown to the user once and never retrievable again. Do not log, ' +
+        'cache or persist this value anywhere.',
     },
   },
 } as const;
@@ -88,8 +97,8 @@ const throttleLogin = Throttle({
 const throttleSignup = Throttle({
   default: { limit: SIGNUP_LIMIT, ttl: THROTTLE_WINDOW_MS },
 });
-const throttleEmailDispatch = Throttle({
-  default: { limit: EMAIL_DISPATCH_LIMIT, ttl: THROTTLE_WINDOW_MS },
+const throttleRecoveryCode = Throttle({
+  default: { limit: RECOVERY_CODE_LIMIT, ttl: THROTTLE_WINDOW_MS },
 });
 
 /**
@@ -115,156 +124,61 @@ export class AuthController {
   @ApiOperation({
     summary: 'Create an account',
     description:
-      'Creates the account **unverified** and emails a 4-digit code. Issues ' +
-      'no token and sets no cookie — `POST /auth/verify-otp` is what signs the ' +
-      'user in. The code is never present in the response.',
+      'Creates the account, generates its recovery code, and **signs the user ' +
+      'in** — the session cookie is set on this response, exactly as `POST ' +
+      '/auth/login` sets it. There is no verification step: the emailed-OTP ' +
+      'gate this replaced is gone, so there is nothing left to wait for.\n\n' +
+      '**The `recoveryCode` in the body is plaintext and is never retrievable ' +
+      'again.** Only its bcrypt hash is stored. It is the only way to reset a ' +
+      'forgotten password, and a user who loses both is permanently locked out.',
   })
   @ApiResponse({
     status: 201,
     description:
-      'Account created; a verification code has been emailed. `emailSent: ' +
-      'false` means the account exists but delivery failed — the client should ' +
-      'offer Resend rather than a countdown.',
-    schema: CHALLENGE_RESPONSE_SCHEMA,
+      'Account created and signed in. Sets the `access_token` cookie and ' +
+      'returns the one-time recovery code.',
+    schema: SIGNUP_RESPONSE_SCHEMA,
   })
   @ApiResponse({ status: 404, description: 'Email or username already taken.' })
   @ApiResponse(THROTTLED_RESPONSE)
-  signUp(@Body() dto: RegisterDto) {
-    return this.authService.signUp(dto);
-  }
-
-  @Post('verify-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Verify the emailed code',
-    description:
-      'Marks the address verified and signs the user in, setting the same ' +
-      'httpOnly `access_token` cookie `POST /auth/login` does. Five wrong ' +
-      'attempts against one code lock it; requesting a new code resets that.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Verified and signed in. Sets the `access_token` cookie.',
-    schema: SESSION_RESPONSE_SCHEMA,
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Body carries `code: "OTP_INVALID"` or `"OTP_EXPIRED"` so the client can ' +
-      'tell a mistyped code from a stale one.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Attempt limit reached — `code: "OTP_TOO_MANY_ATTEMPTS"`.',
-  })
-  async verifyOtp(
-    @Body() dto: VerifyOtpDto,
+  async signUp(
+    @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { user, accessToken, expiresInMs } =
-      await this.authService.verifyOtp(dto);
+    const { user, recoveryCode, accessToken, expiresInMs } =
+      await this.authService.signUp(dto);
 
     this.setSessionCookie(res, accessToken, expiresInMs);
 
-    return { status: 'success', user };
+    return { status: 'success', user, recoveryCode };
   }
 
-  @Post('resend-otp')
+  @Post('verify-recovery-code')
   @HttpCode(HttpStatus.OK)
-  @throttleEmailDispatch
+  @throttleRecoveryCode
   @ApiOperation({
-    summary: 'Send a fresh verification code',
+    summary: 'Step 1 of 2 — prove ownership with the recovery code',
     description:
-      'At most one send per 60 seconds per account. Issuing a new code resets ' +
-      'the attempt counter, which is what makes this the way out of a lockout.',
+      'Checks the email/recovery-code pair and returns a short-lived reset ' +
+      'token. **Sets no cookie and creates no session**: proving possession of ' +
+      'the code is not the same as intending to sign in, and an abandoned ' +
+      'reset should not leave anyone holding a session for an account whose ' +
+      'password they still do not know.\n\n' +
+      'An unknown address, an account with no recovery code stored, and a ' +
+      'genuine mismatch all answer identically — any distinction would make ' +
+      'this an account oracle.\n\n' +
+      'Rate-limited hard, and that limit is the primary defence: unlike the ' +
+      'code it replaced, a recovery code has no expiry and no per-code attempt ' +
+      'ceiling.',
   })
   @ApiResponse({
     status: 200,
-    description:
-      'A new code has been sent — or, for an already-verified account, ' +
-      '`status: "already_verified"` and nothing is sent.',
-    schema: CHALLENGE_RESPONSE_SCHEMA,
-  })
-  @ApiResponse({ status: 404, description: 'No account for that email.' })
-  @ApiResponse({
-    status: 429,
-    description:
-      'Two different limits answer here. The per-account cooldown carries ' +
-      '`code: "OTP_RESEND_COOLDOWN"` and `retryAfterSeconds`; the per-IP rate ' +
-      'limit carries neither. Branch on `code`, not on the status.',
-  })
-  resendOtp(@Body() dto: ResendOtpDto) {
-    return this.authService.resendOtp(dto);
-  }
-
-  @Post('forgot-password')
-  @HttpCode(HttpStatus.OK)
-  @throttleEmailDispatch
-  @ApiOperation({
-    summary: 'Start a password reset',
-    description:
-      'Emails a 4-digit reset code. **Answers identically for every input** — ' +
-      'unknown address, unverified account, a real send, and a request inside ' +
-      'the 60s cooldown all return the same body, so this cannot be used to ' +
-      'discover whether an address has an account. A code is only actually ' +
-      'sent for an existing, already-verified account. Unverified accounts are ' +
-      'declined silently: they have never proven they can receive mail there, ' +
-      'and their route in is the signup verification flow.',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Always. `challenge` carries the **policy** window (code lifetime, resend ' +
-      'cooldown), not this account’s remaining time — per-account seconds are ' +
-      'exactly what would leak.',
-    schema: {
-      type: 'object',
-      properties: {
-        status: { type: 'string', example: 'if_account_exists_code_sent' },
-        challenge: {
-          type: 'object',
-          properties: {
-            expiresInSeconds: { type: 'number', example: 600 },
-            resendAvailableInSeconds: { type: 'number', example: 60 },
-          },
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 429,
-    description:
-      'Per-IP rate limit. This does **not** weaken the non-disclosure above: ' +
-      'the limit is counted per caller address, never per submitted email, so ' +
-      'the answer to any given address is still identical whether or not it ' +
-      'has an account. (The per-account cooldown deliberately stays silent ' +
-      'here and returns 200 — a 429 for *that* would confirm the account.)',
-  })
-  forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
-  }
-
-  @Post('verify-reset-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Verify a password-reset code',
-    description:
-      'Same attempt ceiling and expiry handling as `POST /auth/verify-otp`, ' +
-      'but only accepts a code issued **for a password reset** — an email ' +
-      'verification code is rejected as invalid here, and vice versa.\n\n' +
-      '**Does not sign the user in and sets no cookie.** It returns a ' +
-      'short-lived `resetToken` (10 minutes, `purpose: "password_reset"`) whose ' +
-      'only use is `POST /auth/reset-password`. It is not a session token and ' +
-      'is never accepted as the `access_token` cookie.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Code accepted; spend `resetToken` on the next call.',
+    description: 'Code accepted; a reset token was issued.',
     schema: {
       type: 'object',
       properties: {
         status: { type: 'string', example: 'reset_token_issued' },
-        resetToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIs…' },
+        resetToken: { type: 'string' },
         expiresInSeconds: { type: 'number', example: 600 },
       },
     },
@@ -272,15 +186,12 @@ export class AuthController {
   @ApiResponse({
     status: 400,
     description:
-      '`code: "OTP_INVALID"` (wrong, absent, or issued for the other flow) or ' +
-      '`"OTP_EXPIRED"`.',
+      'The email and recovery code do not match. Carries `code: ' +
+      '"RECOVERY_CODE_INVALID"`.',
   })
-  @ApiResponse({
-    status: 403,
-    description: 'Attempt limit reached — `code: "OTP_TOO_MANY_ATTEMPTS"`.',
-  })
-  verifyResetOtp(@Body() dto: VerifyResetOtpDto) {
-    return this.authService.verifyResetOtp(dto);
+  @ApiResponse(THROTTLED_RESPONSE)
+  verifyRecoveryCode(@Body() dto: VerifyRecoveryCodeDto) {
+    return this.authService.verifyRecoveryCode(dto);
   }
 
   @Post('reset-password')
@@ -288,7 +199,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Set a new password',
     description:
-      'Spends the `resetToken` from `POST /auth/verify-reset-otp`. The new ' +
+      'Spends the `resetToken` from `POST /auth/verify-recovery-code`. The new ' +
       'password must clear the same policy signup applies.\n\n' +
       '**Does not sign the user in** — sign in with the new password. Note that ' +
       'sessions already issued on other devices are *not* invalidated: this app ' +
@@ -335,13 +246,6 @@ export class AuthController {
     schema: SESSION_RESPONSE_SCHEMA,
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials.' })
-  @ApiResponse({
-    status: 403,
-    description:
-      'Password was correct but the address is unverified — `code: ' +
-      '"EMAIL_NOT_VERIFIED"`. Distinct from 401 on purpose: the client sends ' +
-      'this user to the OTP screen rather than telling them the password was wrong.',
-  })
   @ApiResponse(THROTTLED_RESPONSE)
   async login(
     @Body() dto: LoginDto,
@@ -422,8 +326,8 @@ export class AuthController {
   /**
    * The one place the session cookie is written.
    *
-   * Both ways of establishing a session — password login and OTP verification —
-   * go through here, so the attributes cannot diverge between them. They must
+   * Both ways of establishing a session — password login and signup — go
+   * through here, so the attributes cannot diverge between them. They must
    * also match `accessTokenCookieOptions()` exactly at logout, or the browser
    * scopes the clear to a different cookie and leaves the original in place.
    */

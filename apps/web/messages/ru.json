@@ -3,7 +3,6 @@
     "title": "MovieX",
     "description": "Отмечайте, что хотите посмотреть и что уже посмотрели."
   },
-
   "nav": {
     "discover": "Обзор",
     "myList": "Мой список",
@@ -14,12 +13,10 @@
     "closeMenu": "Закрыть меню",
     "toggleTheme": "Переключить светлую и тёмную тему"
   },
-
   "language": {
     "label": "Сменить язык",
     "menuLabel": "Язык"
   },
-
   "discover": {
     "title": "Обзор",
     "subtitle": "Смотрите популярные фильмы, добавляйте их в список и отмечайте просмотренное",
@@ -78,7 +75,6 @@
     "goToPage": "Перейти на страницу {page}",
     "pageSummary": "Страница {page} из {totalPages} — {count, plural, one {# результат} few {# результата} many {# результатов} other {# результата}}"
   },
-
   "detail": {
     "back": "Назад",
     "watchTrailer": "Смотреть трейлер",
@@ -109,7 +105,6 @@
     "runtimeShortMinutes": "{minutes} мин",
     "runtimeLong": "{count, plural, one {# минута} few {# минуты} many {# минут} other {# минуты}}"
   },
-
   "search": {
     "placeholder": "Поиск фильмов…",
     "label": "Поиск фильмов",
@@ -129,7 +124,6 @@
     "browsePopular": "Смотреть популярное",
     "popularRightNow": "Популярно сейчас"
   },
-
   "myList": {
     "title": "Мой список",
     "subtitle": "Всё, что вы сохранили и посмотрели",
@@ -160,13 +154,11 @@
       "rating": "По рейтингу"
     }
   },
-
   "footer": {
     "author": "Создано Najaf Habibov",
     "copyright": "© {year} MovieX",
     "attribution": "Данные о фильмах предоставлены TMDB"
   },
-
   "errors": {
     "discoverTitle": "Не удалось загрузить фильмы",
     "searchTitle": "Не удалось загрузить результаты поиска",
@@ -174,7 +166,6 @@
     "body": "При обращении к нашим серверам произошла ошибка. Проверьте подключение и попробуйте снова.",
     "tryAgain": "Повторить"
   },
-
   "auth": {
     "signInOrCreate": "Войти или создать аккаунт",
     "logOut": "Выйти",
@@ -210,35 +201,10 @@
     "emailTaken": "Эта почта уже зарегистрирована — войдите вместо этого",
     "networkError": "Не удалось связаться с серверами. Проверьте подключение и попробуйте снова.",
     "genericError": "Что-то пошло не так, попробуйте ещё раз",
-    "alreadyVerified": "Эта почта уже подтверждена — войдите ниже",
-    "emailNotVerified": "Ваша почта ещё не подтверждена",
-    "verifyEmailTitle": "Подтвердите почту",
-    "verifyEmailSubtitle": "Введите 4-значный код, отправленный на {email}",
-    "otpCodeLabel": "Код подтверждения",
-    "otpDigitLabel": "Цифра {position} из {total}",
-    "otpExpiresIn": "Код действует ещё {time}",
-    "otpExpiredNotice": "Срок кода истёк",
-    "otpResend": "Отправить снова",
-    "otpResendIn": "Через {seconds, plural, other {# с}}",
-    "otpResending": "Отправляем…",
-    "otpResent": "Новый код уже в пути",
-    "otpNotSent": "Не удалось отправить письмо. Попробуйте отправить ещё раз через мгновение.",
-    "otpVerify": "Подтвердить",
-    "otpVerifying": "Проверяем…",
-    "otpInvalid": "Код неверный — проверьте цифры и попробуйте снова",
-    "otpExpired": "Срок действия кода истёк — запросите новый",
-    "otpTooManyAttempts": "Слишком много неверных попыток. Запросите новый код, чтобы продолжить.",
-    "otpResendCooldown": "Подождите немного, прежде чем запрашивать новый код",
-    "otpWrongEmail": "Не та почта?",
-    "otpBackToLogin": "Назад",
-    "forgotPasswordTitle": "Сброс пароля",
-    "forgotPasswordSubtitle": "Введите email — мы отправим вам код",
-    "forgotPasswordSubmit": "Отправить код",
-    "forgotPasswordSending": "Отправляем…",
     "rememberedPassword": "Вспомнили пароль?",
     "resetPasswordTitle": "Сброс пароля",
-    "resetCodeSubtitle": "Если аккаунт с адресом {email} существует, мы отправили на него код из 4 цифр",
-    "resetPasswordSubtitle": "Придумайте новый пароль для {email}",
+    "resetCodeSubtitle": "Введите email и сохранённый код восстановления",
+    "resetPasswordSubtitle": "Придумайте новый пароль",
     "newPasswordLabel": "Новый пароль",
     "confirmNewPasswordLabel": "Подтвердите новый пароль",
     "resetPasswordSubmit": "Обновить пароль",
@@ -256,7 +222,21 @@
       "passwordRequired": "Введите пароль",
       "confirmRequired": "Введите пароль ещё раз",
       "passwordsDoNotMatch": "Пароли не совпадают",
-      "otpIncomplete": "Введите все 4 цифры"
-    }
+      "recoveryCodeIncomplete": "Введите все 6 символов"
+    },
+    "saveCodeTitle": "Сохраните код восстановления",
+    "saveCodeSubtitle": "Запишите его, прежде чем продолжить",
+    "saveCodeCopy": "Скопировать",
+    "saveCodeCopied": "Скопировано",
+    "saveCodeWarning": "Этот код больше не будет показан. Это единственный способ вернуть доступ к аккаунту, если вы забудете пароль, — потеряв и то и другое, вы потеряете аккаунт навсегда: восстановить его не сможет никто, включая нас.",
+    "saveCodeAcknowledge": "Я сохранил код восстановления в надёжном месте",
+    "saveCodeContinue": "Продолжить",
+    "recoveryCodeLabel": "Код восстановления",
+    "recoveryCharacterLabel": "Символ кода восстановления {position} из {total}",
+    "recoveryCodeHint": "Код из 6 букв, который вы сохранили при создании аккаунта.",
+    "recoveryVerify": "Продолжить",
+    "recoveryVerifying": "Проверяем…",
+    "recoveryCodeInvalid": "Email и код восстановления не совпадают",
+    "tooManyAttempts": "Слишком много попыток — подождите минуту и повторите"
   }
 }

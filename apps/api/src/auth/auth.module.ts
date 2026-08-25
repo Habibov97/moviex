@@ -4,10 +4,9 @@ import { AuthController } from './auth.controller';
 import { UserEntity } from 'src/entity/user.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { MailModule } from 'src/mail/mail.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([UserEntity]), MailModule],
+  imports: [TypeOrmModule.forFeature([UserEntity])],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard],
   exports: [JwtAuthGuard],

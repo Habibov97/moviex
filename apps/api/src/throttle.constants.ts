@@ -1,12 +1,12 @@
 /**
  * IP-based rate limits, in one place.
  *
- * These are a **backstop against abuse**, not the app's real defences: the OTP
- * flow already counts attempts per *account* (`OTP_MAX_ATTEMPTS`) and enforces a
- * per-account resend cooldown, which is what actually stops someone grinding at
- * one inbox. What none of that covers is a single IP hammering many different
- * addresses, or guessing passwords at `POST /auth/login` — which had no ceiling
- * of any kind before this file existed.
+ * For most routes these are a **backstop against abuse**. For two of them they
+ * are the *only* defence, and that distinction matters when retuning a number:
+ * `POST /auth/login` has no account lockout behind it, and
+ * `POST /auth/verify-recovery-code` guards a credential that never expires and
+ * has no per-code attempt ceiling. Loosening either is not a tuning decision,
+ * it is a security one.
  *
  * Two things are worth knowing before retuning any of these numbers.
  *
@@ -54,8 +54,8 @@ export const DEFAULT_LIMIT = 100;
 /**
  * `POST /auth/login` — the gap this whole file was added to close.
  *
- * Nothing else limits password guesses against a known address: the OTP attempt
- * ceiling protects a *code*, not a password, and there is no account lockout.
+ * Nothing else limits password guesses against a known address — there is no
+ * account lockout anywhere in this app.
  * Five a minute is far below what a guessing run needs and well above what a
  * person typing their own password needs, including a couple of typos and a
  * password-manager retry.
@@ -63,17 +63,25 @@ export const DEFAULT_LIMIT = 100;
 export const LOGIN_LIMIT = 5;
 
 /**
- * `POST /auth/forgot-password` and `POST /auth/resend-otp`.
+ * `POST /auth/verify-recovery-code`.
  *
- * Both already refuse to send more than one mail per minute *per account*, so
- * this adds nothing against a single target. It exists for the case that
- * cooldown cannot see: one IP walking a list of addresses to farm mail sends
- * (`forgot-password` answers identically either way, but the send still costs a
- * Gmail quota slot) or to probe which ones exist (`resend-otp` 404s on an
- * unknown email). Ten a minute leaves an ordinary user — who might legitimately
- * resend once or twice and mistype their address — untouched.
+ * **This is the tightest limit in the app for a reason, and it is the primary
+ * defence rather than a supplementary one.** A recovery code is 6 characters
+ * from a 23-letter alphabet — about 1.5×10^8 possibilities — and, unlike the
+ * emailed OTP it replaced, it has **no expiry and no per-code attempt
+ * ceiling**. There is nothing else standing between an attacker and an
+ * unlimited guessing run against a known address.
+ *
+ * Five a minute per IP puts a single-address exhaustive search at roughly 58
+ * years. That is not a proof (an attacker with many source addresses divides
+ * it), which is why the code is bcrypt-hashed at rest as well — but it is what
+ * turns "guessable in an afternoon" into "not worth attempting".
+ *
+ * Five is also the same budget `LOGIN_LIMIT` gives a password, and for the same
+ * reason: a person entering a credential they believe is correct needs a couple
+ * of typos' worth of headroom and no more.
  */
-export const EMAIL_DISPATCH_LIMIT = 10;
+export const RECOVERY_CODE_LIMIT = 5;
 
 /**
  * `POST /auth/signup`.

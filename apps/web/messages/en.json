@@ -3,7 +3,6 @@
     "title": "MovieX",
     "description": "Track what you want to watch and mark what you have seen."
   },
-
   "nav": {
     "discover": "Discover",
     "myList": "My list",
@@ -14,12 +13,10 @@
     "closeMenu": "Close menu",
     "toggleTheme": "Toggle light and dark mode"
   },
-
   "language": {
     "label": "Change language",
     "menuLabel": "Language"
   },
-
   "discover": {
     "title": "Discover",
     "subtitle": "Browse popular movies, add them to your list, mark what you have seen",
@@ -78,7 +75,6 @@
     "goToPage": "Go to page {page}",
     "pageSummary": "Page {page} of {totalPages} — {count, plural, one {# result} other {# results}}"
   },
-
   "detail": {
     "back": "Back",
     "watchTrailer": "Watch trailer",
@@ -109,7 +105,6 @@
     "runtimeShortMinutes": "{minutes}m",
     "runtimeLong": "{count, plural, one {# minute} other {# minutes}}"
   },
-
   "search": {
     "placeholder": "Search movies…",
     "label": "Search movies",
@@ -129,7 +124,6 @@
     "browsePopular": "Browse popular",
     "popularRightNow": "Popular right now"
   },
-
   "myList": {
     "title": "My list",
     "subtitle": "Everything you've saved and seen",
@@ -160,13 +154,11 @@
       "rating": "Rating"
     }
   },
-
   "footer": {
     "author": "Created by Najaf Habibov",
     "copyright": "© {year} MovieX",
     "attribution": "Movie data provided by TMDB"
   },
-
   "errors": {
     "discoverTitle": "Couldn't load movies",
     "searchTitle": "Couldn't load search results",
@@ -174,7 +166,6 @@
     "body": "Something went wrong while reaching our servers. Check your connection and try again.",
     "tryAgain": "Try again"
   },
-
   "auth": {
     "signInOrCreate": "Sign in or create an account",
     "logOut": "Log out",
@@ -210,35 +201,10 @@
     "emailTaken": "That email is already registered — sign in instead",
     "networkError": "Couldn't reach our servers. Check your connection and try again.",
     "genericError": "Something went wrong, please try again",
-    "alreadyVerified": "This email is already verified — sign in below",
-    "emailNotVerified": "Your email isn't verified yet",
-    "verifyEmailTitle": "Verify your email",
-    "verifyEmailSubtitle": "Enter the 4-digit code we sent to {email}",
-    "otpCodeLabel": "Verification code",
-    "otpDigitLabel": "Digit {position} of {total}",
-    "otpExpiresIn": "Code expires in {time}",
-    "otpExpiredNotice": "Code expired",
-    "otpResend": "Resend code",
-    "otpResendIn": "Resend in {seconds, plural, other {#s}}",
-    "otpResending": "Sending…",
-    "otpResent": "A new code is on its way",
-    "otpNotSent": "We couldn't send that email. Try Resend in a moment.",
-    "otpVerify": "Verify",
-    "otpVerifying": "Verifying…",
-    "otpInvalid": "That code isn't right — check the digits and try again",
-    "otpExpired": "That code has expired — request a new one",
-    "otpTooManyAttempts": "Too many incorrect attempts. Request a new code to continue.",
-    "otpResendCooldown": "Please wait a moment before requesting another code",
-    "otpWrongEmail": "Wrong email?",
-    "otpBackToLogin": "Go back",
-    "forgotPasswordTitle": "Reset your password",
-    "forgotPasswordSubtitle": "Enter your email and we'll send you a code",
-    "forgotPasswordSubmit": "Send code",
-    "forgotPasswordSending": "Sending…",
     "rememberedPassword": "Remembered your password?",
     "resetPasswordTitle": "Reset your password",
-    "resetCodeSubtitle": "If an account exists for {email}, we've sent it a 4-digit code",
-    "resetPasswordSubtitle": "Choose a new password for {email}",
+    "resetCodeSubtitle": "Enter your email and the recovery code you saved",
+    "resetPasswordSubtitle": "Choose a new password",
     "newPasswordLabel": "New password",
     "confirmNewPasswordLabel": "Confirm new password",
     "resetPasswordSubmit": "Update password",
@@ -256,7 +222,21 @@
       "passwordRequired": "Enter your password",
       "confirmRequired": "Re-enter your password",
       "passwordsDoNotMatch": "Passwords do not match",
-      "otpIncomplete": "Enter all 4 digits"
-    }
+      "recoveryCodeIncomplete": "Enter all 6 characters"
+    },
+    "saveCodeTitle": "Save your recovery code",
+    "saveCodeSubtitle": "Write this down before you continue",
+    "saveCodeCopy": "Copy to clipboard",
+    "saveCodeCopied": "Copied",
+    "saveCodeWarning": "This code will not be shown again. It is the only way to get back into your account if you forget your password — if you lose both, your account cannot be recovered by anyone, including us.",
+    "saveCodeAcknowledge": "I've saved my recovery code somewhere safe",
+    "saveCodeContinue": "Continue",
+    "recoveryCodeLabel": "Recovery code",
+    "recoveryCharacterLabel": "Recovery code character {position} of {total}",
+    "recoveryCodeHint": "The 6-letter code you saved when you created your account.",
+    "recoveryVerify": "Continue",
+    "recoveryVerifying": "Checking…",
+    "recoveryCodeInvalid": "That email and recovery code do not match",
+    "tooManyAttempts": "Too many attempts — wait a minute and try again"
   }
 }

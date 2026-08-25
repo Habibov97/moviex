@@ -10,7 +10,7 @@ import type { CookieOptions } from 'express';
 export const ACCESS_TOKEN_COOKIE = 'access_token';
 
 /**
- * Cookie attributes shared by the set (login, OTP verification) and clear
+ * Cookie attributes shared by the set (login, signup) and clear
  * (logout) calls. They must match on `path` — and on every other attribute —
  * or the browser treats logout's cookie as a different one and leaves the
  * original in place.
