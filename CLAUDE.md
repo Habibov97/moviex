@@ -402,12 +402,46 @@ Measured against a blackholed address: **8007ms with `ETIMEDOUT`** using the bou
 
 | Log signature | Cause |
 |---|---|
+| `code: ENETUNREACH` on an address containing `:` | Nodemailer picked Gmail's **IPv6** address on a host with no outbound IPv6 route. See the section below — this was the actual cause here. |
 | `~8000ms (code: ETIMEDOUT` / `ESOCKET)` | The connection never left the host — a blocked port. Bounding the timeout makes it fail fast; it does not make mail work. Fix is a transport that leaves over HTTPS. |
 | Fast failure, `code: EAUTH` | The server answered and rejected the login — wrong or revoked App Password, or Gmail flagged the sign-in from an unfamiliar datacenter address. Check the account's Recent security activity for a "Was this you?" prompt, approve it, and regenerate the App Password. |
 | `SMTP_USER / SMTP_PASS are not set` | Credentials never reached the process. |
 | No mail log at all | The send was never attempted — look upstream of `issueOtp`. |
 
 **If it is a blocked port, bounded timeouts are not the fix, only the symptom relief** — no code will ever arrive over a port the host does not let out. That is the point at which the transactional-provider swap above stops being a scale concern and becomes the only way to send mail at all: those APIs go out over HTTPS, which is not blocked. The change stays confined to `EmailService`.
+
+### `ENETUNREACH`: Render has no outbound IPv6, and nodemailer picks an address at random
+
+**This was the real cause of the failing verification emails**, sitting behind the timeout symptom above. `smtp.gmail.com` has both an A and a AAAA record. Render's outbound network does not route IPv6, so any attempt against `2a00:1450:...:587` fails with `ENETUNREACH`.
+
+**What makes it intermittent rather than total is worth understanding, because it is not the usual "Node prefers IPv6" story.** Nodemailer does its **own** DNS resolution — `dns.Resolver().resolve4()` and `resolve6()` directly (`lib/shared/index.js:54`), never `dns.lookup` — concatenates the results IPv4-then-IPv6, and then picks **one at random**:
+
+```js
+// nodemailer/lib/shared/index.js:83
+const host = addresses.length > 0 ? addresses[Math.floor(Math.random() * addresses.length)] : null;
+```
+
+With one A and one AAAA record that is a coin flip per send. Measured locally over 40 resolutions: **18/40 chose IPv6.**
+
+**Neither of the two standard fixes works here, and both look like they should.** Measured over 40 trials each, against nodemailer 9.0.5:
+
+| Configuration | IPv4 chosen | IPv6 chosen |
+|---|---|---|
+| Plain | 22/40 | 18/40 |
+| `family: 4` in the transport options | 21/40 | 19/40 |
+| `dns.setDefaultResultOrder('ipv4first')` | 23/40 | 17/40 |
+| Both together | 24/40 | 16/40 |
+
+- **`family: 4` never reaches the socket.** The options nodemailer passes to `net.connect` are a fixed set — `{port, host, allowInternalNetworkInterfaces, timeout}` plus optional `localAddress` (`smtp-connection/index.js:264`). `family` is not among them, and `resolve()` does not consult it either. Even if it arrived, it would be moot: `opts.host` has already been overwritten with an IP **literal**, and `family` only steers `dns.lookup`, which no longer runs.
+- **`setDefaultResultOrder('ipv4first')` only affects `dns.lookup`**, which nodemailer bypasses entirely in favour of `resolve4`/`resolve6`. It cannot reorder a list it never produces.
+
+**The fix is to resolve the A record ourselves and hand nodemailer an IPv4 literal.** `EmailService.resolveIpv4Host()` calls `dns/promises.resolve4('smtp.gmail.com')` and the transporter is built against that address; nodemailer short-circuits its own resolution when the host is already an IP (`shared/index.js:105`). Measured after the change: **40/40 IPv4, 0 IPv6.**
+
+- **`tls: { servername: 'smtp.gmail.com' }` is mandatory, not decorative.** With an IP as `host`, nodemailer sets the TLS servername to `false` (`smtp-connection/index.js:84`), and the STARTTLS upgrade would then carry no SNI and have no hostname to validate the certificate against — encrypted, and trivially interceptable. It is passed under `tls` rather than top-level only because that is the spelling `@types/nodemailer` 8.0.1 knows; both land in the same handshake options.
+- **The address is cached for 5 minutes** (`DNS_CACHE_TTL_MS`), then re-resolved, because Gmail rotates SMTP addresses. The transporter is only rebuilt when the address actually changes.
+- **A failed lookup falls back to the hostname** rather than failing the send — that restores the coin flip, which is worse than working and better than nothing.
+
+**Generalise this to any outbound service from this environment.** No outbound IPv6 is a property of the *platform*, not of Gmail. If a transactional email provider is adopted, or any other external TCP/HTTPS call starts behaving oddly here, check whether the client library resolves DNS itself and whether it can be steered — and note that Node's own `fetch`/undici use `dns.lookup`, where `setDefaultResultOrder('ipv4first')` *does* work. The lesson is that the fix depends entirely on which resolution path the library takes, so establish that first rather than reaching for `family: 4` by reflex.
 
 ### Signup does not, and structurally cannot, bypass verification
 

@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
+import { resolve4 } from 'node:dns/promises';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
@@ -21,6 +22,16 @@ import mailConfig from 'src/config/mail.config';
  * Signup still answers with its challenge; `emailSent: false` is what the modal
  * reads to say the mail did not go out, and the Resend button is the way back.
  */
+const SMTP_HOST = 'smtp.gmail.com';
+const SMTP_PORT = 587;
+
+/*
+ * How long a resolved address is reused before the A record is looked up
+ * again. Gmail rotates its SMTP addresses, so this must not be forever; it is
+ * long enough that a burst of signups does not become a burst of DNS queries.
+ */
+const DNS_CACHE_TTL_MS = 5 * 60_000;
+
 const CONNECTION_TIMEOUT_MS = 8_000;
 const GREETING_TIMEOUT_MS = 8_000;
 const SOCKET_TIMEOUT_MS = 12_000;
@@ -47,6 +58,9 @@ const DNS_TIMEOUT_MS = 5_000;
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: Transporter | null = null;
+  /** The address `transporter` was built against, and when it was resolved. */
+  private transporterHost: string | null = null;
+  private resolvedAt = 0;
 
   constructor(
     @Inject(mailConfig.KEY)
@@ -54,13 +68,37 @@ export class EmailService {
   ) {}
 
   /**
+   * Resolves Gmail's SMTP host to an **IPv4** address.
+   *
+   * Returns `null` if the lookup fails, in which case the caller falls back to
+   * the hostname — degraded (the IPv6 coin-flip below comes back) but not
+   * broken, which is the right trade for a mail path that already tolerates
+   * failure.
+   */
+  private async resolveIpv4Host(): Promise<string | null> {
+    try {
+      const [address] = await resolve4(SMTP_HOST);
+
+      return address ?? null;
+    } catch (error) {
+      this.logger.error(
+        `Could not resolve an IPv4 address for ${SMTP_HOST}; falling back to the hostname`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      return null;
+    }
+  }
+
+  /**
    * Built on first use, not in the constructor, so the API still boots with no
    * mail credentials configured — every other route works, and only sending
-   * degrades. Nodemailer pools nothing by default; one transporter is reused.
+   * degrades. Nodemailer pools nothing by default; one transporter is reused
+   * until its resolved address goes stale.
+   *
+   * **The host handed to nodemailer is a resolved IPv4 literal, not
+   * `smtp.gmail.com`, and that is the whole point.** See the class comment.
    */
-  private getTransporter(): Transporter | null {
-    if (this.transporter) return this.transporter;
-
+  private async getTransporter(): Promise<Transporter | null> {
     const { user, pass } = this.mailConfiguration;
 
     if (!user || !pass) {
@@ -70,17 +108,45 @@ export class EmailService {
       return null;
     }
 
+    const isFresh = Date.now() - this.resolvedAt < DNS_CACHE_TTL_MS;
+
+    if (this.transporter && isFresh) return this.transporter;
+
+    const host = (await this.resolveIpv4Host()) ?? SMTP_HOST;
+
+    this.resolvedAt = Date.now();
+
+    // Same address as last time: keep the existing transporter rather than
+    // discarding a perfectly good one on every TTL expiry.
+    if (this.transporter && host === this.transporterHost) {
+      return this.transporter;
+    }
+
     this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
+      host,
+      port: SMTP_PORT,
       secure: false,
       requireTLS: true,
+      /*
+       * Required, not optional, because `host` is an IP literal: nodemailer
+       * derives the TLS servername from the host and sets it to `false` when
+       * that host is an address (`smtp-connection/index.js:84`). Without this
+       * the STARTTLS upgrade would go out with no SNI and no hostname to
+       * validate the certificate against — still encrypted, and trivially
+       * interceptable.
+       *
+       * Passed under `tls` rather than as a top-level `servername` purely
+       * because that is the spelling `@types/nodemailer` (8.0.1) knows; both
+       * reach the same handshake options (`smtp-connection/index.js:1059`).
+       */
+      tls: { servername: SMTP_HOST },
       auth: { user, pass },
       connectionTimeout: CONNECTION_TIMEOUT_MS,
       greetingTimeout: GREETING_TIMEOUT_MS,
       socketTimeout: SOCKET_TIMEOUT_MS,
       dnsTimeout: DNS_TIMEOUT_MS,
     });
+    this.transporterHost = host;
 
     return this.transporter;
   }
@@ -138,7 +204,7 @@ export class EmailService {
     subject: string,
     body: { text: string; html: string; failureContext: string },
   ): Promise<boolean> {
-    const transporter = this.getTransporter();
+    const transporter = await this.getTransporter();
 
     if (!transporter) return false;
 
