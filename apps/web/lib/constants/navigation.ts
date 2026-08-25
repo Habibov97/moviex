@@ -32,10 +32,10 @@ export type NavLink = {
  * List grew its own Watchlist/Watched tabs — the tab is the canonical way in,
  * and the link pointed at a `/izlediklerim` route that never existed.
  *
- * **The footer renders this same array**, so the two cannot list different
- * routes. It used to keep its own `FOOTER_COLUMNS`, which is how it ended up
- * still advertising four pages that were never built. One list, one place to
- * update when a route is added or removed.
+ * **The navbar is the only thing that renders this array.** The footer used to
+ * keep its own `FOOTER_COLUMNS` and drifted into advertising four pages that
+ * were never built; it now contains no links at all, so there is exactly one
+ * place to update when a route is added or removed — here.
  */
 export const NAV_LINKS: NavLink[] = [
   { href: DISCOVER_HREF, messageKey: 'discover' },
