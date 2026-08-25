@@ -16,6 +16,57 @@ import { ACCESS_TOKEN_COOKIE } from './auth/auth.constants';
  */
 const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3001';
 
+/**
+ * Reduce a configured entry or an incoming `Origin` header to its canonical
+ * origin — scheme + host + non-default port, lowercased, no path, no trailing
+ * slash. Returns `null` for anything that is not a usable absolute URL.
+ *
+ * Comparing canonical forms rather than raw strings is what makes the match
+ * immune to the copy-paste artifacts that reach an env var in a dashboard:
+ * a trailing slash, a wrapping pair of quotes, a stray path, or a host that
+ * differs only in case. It loosens nothing — two different hosts still do not
+ * match — it only stops a cosmetic difference reading as a different origin.
+ */
+function canonicalOrigin(value: string): string | null {
+  // Dashboards happily store the quotes if a value is pasted with them.
+  const cleaned = value
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
+
+  if (!cleaned) return null;
+
+  try {
+    return new URL(cleaned).origin.toLowerCase();
+  } catch {
+    // No scheme, or not a URL at all — `moviex-web-one.vercel.app` lands here.
+    return null;
+  }
+}
+
+/**
+ * TEMPORARY (remove with the CORS diagnostics): render a string with every
+ * non-printable-ASCII character spelled out as `<U+XXXX>`.
+ *
+ * `JSON.stringify` exposes an ordinary leading space, but a zero-width space
+ * (`U+200B`) or a non-breaking space pasted from a browser still looks like
+ * nothing at all between the quotes — and `String.prototype.trim` does not
+ * remove `U+200B`, so such a character survives parsing and breaks equality
+ * invisibly. This is the check that makes that case obvious rather than
+ * maddening.
+ */
+function showInvisible(value: string): string {
+  return [...value]
+    .map((char) => {
+      const code = char.codePointAt(0) ?? 0;
+
+      return code < 0x20 || code > 0x7e
+        ? `<U+${code.toString(16).toUpperCase().padStart(4, '0')}>`
+        : char;
+    })
+    .join('');
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   // Typed as the Express app specifically so `app.set('trust proxy', …)` below
@@ -116,6 +167,18 @@ async function bootstrap() {
 
   const isProduction = process.env.NODE_ENV === 'production';
 
+  /*
+   * The list the allow/deny decision is actually made against. Kept beside the
+   * raw `allowedOrigins` rather than replacing it, so the diagnostics below can
+   * show both what was configured and what it canonicalised to — when those two
+   * differ, the difference is usually the whole bug.
+   */
+  const allowedCanonical = new Set(
+    allowedOrigins
+      .map(canonicalOrigin)
+      .filter((origin): origin is string => origin !== null),
+  );
+
   /* ------------------------------------------------------------------ *
    * TEMPORARY CORS DIAGNOSTIC — remove once the deployed origin is
    * confirmed from Render's logs. Deliberately logs in production too; the
@@ -123,27 +186,32 @@ async function bootstrap() {
    * misconfigured deployment gave no signal at all.
    * ------------------------------------------------------------------ */
   logger.log(
-    `[CORS-DEBUG] NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} isProduction=${isProduction}`,
+    `[CORS DEBUG] NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} isProduction=${isProduction}`,
   );
   logger.log(
-    `[CORS-DEBUG] raw FRONTEND_URLS=${JSON.stringify(process.env.FRONTEND_URLS ?? null)} raw FRONTEND_URL=${JSON.stringify(process.env.FRONTEND_URL ?? null)}`,
+    `[CORS DEBUG] raw FRONTEND_URLS=${JSON.stringify(process.env.FRONTEND_URLS ?? null)} raw FRONTEND_URL=${JSON.stringify(process.env.FRONTEND_URL ?? null)}`,
   );
   logger.log(
-    `[CORS-DEBUG] resolved allowed origins (${allowedOrigins.length}): ${JSON.stringify(allowedOrigins)}`,
+    `[CORS DEBUG] parsed entries (${allowedOrigins.length}): ${JSON.stringify(allowedOrigins)}`,
   );
+  logger.log(
+    `[CORS DEBUG] canonical allow-list (${allowedCanonical.size}): ${JSON.stringify([...allowedCanonical])}`,
+  );
+
+  for (const origin of allowedOrigins) {
+    logger.log(`[CORS DEBUG] entry codepoints: ${showInvisible(origin)}`);
+
+    if (canonicalOrigin(origin) === null) {
+      logger.error(
+        `[CORS DEBUG] ${JSON.stringify(origin)} is not a usable absolute URL (missing http(s):// ?) — it can never match a browser Origin and has been dropped from the allow-list.`,
+      );
+    }
+  }
 
   if (usingDefaultOrigin) {
     logger.error(
-      `[CORS-DEBUG] Neither FRONTEND_URLS nor FRONTEND_URL reached this process — falling back to the built-in ${DEFAULT_FRONTEND_ORIGIN}. If the variable is set in the dashboard, this process is not the one running that config.`,
+      `[CORS DEBUG] Neither FRONTEND_URLS nor FRONTEND_URL reached this process — falling back to the built-in ${DEFAULT_FRONTEND_ORIGIN}. If the variable is set in the dashboard, this process is not the one running that config.`,
     );
-  }
-
-  for (const origin of allowedOrigins) {
-    if (!/^https?:\/\//.test(origin)) {
-      logger.error(
-        `[CORS-DEBUG] "${origin}" has no http(s):// scheme — it can never match a browser Origin.`,
-      );
-    }
   }
   /* ------------------ end TEMPORARY CORS DIAGNOSTIC ------------------ */
 
@@ -176,14 +244,39 @@ async function bootstrap() {
        */
       if (!origin) return callback(null, true);
 
-      const isAllowed = allowedOrigins.includes(origin);
+      const requestCanonical = canonicalOrigin(origin);
+      const isAllowed =
+        requestCanonical !== null && allowedCanonical.has(requestCanonical);
 
-      // TEMPORARY: remove with the diagnostic block above.
+      /* ---------------- TEMPORARY per-request CORS DEBUG ---------------- *
+       * Both sides of the comparison, on every request, before the decision.
+       * `JSON.stringify` so a leading/trailing space shows up between the
+       * quotes instead of hiding in the log line.
+       *
+       * If a request from the browser produces NO line here at all, it never
+       * reached Nest — a cold start, a wrong host, or a 404/502 answered by
+       * the platform's edge, none of which carry CORS headers either.
+       * ------------------------------------------------------------------ */
+      logger.log(`[CORS DEBUG] incoming origin: ${JSON.stringify(origin)}`);
+      logger.log(
+        `[CORS DEBUG] allowed origins: ${JSON.stringify(allowedOrigins)}`,
+      );
+
       if (!isAllowed) {
         logger.warn(
-          `[CORS-DEBUG] rejected Origin ${JSON.stringify(origin)} — not in ${JSON.stringify(allowedOrigins)}`,
+          `[CORS DEBUG] REJECTED — canonical incoming ${JSON.stringify(requestCanonical)} not in ${JSON.stringify([...allowedCanonical])}`,
         );
+        logger.warn(
+          `[CORS DEBUG] incoming codepoints: ${showInvisible(origin)}`,
+        );
+
+        for (const entry of allowedOrigins) {
+          logger.warn(
+            `[CORS DEBUG] allowed  codepoints: ${showInvisible(entry)}`,
+          );
+        }
       }
+      /* -------------- end TEMPORARY per-request CORS DEBUG -------------- */
 
       // `false`, not an Error: an Error surfaces as a 500, whereas this just
       // omits the header and lets the browser block it, which is what a
