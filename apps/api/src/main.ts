@@ -44,29 +44,6 @@ function canonicalOrigin(value: string): string | null {
   }
 }
 
-/**
- * TEMPORARY (remove with the CORS diagnostics): render a string with every
- * non-printable-ASCII character spelled out as `<U+XXXX>`.
- *
- * `JSON.stringify` exposes an ordinary leading space, but a zero-width space
- * (`U+200B`) or a non-breaking space pasted from a browser still looks like
- * nothing at all between the quotes — and `String.prototype.trim` does not
- * remove `U+200B`, so such a character survives parsing and breaks equality
- * invisibly. This is the check that makes that case obvious rather than
- * maddening.
- */
-function showInvisible(value: string): string {
-  return [...value]
-    .map((char) => {
-      const code = char.codePointAt(0) ?? 0;
-
-      return code < 0x20 || code > 0x7e
-        ? `<U+${code.toString(16).toUpperCase().padStart(4, '0')}>`
-        : char;
-    })
-    .join('');
-}
-
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   // Typed as the Express app specifically so `app.set('trust proxy', …)` below
@@ -167,85 +144,28 @@ async function bootstrap() {
 
   const isProduction = process.env.NODE_ENV === 'production';
 
-  /*
-   * The list the allow/deny decision is actually made against. Kept beside the
-   * raw `allowedOrigins` rather than replacing it, so the diagnostics below can
-   * show both what was configured and what it canonicalised to — when those two
-   * differ, the difference is usually the whole bug.
-   */
+  // The list the allow/deny decision is actually made against.
   const allowedCanonical = new Set(
     allowedOrigins
       .map(canonicalOrigin)
       .filter((origin): origin is string => origin !== null),
   );
 
-  /* ------------------------------------------------------------------ *
-   * TEMPORARY CORS DIAGNOSTIC — remove once the deployed origin is
-   * confirmed from Render's logs. Deliberately logs in production too; the
-   * permanent `CORS allows:` line below is dev-only, which is why a
-   * misconfigured deployment gave no signal at all.
-   * ------------------------------------------------------------------ */
-  logger.log(
-    `[CORS DEBUG] NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} isProduction=${isProduction}`,
-  );
-  logger.log(
-    `[CORS DEBUG] raw FRONTEND_URLS=${JSON.stringify(process.env.FRONTEND_URLS ?? null)} raw FRONTEND_URL=${JSON.stringify(process.env.FRONTEND_URL ?? null)}`,
-  );
-
   /*
-   * Every FRONTEND-ish key this process can actually see, with its value.
-   * This is what distinguishes "the dashboard disagrees with reality" from
-   * "the value went into a *different* key" — a `FRONTEND_URL` (singular)
-   * holding the real origin while the plural still holds an old one looks
-   * identical from the outside, and the plural is what wins here. Names are
-   * matched loosely so a typo'd or trailing-space key still shows up.
-   *
-   * Safe to print: these are origins, not credentials. Do not widen the
-   * filter — dumping the whole environment would put JWT_SECRET,
-   * DATABASE_URL and SMTP_PASS into the log.
+   * Logged in every environment, production included. This was once wrapped in
+   * `if (!isProduction)`, which is precisely why a misconfigured deployment
+   * gave no signal at all and cost a long debugging pass — production is where
+   * the origin list is hardest to see, not easiest.
    */
-  const frontendEnvKeys = Object.keys(process.env)
-    .filter((key) => /FRONT|ORIGIN|CORS/i.test(key))
-    .sort();
-
-  logger.log(
-    `[CORS DEBUG] all FRONTEND-ish env keys visible to this process: ${JSON.stringify(
-      Object.fromEntries(frontendEnvKeys.map((key) => [key, process.env[key]])),
-    )}`,
-  );
-
-  /*
-   * Which build is actually serving. A failed deploy leaves the *previous*
-   * instance running with the environment it started with, so a variable
-   * changed in the dashboard since then is simply not here — and that is
-   * indistinguishable from a wrong value unless the commit is printed.
-   */
-  logger.log(
-    `[CORS DEBUG] running on Render: service=${process.env.RENDER_SERVICE_NAME ?? '(unset)'} commit=${process.env.RENDER_GIT_COMMIT ?? '(unset — not a Render instance?)'} branch=${process.env.RENDER_GIT_BRANCH ?? '(unset)'}`,
-  );
-  logger.log(
-    `[CORS DEBUG] parsed entries (${allowedOrigins.length}): ${JSON.stringify(allowedOrigins)}`,
-  );
-  logger.log(
-    `[CORS DEBUG] canonical allow-list (${allowedCanonical.size}): ${JSON.stringify([...allowedCanonical])}`,
-  );
+  logger.log(`CORS allows: ${[...allowedCanonical].join(', ') || '(nothing)'}`);
 
   for (const origin of allowedOrigins) {
-    logger.log(`[CORS DEBUG] entry codepoints: ${showInvisible(origin)}`);
-
     if (canonicalOrigin(origin) === null) {
       logger.error(
-        `[CORS DEBUG] ${JSON.stringify(origin)} is not a usable absolute URL (missing http(s):// ?) — it can never match a browser Origin and has been dropped from the allow-list.`,
+        `FRONTEND_URLS entry "${origin}" is not an absolute URL (missing http(s):// ?) — dropped; it can never match a browser Origin.`,
       );
     }
   }
-
-  if (usingDefaultOrigin) {
-    logger.error(
-      `[CORS DEBUG] Neither FRONTEND_URLS nor FRONTEND_URL reached this process — falling back to the built-in ${DEFAULT_FRONTEND_ORIGIN}. If the variable is set in the dashboard, this process is not the one running that config.`,
-    );
-  }
-  /* ------------------ end TEMPORARY CORS DIAGNOSTIC ------------------ */
 
   if (isProduction && usingDefaultOrigin) {
     logger.warn(
@@ -267,6 +187,9 @@ async function bootstrap() {
      * misconfigured list now fails as "not allowed" instead of as a
      * confusing mismatch — and several origins (a deployed frontend plus
      * preview URLs plus localhost) can be allowed at once.
+     *
+     * Matching is on canonical origins, so a trailing slash or a pasted pair
+     * of quotes in the env var cannot read as a different origin.
      */
     origin: (origin, callback) => {
       /*
@@ -280,36 +203,6 @@ async function bootstrap() {
       const isAllowed =
         requestCanonical !== null && allowedCanonical.has(requestCanonical);
 
-      /* ---------------- TEMPORARY per-request CORS DEBUG ---------------- *
-       * Both sides of the comparison, on every request, before the decision.
-       * `JSON.stringify` so a leading/trailing space shows up between the
-       * quotes instead of hiding in the log line.
-       *
-       * If a request from the browser produces NO line here at all, it never
-       * reached Nest — a cold start, a wrong host, or a 404/502 answered by
-       * the platform's edge, none of which carry CORS headers either.
-       * ------------------------------------------------------------------ */
-      logger.log(`[CORS DEBUG] incoming origin: ${JSON.stringify(origin)}`);
-      logger.log(
-        `[CORS DEBUG] allowed origins: ${JSON.stringify(allowedOrigins)}`,
-      );
-
-      if (!isAllowed) {
-        logger.warn(
-          `[CORS DEBUG] REJECTED — canonical incoming ${JSON.stringify(requestCanonical)} not in ${JSON.stringify([...allowedCanonical])}`,
-        );
-        logger.warn(
-          `[CORS DEBUG] incoming codepoints: ${showInvisible(origin)}`,
-        );
-
-        for (const entry of allowedOrigins) {
-          logger.warn(
-            `[CORS DEBUG] allowed  codepoints: ${showInvisible(entry)}`,
-          );
-        }
-      }
-      /* -------------- end TEMPORARY per-request CORS DEBUG -------------- */
-
       // `false`, not an Error: an Error surfaces as a 500, whereas this just
       // omits the header and lets the browser block it, which is what a
       // rejected origin should look like.
@@ -317,10 +210,6 @@ async function bootstrap() {
     },
     credentials: true,
   });
-
-  if (!isProduction) {
-    logger.log(`CORS allows: ${allowedOrigins.join(', ')}`);
-  }
 
   app.useGlobalPipes(
     new ValidationPipe({
