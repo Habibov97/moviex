@@ -737,6 +737,30 @@ Every top-level screen opens with `components/shared/PageHeading.tsx` — **titl
 - Wrapping layouts stay fluid across breakpoints — the cast row keeps `flex-wrap` with a wider cell (`w-[76px] md:w-24`) and the details grid keeps `repeat(auto-fit, minmax(…))` with a larger minimum (`140px → md:170px`). Don't swap either for a fixed column count.
 - The backdrop's Back / Watch trailer buttons are positioned against the backdrop element itself (`top-4 left-4`, `right-4 bottom-4`, scaled at `md:`), with no wrapper between. Keep it that way — the trailer button in particular must stay bottom-right, never centred, because the poster overlaps upward from the left.
 
+### Form fields are never smaller than 16px below `md` — iOS zooms in and does not zoom back
+
+**Any `input`, `textarea` or `select` whose computed `font-size` is under 16px makes WebKit zoom the page in on focus — and it never zooms back out on blur.** The user is left pinching to recover a layout that looks broken. It is deliberate, non-disableable accessibility behaviour on Apple's part, it affects *every* browser on iOS (Brave and Chrome there are WebKit too), and it does not happen on Android.
+
+**The rule: every text-entry field carries `text-[16px]` at the base breakpoint.** A smaller desktop size is fine as a `md:` variant — `text-[16px] md:text-[13px]` is the shape used throughout — because Tailwind is mobile-first, so the *unprefixed* class is the one a phone gets. Checking a field's `md:` size tells you nothing about this bug.
+
+- **Do not "fix" this with `maximum-scale=1` or `user-scalable=no` in the viewport meta.** That works by taking pinch-zoom away from the user entirely, which is a real accessibility regression and the thing Apple's behaviour exists to protect. Matching the font size is the fix Apple documents. This app has **no** `viewport` export at all — Next's default `width=device-width, initial-scale=1` has no scale limits, and it should stay that way.
+- **16px exactly is safe**; the threshold is *under* 16.
+- **Literal `text-[16px]`, not `text-base`.** `1rem` follows the root font size, so a visitor who has set a smaller default would drop back under the threshold. Every other size in this app is written as an arbitrary px value anyway.
+- **Checkboxes, radios and range sliders are exempt** and are left alone — WebKit only zooms for text entry. `type="number"` is *not* exempt; Discover's year inputs zoom exactly like a text field.
+- **`RecoveryCodeInput`'s six boxes were already compliant** at `text-[17px]`, which is a design choice that happens to clear the bar. Don't lower it.
+
+The audited surface, as of this writing: **15 `<input>` elements, no `<textarea>`, no `<select>`, and nothing `contentEditable` anywhere in `apps/` or `packages/`.** Ten are text-entry and all now sit at 16px or above; four are checkboxes and range sliders; the desktop typeahead field is `hidden` below `md` and carries the base 16px defensively anyway, since a sub-16px unprefixed size on a field is precisely what bites when a wrapper later changes.
+
+Where they live, so a new one can be checked against the same list:
+
+| File | Fields |
+|---|---|
+| `components/auth/LoginRegisterModal.tsx` | every text field via the shared `inputClass` string — login, register and both reset stages at once — plus `RecoveryCodeInput`'s boxes and two checkboxes |
+| `components/search/SearchTypeahead.tsx` | the `md:`-only inline field and the phone overlay's field (**this was the one actually biting users**) |
+| `components/discover/YearFilterPopover.tsx` | two `type="number"` year bounds, plus two exempt range sliders |
+
+**When adding a field anywhere, put `text-[16px]` on it at the base breakpoint.** `inputClass` is the reason the auth modal needed one edit rather than eight — prefer routing new fields through a shared class string for the same reason.
+
 ### Movie detail (`/movie/[tmdbId]`)
 
 - **`append_to_response`, never extra round trips.** `GET /tmdb/:tmdbId` fetches `/movie/{id}?append_to_response=credits,videos` — cast, crew and trailers are *not* in the base payload, but appending them keeps it to **one** upstream request instead of three, which matters for both latency and TMDB's rate limit. Any further sub-resource (`images`, `recommendations`, …) belongs in that same list, not in a second call.

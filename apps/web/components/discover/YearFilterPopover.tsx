@@ -234,7 +234,13 @@ function YearInput({
           onCommit();
         }
       }}
-      className="h-9 min-w-0 flex-1 rounded-[8px] border-[0.5px] border-mx-border bg-mx-field text-center text-[13px] text-mx-fg outline-none transition-colors focus:border-mx-accent [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      /*
+       * 16px below `md` for the iOS focus-zoom threshold (see CLAUDE.md) — a
+       * `type="number"` field zooms just like a text one. The panel is 280px
+       * wide and these two share it with a separator, which still leaves each
+       * around 110px for four digits.
+       */
+      className="h-9 min-w-0 flex-1 rounded-[8px] border-[0.5px] border-mx-border bg-mx-field text-center text-[16px] text-mx-fg outline-none transition-colors focus:border-mx-accent md:text-[13px] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
     />
   );
 }

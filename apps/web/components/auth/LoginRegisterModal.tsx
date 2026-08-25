@@ -115,8 +115,21 @@ type FieldName =
 
 type FormErrors = Partial<Record<FieldName, string>>;
 
+/*
+ * `text-[16px]` at the base breakpoint is **not** a design choice — see the
+ * iOS note in CLAUDE.md. WebKit zooms the page in whenever a focused field's
+ * computed font-size is under 16px, and never zooms back out on blur, so the
+ * layout stays broken until the user pinches. It is deliberate, non-disableable
+ * accessibility behaviour on Apple's part; matching the threshold is the fix.
+ * 13px is restored from `md:` up, where no touch keyboard is involved.
+ *
+ * Every text field in this modal — login, register, both reset stages — goes
+ * through this one string, which is what makes the rule hold across all of
+ * them. `RecoveryCodeInput` is the exception that needs nothing: its boxes are
+ * already 17px.
+ */
 const inputClass =
-  "h-10 w-full rounded-[10px] border-[0.5px] border-mx-border bg-mx-field pl-9 pr-9 text-[13px] text-mx-fg placeholder:text-mx-fg-faint outline-none transition-colors focus:border-mx-accent aria-invalid:border-mx-accent";
+  "h-10 w-full rounded-[10px] border-[0.5px] border-mx-border bg-mx-field pl-9 pr-9 text-[16px] md:text-[13px] text-mx-fg placeholder:text-mx-fg-faint outline-none transition-colors focus:border-mx-accent aria-invalid:border-mx-accent";
 
 const inputIconClass =
   "pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-mx-fg-faint";

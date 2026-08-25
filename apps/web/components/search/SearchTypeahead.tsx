@@ -239,7 +239,12 @@ export function SearchTypeahead({ genres = [] }: { genres?: Genre[] }) {
               ref={inputRef}
               {...inputProps}
               className={cn(
-                "h-9 w-full rounded-[10px] border-[0.5px] bg-mx-field-raised pr-3 pl-9 text-[13px] text-mx-fg outline-none transition-colors placeholder:text-mx-fg-faint md:h-8 [&::-webkit-search-cancel-button]:hidden",
+                // `text-[16px]` below `md` is the iOS focus-zoom threshold (see
+                // CLAUDE.md). Defensive here rather than load-bearing — this
+                // branch is `hidden` under `md`, so a phone never focuses it —
+                // but leaving a sub-16px base on a field is exactly what would
+                // bite if that wrapper ever changed.
+                "h-9 w-full rounded-[10px] border-[0.5px] bg-mx-field-raised pr-3 pl-9 text-[16px] text-mx-fg outline-none transition-colors placeholder:text-mx-fg-faint md:h-8 md:text-[13px] [&::-webkit-search-cancel-button]:hidden",
                 isOpen ? "border-mx-accent" : "border-mx-border-subtle",
               )}
             />
@@ -261,7 +266,13 @@ export function SearchTypeahead({ genres = [] }: { genres?: Genre[] }) {
               <input
                 ref={mobileInputRef}
                 {...inputProps}
-                className="h-9 w-full rounded-[10px] border-[0.5px] border-mx-accent bg-mx-field-raised pr-3 pl-9 text-[14px] text-mx-fg outline-none placeholder:text-mx-fg-faint [&::-webkit-search-cancel-button]:hidden"
+                /*
+                 * 16px, not the 14px this used to be: this is the one search
+                 * field a phone actually focuses, so it is the one that was
+                 * triggering iOS's zoom-in-and-never-out. No `md:` variant —
+                 * the overlay is `md:hidden`, so 16px is its only size.
+                 */
+                className="h-9 w-full rounded-[10px] border-[0.5px] border-mx-accent bg-mx-field-raised pr-3 pl-9 text-[16px] text-mx-fg outline-none placeholder:text-mx-fg-faint [&::-webkit-search-cancel-button]:hidden"
               />
             </form>
 
