@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import type { MovieSummary, MovieUserState } from "@moviex/shared-types";
+import type { MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
@@ -14,39 +14,19 @@ import {
   rankLabel,
 } from "@/lib/constants/discover";
 
-type RowAction = {
-  /** Key under the `discover` namespace, not a label. */
-  labelKey: string;
-  ariaLabelKey: string;
-  className: string;
-};
-
-/** Adds the film to the watchlist. The accent-filled call to action. */
-const ADD_ACTION: RowAction = {
-  labelKey: "add",
-  ariaLabelKey: "addLabel",
-  className:
-    "border-transparent bg-mx-accent text-mx-on-accent hover:bg-mx-accent-hover",
-};
-
 /**
- * Every row has an action — no state leaves the button slot empty.
+ * A row has **one** action or none, and which it is depends only on whether the
+ * film is saved at all.
  *
- * Only a film already in the list swaps `Add` for the quieter `Watched`, which
- * is the one step available from there. A watched film keeps `Add`: the list and
- * Watched are separate lists, so having seen a film does not put it in the
- * list. There is no rating action in this flow.
+ * This replaced a `ROW_ACTIONS` map keyed by state, where a saved film swapped
+ * `Add` for `Mark as watched` and a watched film went back to `Add` — clicking
+ * the same button repeatedly cycled the film round that loop. A saved film now
+ * renders its `StatusTag` and no button: changing a status belongs to My List,
+ * which has the full set of actions and the confirmation that goes with them.
+ * There is no rating action in this flow either.
  */
-const ROW_ACTIONS = {
-  none: ADD_ACTION,
-  watched: ADD_ACTION,
-  watchlist: {
-    labelKey: "markWatched",
-    ariaLabelKey: "markWatchedLabel",
-    className:
-      "border-mx-border bg-transparent text-mx-fg-muted hover:text-mx-fg",
-  },
-} satisfies Record<MovieUserState | "none", RowAction>;
+const ADD_BUTTON_CLASSNAME =
+  "border-transparent bg-mx-accent text-mx-on-accent hover:bg-mx-accent-hover";
 
 /** Poster geometry shared with the skeleton, so the two never drift apart. */
 const posterBase =
@@ -66,7 +46,10 @@ export type MovieRowProps = {
   genreLabel?: string;
   /** Position in the list; picks which skeleton tone the poster falls back to. */
   toneIndex?: number;
-  /** Fired for whichever action the film's current state offers. */
+  /**
+   * Adds the film to the watchlist. Only ever called for a film with no status
+   * — a saved row renders its badge and no button at all.
+   */
   onAction?: (movie: MovieSummary) => void;
   className?: string;
 };
@@ -82,7 +65,6 @@ export function MovieRow({
   const t = useTranslations("discover");
   const format = useFormatter();
 
-  const action = ROW_ACTIONS[movie.userState ?? "none"];
   // `null` for a title TMDB has no score for — see MovieCard.
   const formattedRating =
     movie.rating === null
@@ -175,22 +157,37 @@ export function MovieRow({
             {formattedRating ?? t("notRated")}
           </span>
 
-          <button
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onAction?.(movie);
-            }}
-            aria-label={t(action.ariaLabelKey, { title: movie.title })}
-            className={cn(
-              "relative z-10 inline-flex h-10 items-center justify-center rounded-[10px] border-[0.5px] text-[14px] font-medium outline-none transition-colors focus-visible:border-mx-accent",
-              actionWidth,
-              action.className,
-            )}
-          >
-            {t(action.labelKey)}
-          </button>
+          {movie.userState ? (
+            /*
+              An inert spacer, not nothing. The rating sits in the same
+              right-hand group as the button, so dropping the button entirely
+              would pull the rating rightwards on saved rows only and break the
+              column down the list. Rendered from `sm` up, where the group is a
+              row; below that the button is full-width and stacked, so a blank
+              slot would just be a gap.
+            */
+            <span
+              aria-hidden="true"
+              className="hidden h-10 shrink-0 sm:block sm:w-[124px]"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onAction?.(movie);
+              }}
+              aria-label={t("addLabel", { title: movie.title })}
+              className={cn(
+                "relative z-10 inline-flex h-10 items-center justify-center rounded-[10px] border-[0.5px] text-[14px] font-medium outline-none transition-colors focus-visible:border-mx-accent",
+                actionWidth,
+                ADD_BUTTON_CLASSNAME,
+              )}
+            >
+              {t("add")}
+            </button>
+          )}
         </div>
       </div>
     </article>

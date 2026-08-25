@@ -123,20 +123,26 @@ export function useLibraryActions() {
   );
 
   /**
-   * What a card's single action button does, gated.
+   * What a card's single action button does, gated. **It only ever adds.**
    *
-   * Mirrors `ROW_ACTIONS` in `MovieRow`: a film already on the watchlist
-   * offers "Mark as watched", everything else offers "Add". Kept here rather
-   * than at each call site so the branch matches the label the user sees.
+   * This used to branch on `movie.userState` and call `markWatched` for a film
+   * already on the watchlist, mirroring a `ROW_ACTIONS` map in `MovieRow`.
+   * Between them that made a card's button a cycle — add, watched, back to the
+   * list, round again on every further click — with no way to tell from the
+   * card which step the next press would take. Cards now render a button only
+   * for a film with **no** status and a plain badge once it has one, so there
+   * is exactly one thing this can mean. Changing or clearing a status lives on
+   * My List, which has the whole set of actions.
+   *
+   * Note the surviving `markWatched` / `moveBackToList` / `removeFromList`
+   * below are still used — by the detail page and My List. Only the catalogue
+   * cards lost their extra steps.
    */
   const runCardAction = useCallback(
     (movie: MovieSummary) => {
-      requireAuth(() => {
-        if (movie.userState === "watchlist") markWatched(movie);
-        else addToList(movie);
-      });
+      requireAuth(() => addToList(movie));
     },
-    [requireAuth, markWatched, addToList],
+    [requireAuth, addToList],
   );
 
   const authModal = (

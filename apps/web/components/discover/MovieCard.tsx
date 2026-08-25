@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
+import { IconPlus } from "@tabler/icons-react";
 import type { MovieSummary } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
@@ -26,6 +27,10 @@ export type MovieCardProps = {
   genreLabel?: string;
   /** Position in the grid; picks which skeleton tone the poster falls back to. */
   toneIndex?: number;
+  /**
+   * Adds the film to the watchlist. Only ever called for a film with no status
+   * — a saved film renders a badge and no button at all.
+   */
   onAdd?: (movie: MovieSummary) => void;
   className?: string;
 };
@@ -70,7 +75,12 @@ export function MovieCard({
           />
         )}
 
-        {/* Hover scrim: dims the poster so the action below stays readable. */}
+        {/*
+          Hover scrim. It used to exist so the full-width Add bar stayed
+          readable; the bar is gone, but it still reads as the card's hover
+          state and gives the button's glow something to sit against, so it
+          stays.
+        */}
         <span
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 bg-mx-poster-scrim opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100"
@@ -95,25 +105,43 @@ export function MovieCard({
         </div>
 
         {/*
-          Revealed on hover, on keyboard focus, and permanently on devices with
-          no hover at all — otherwise the action would be invisible on touch.
+          The Add button, and **only** for a film with no status yet.
+
+          A saved film shows its badge above and nothing else: the card no
+          longer cycles watchlist → watched on repeated clicks. Changing a
+          status is My List's job, which has the full set of actions; a card
+          offers the one step that makes sense from a catalogue — put this on
+          the list — and then reports state.
+
+          Bottom-right rather than a full-width bar along the bottom: the badges
+          own the top of the poster, and a 34px circle leaves the artwork
+          visible. Sits above the card-wide link (z-10) and stops its own click
+          there, so adding never also navigates to the detail page.
+
+          Always visible — no hover gate. The old bar faded in on
+          `group-hover`, which meant a second rule to un-hide it on touch; a
+          mark this small does not need to hide, so hover only scales it.
         */}
-        {/*
-          Sits above the card-wide link (z-10) and stops the click there, so
-          adding to a list never also navigates to the detail page.
-        */}
-        <button
-          type="button"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onAdd?.(movie);
-          }}
-          aria-label={t("addLabel", { title: movie.title })}
-          className="absolute inset-x-2.5 bottom-2.5 z-10 flex h-8 items-center justify-center rounded-[8px] bg-mx-accent text-[13px] font-medium text-mx-on-accent opacity-0 outline-none transition-[opacity,background-color] duration-200 group-hover:opacity-100 hover:bg-mx-accent-hover focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-        >
-          {t("add")}
-        </button>
+        {!movie.userState && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onAdd?.(movie);
+            }}
+            aria-label={t("addLabel", { title: movie.title })}
+            className={cn(
+              "absolute right-[9px] bottom-[9px] z-10 flex size-[34px] items-center justify-center rounded-full",
+              "border border-mx-add-fab-border bg-mx-add-fab backdrop-blur-[8px]",
+              "shadow-[0_4px_14px_var(--mx-add-fab-glow)] text-mx-on-accent outline-none",
+              // Scale only, so the glass and the glow are untouched by hover.
+              "transition-transform duration-200 hover:scale-[1.08] focus-visible:scale-[1.08]",
+            )}
+          >
+            <IconPlus className="size-[18px]" stroke={2.25} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       {/*

@@ -136,6 +136,16 @@
   --color-mx-tag-watched: var(--mx-tag-watched);
   --color-mx-tag-listed: var(--mx-tag-listed);
   /*
+   * The circular Add button that floats bottom-right of a card's poster. Its
+   * background is translucent accent rather than flat `--mx-accent` because it
+   * is glassed over artwork; the border and glow are what lift it off a poster
+   * of any brightness. `--mx-add-fab-glow` is a colour, not a shadow — the
+   * offsets live in the component, since only the colour needs a token.
+   */
+  --color-mx-add-fab: var(--mx-add-fab);
+  --color-mx-add-fab-border: var(--mx-add-fab-border);
+  --color-mx-add-fab-glow: var(--mx-add-fab-glow);
+  /*
    * Pagination. The chevrons and the "page X of Y" line sit at greys between
    * the existing `fg` steps, so they get their own tokens rather than being
    * approximated — and `arrow-disabled` has no equivalent at all.
@@ -271,6 +281,14 @@
   --mx-poster-fg: #fafafa;
   --mx-tag-watched: #0f6f57;
   --mx-tag-listed: #864e0c;
+  /*
+   * `--mx-accent` (#e24b4a) at 92%, so the poster reads faintly through the
+   * button and the `backdrop-blur` on it has something to blur. The icon on top
+   * is `--mx-on-accent`, the same dark ink every other accent surface uses.
+   */
+  --mx-add-fab: rgba(226, 75, 74, 0.92);
+  --mx-add-fab-border: rgba(255, 255, 255, 0.2);
+  --mx-add-fab-glow: rgba(226, 75, 74, 0.45);
   /* Accent tint behind a selected option row; identical in both themes. */
   --mx-option-selected: rgba(226, 75, 74, 0.12);
   /*

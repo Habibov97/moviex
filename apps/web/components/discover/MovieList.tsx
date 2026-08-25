@@ -22,9 +22,9 @@ export type MovieListProps = {
   genres?: Genre[];
   isLoading?: boolean;
   /**
-   * Fired by whichever action the row's state offers — add, rate, or mark
-   * watched. The row passes the movie back so the caller can branch on
-   * `movie.userState` rather than the list needing three separate handlers.
+   * Adds a film to the watchlist. A row only offers this while the film has no
+   * status — once saved it shows a badge and no button, so this never fires for
+   * an already-saved film and the caller has nothing to branch on.
    */
   onMovieAction?: (movie: MovieSummary) => void;
   className?: string;
