@@ -5,6 +5,27 @@ import type { Transporter } from 'nodemailer';
 
 import mailConfig from 'src/config/mail.config';
 
+/*
+ * Explicit timeouts, because nodemailer's defaults are sized for a background
+ * batch job rather than for a request someone is watching a spinner on:
+ * connection **2 minutes**, socket 10 minutes, greeting 30 seconds.
+ *
+ * That default matters more than it looks. A host that *drops* outbound SMTP
+ * packets rather than refusing them — several PaaS providers block port 587 on
+ * their cheaper tiers — leaves `POST /auth/signup` hanging for the full two
+ * minutes before the send finally fails. In the browser that is indistinguishable
+ * from the button doing nothing: no OTP view, no error, just a pending request
+ * nobody waits out.
+ *
+ * Bounded here instead, so a blocked or unreachable mail server costs seconds.
+ * Signup still answers with its challenge; `emailSent: false` is what the modal
+ * reads to say the mail did not go out, and the Resend button is the way back.
+ */
+const CONNECTION_TIMEOUT_MS = 8_000;
+const GREETING_TIMEOUT_MS = 8_000;
+const SOCKET_TIMEOUT_MS = 12_000;
+const DNS_TIMEOUT_MS = 5_000;
+
 /**
  * Outbound email, over Gmail's SMTP.
  *
@@ -55,6 +76,10 @@ export class EmailService {
       secure: false,
       requireTLS: true,
       auth: { user, pass },
+      connectionTimeout: CONNECTION_TIMEOUT_MS,
+      greetingTimeout: GREETING_TIMEOUT_MS,
+      socketTimeout: SOCKET_TIMEOUT_MS,
+      dnsTimeout: DNS_TIMEOUT_MS,
     });
 
     return this.transporter;
@@ -117,6 +142,8 @@ export class EmailService {
 
     if (!transporter) return false;
 
+    const startedAt = Date.now();
+
     try {
       await transporter.sendMail({
         from: this.mailConfiguration.from,
@@ -128,10 +155,27 @@ export class EmailService {
 
       return true;
     } catch (error) {
-      // The address is logged, the code is not — not even here, especially not
-      // here: an error log is the one place it would outlive its expiry.
+      /*
+       * The address is logged, the code is not — not even here, especially not
+       * here: an error log is the one place it would outlive its expiry.
+       *
+       * Elapsed time and the SMTP error code are logged because they are what
+       * separate the two very different causes that look identical from the
+       * outside. A failure at roughly `CONNECTION_TIMEOUT_MS` with `ETIMEDOUT`
+       * or `ESOCKET` means the connection never got out of the host at all —
+       * a blocked port, not a credential problem. `EAUTH` with a fast failure
+       * means the server answered and rejected the login, which for Gmail
+       * usually means the App Password is wrong, revoked, or the sign-in was
+       * flagged as suspicious from an unfamiliar datacenter address.
+       */
+      const elapsedMs = Date.now() - startedAt;
+      const code =
+        error && typeof error === 'object' && 'code' in error
+          ? String((error as { code: unknown }).code)
+          : 'unknown';
+
       this.logger.error(
-        `Failed to send ${body.failureContext} email to ${to}`,
+        `Failed to send ${body.failureContext} email to ${to} after ${elapsedMs}ms (code: ${code})`,
         error instanceof Error ? error.stack : String(error),
       );
       return false;

@@ -390,6 +390,33 @@ Codes are generated with `randomInt` from `node:crypto`, not `Math.random` — t
 - **`otpLastSentAt` is written only after a successful send**, so a failed delivery does not start a 60-second cooldown against a code that never arrived. The challenge carries `emailSent: false` and the modal says so instead of showing a countdown for a code that will never come.
 - **The code is never logged**, including on the error path. An error log is precisely where it would outlive its ten minutes.
 - **Gmail caps a free account at roughly 500 messages a day.** Fine at the current size, and there is no queue or retry behind it. If signups ever approach that, swap in a transactional provider (Resend, SendGrid, …) — the change is confined to `EmailService`'s transport.
+- **SMTP timeouts are set explicitly, and the defaults are the reason.** Nodemailer defaults to a **2-minute** `connectionTimeout` (socket 10 minutes, greeting 30 seconds) — sized for a background batch job, not for a request a person is watching a spinner on. `EmailService` overrides them to 8s connection / 8s greeting / 12s socket / 5s DNS.
+
+### "Create account does nothing": the signup request was waiting on SMTP
+
+Clicking **Create account** in production appeared to do nothing — no OTP view, no error. `issueOtp()` **awaits** the email send inside `POST /auth/signup`, so the HTTP response is gated on SMTP completing. Against a host that *drops* outbound port 587 rather than refusing it (several PaaS providers block SMTP on cheaper tiers), the connection attempt sat there for nodemailer's full default two minutes before failing. From the browser that is indistinguishable from a dead button: the request is simply still in flight, and nobody waits out 120 seconds.
+
+Measured against a blackholed address: **8007ms with `ETIMEDOUT`** using the bounded timeouts, versus a 120000ms default. Signup now answers in seconds either way, the OTP view appears, and `emailSent: false` is what tells the modal to say the mail did not go out rather than start a countdown.
+
+**Reading the failure log to tell the two causes apart.** `EmailService.send` logs elapsed time and the SMTP error code (never the OTP code) precisely because these look identical from outside:
+
+| Log signature | Cause |
+|---|---|
+| `~8000ms (code: ETIMEDOUT` / `ESOCKET)` | The connection never left the host — a blocked port. Bounding the timeout makes it fail fast; it does not make mail work. Fix is a transport that leaves over HTTPS. |
+| Fast failure, `code: EAUTH` | The server answered and rejected the login — wrong or revoked App Password, or Gmail flagged the sign-in from an unfamiliar datacenter address. Check the account's Recent security activity for a "Was this you?" prompt, approve it, and regenerate the App Password. |
+| `SMTP_USER / SMTP_PASS are not set` | Credentials never reached the process. |
+| No mail log at all | The send was never attempted — look upstream of `issueOtp`. |
+
+**If it is a blocked port, bounded timeouts are not the fix, only the symptom relief** — no code will ever arrive over a port the host does not let out. That is the point at which the transactional-provider swap above stops being a scale concern and becomes the only way to send mail at all: those APIs go out over HTTPS, which is not blocked. The change stays confined to `EmailService`.
+
+### Signup does not, and structurally cannot, bypass verification
+
+Worth stating plainly because "account created but no OTP" reads like a bypass and is not one. There are exactly **two** writes to `isEmailVerified` in the codebase:
+
+- `auth.service.ts:81` — `createdUser.isEmailVerified = false`, set explicitly at signup on top of the column's own `default: false`.
+- `auth.service.ts:109` — `= true`, inside `verifyOtp`, reachable only *after* `consumeOtp` has matched a correct, unexpired code carrying the right `otpPurpose`.
+
+`login` refuses any account with `!user.isEmailVerified` (403 `EMAIL_NOT_VERIFIED`, checked after the password so it discloses nothing to someone who could not sign in anyway). So an account stranded by a mail failure is **unverified and unusable, not verified-without-OTP** — broken but safe. The only other route to `true` is the one-time backfill in `1787498626807-AddEmailVerification`, which ran against rows that predate the column.
 
 ### The OTP view in `LoginRegisterModal`
 
