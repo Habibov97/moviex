@@ -98,6 +98,41 @@ async function bootstrap() {
 
   const isProduction = process.env.NODE_ENV === 'production';
 
+  /* ------------------------------------------------------------------ *
+   * TEMPORARY CORS DIAGNOSTIC — remove once the production origin is
+   * confirmed from the Render logs. Deliberately logs in production too;
+   * the permanent `CORS allows:` line below is dev-only, which is why a
+   * misconfigured deployment gave no signal at all.
+   * ------------------------------------------------------------------ */
+  const originSource = process.env.FRONTEND_URLS
+    ? 'FRONTEND_URLS'
+    : process.env.FRONTEND_URL
+      ? 'FRONTEND_URL (legacy singular)'
+      : 'BUILT-IN DEFAULT — neither env var is set!';
+
+  logger.log(`[CORS-DEBUG] NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} isProduction=${isProduction}`);
+  logger.log(`[CORS-DEBUG] origin source: ${originSource}`);
+  logger.log(`[CORS-DEBUG] raw value: ${JSON.stringify(process.env.FRONTEND_URLS ?? process.env.FRONTEND_URL ?? DEFAULT_FRONTEND_ORIGIN)}`);
+  logger.log(`[CORS-DEBUG] parsed origins (${allowedOrigins.length}): ${JSON.stringify(allowedOrigins)}`);
+  logger.log(
+    isProduction
+      ? `[CORS-DEBUG] production pins to the FIRST entry only -> Access-Control-Allow-Origin will always be: ${allowedOrigins[0]}`
+      : `[CORS-DEBUG] development matches the request Origin against the full list above`,
+  );
+
+  // An Origin header is always scheme + host [+ port]. A bare hostname can
+  // never match one, and in production it is echoed back verbatim as an
+  // invalid ACAO value, which the browser rejects.
+  for (const origin of allowedOrigins) {
+    if (!/^https?:\/\//.test(origin)) {
+      logger.error(`[CORS-DEBUG] "${origin}" has no http(s):// scheme — it can never match a browser Origin.`);
+    }
+    if (origin.endsWith('/')) {
+      logger.error(`[CORS-DEBUG] "${origin}" has a trailing slash — an Origin header never has one, so this will not match.`);
+    }
+  }
+  /* ------------------ end TEMPORARY CORS DIAGNOSTIC ------------------ */
+
   if (isProduction && allowedOrigins.length > 1) {
     // Loud, because a stray extra origin in production is a real exposure.
     logger.warn(
