@@ -6,7 +6,8 @@ import { IconMenu2, IconX } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { Link, usePathname } from "@/i18n/navigation";
-import { useLibraryActions } from "@/hooks/use-library-actions";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useAuthRequiredNotice } from "@/components/auth/AuthRequiredNotice";
 import { BrandMark } from "@/components/layout/BrandMark";
 import { SearchTypeahead } from "@/components/search/SearchTypeahead";
 import { UserMenu } from "@/components/layout/UserMenu";
@@ -14,17 +15,6 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { NAV_LINKS, type NavLink } from "@/lib/constants/navigation";
 import type { Genre } from "@moviex/shared-types";
-
-/**
- * The "action" handed to `requireAuth` for a gated *link*.
- *
- * Empty on purpose. Navigating is what the anchor does by itself, and the
- * caller returns before this ever reaches `requireAuth`'s signed-in branch —
- * the call is made purely for the other two, where `requireAuth` either opens
- * the modal or (auth still unknown) does nothing at all. Module-level so its
- * identity is stable across renders.
- */
-const NO_ACTION = () => {};
 
 export type NavbarProps = {
   /** Passed to the typeahead so result rows can name their genre. */
@@ -35,6 +25,9 @@ export type NavbarProps = {
 
 export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
   const t = useTranslations("nav");
+  // The notice explains My List specifically, so its copy lives in that
+  // namespace — the same two strings Discover shows after a bounced visit.
+  const tMyList = useTranslations("myList");
   /*
    * The locale-aware `usePathname` — it answers `/my-list`, never
    * `/tr/my-list`, so these comparisons stay written against plain routes and
@@ -42,14 +35,18 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
    */
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isSignedIn, isLoading: isAuthLoading } = useCurrentUser();
   /*
-   * The same gate the Add / Mark-as-watched buttons use, not a second auth
-   * check written for the navbar. `requireAuth` owns the three-way decision
-   * and `authModal` is the one `LoginRegisterModal` instance it opens, already
-   * on its login view.
+   * A gated link no longer opens the login form outright — it opens the small
+   * notice first, which is what then offers "Sign in". That is why this does
+   * not go through `useLibraryActions().requireAuth`: the shape of the check is
+   * the same three-way, but its signed-out branch is a different surface, and
+   * `requireAuth` hard-codes the full modal as that branch.
    */
-  const { isSignedIn, isAuthLoading, requireAuth, authModal } =
-    useLibraryActions();
+  const authNotice = useAuthRequiredNotice({
+    title: tMyList("signInTitle"),
+    message: tMyList("signInBody"),
+  });
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -58,22 +55,25 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
    * Intercepts a click on a gated link. Returns whether the anchor was left to
    * navigate, which the mobile sheet uses to decide about closing itself.
    *
-   * Only `isSignedIn` — confirmed, not merely "not loading" — lets the click
-   * through. Everything else is prevented and handed to `requireAuth`, which
-   * opens the modal once logged-out is certain and stays silent while
-   * `/auth/me` is still in flight. Treating that unknown moment as logged-out
-   * would flash the modal at someone who is in fact signed in; the link is
-   * simply inert for those few milliseconds.
+   * Three-way, in this order: only a **confirmed** `isSignedIn` lets the click
+   * through; a confirmed signed-out opens the notice; and while `/auth/me` is
+   * still in flight the click is swallowed and nothing happens. Treating that
+   * unknown moment as logged-out would put a "sign in" notice in front of
+   * someone who is in fact signed in, so the link is simply inert for those
+   * few milliseconds.
    *
    * `preventDefault` on the click is all this does — the `href` is untouched,
-   * so a middle-click or a direct visit still reaches `/my-list` and meets the
-   * page's own signed-out state. That guard is the protection; this is the UX.
+   * so a middle-click or a JS-less load still reaches `/my-list`, where the
+   * route now redirects a signed-out visitor back to Discover and shows this
+   * same notice there.
    */
   const handleNavClick = (link: NavLink, event: MouseEvent<HTMLAnchorElement>) => {
     if (!link.requiresAuth || isSignedIn) return true;
 
     event.preventDefault();
-    requireAuth(NO_ACTION);
+    // Confirmed signed out: explain. Still unknown: nothing at all — the link
+    // is inert for that moment rather than accusing a signed-in user.
+    if (!isAuthLoading) authNotice.show();
     return false;
   };
 
@@ -204,11 +204,11 @@ export function Navbar({ genres, links = NAV_LINKS }: NavbarProps) {
       </header>
 
       {/*
-        The gate's own modal. `UserMenu` renders a second, separate instance for
-        the avatar's signed-out click — two mount points, one component, and
-        only ever one open at a time.
+        The notice, plus the `LoginRegisterModal` it hands off to. `UserMenu`
+        renders its own separate modal instance for the avatar's signed-out
+        click — two mount points, one component, only ever one open at a time.
       */}
-      {authModal}
+      {authNotice.element}
     </>
   );
 }

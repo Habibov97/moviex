@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -21,8 +21,8 @@ import {
 } from "@/hooks/use-user-movies";
 import { MyListCard } from "@/components/my-list/MyListCard";
 import { MyListSortDropdown } from "@/components/my-list/MyListSortDropdown";
-import { SignInRequired } from "@/components/my-list/SignInRequired";
 import { PageHeading } from "@/components/shared/PageHeading";
+import { requestAuthNotice } from "@/lib/auth-notice";
 import { DISCOVER_HREF, SKELETON_CARD_COUNT } from "@/lib/constants/discover";
 import {
   LIST_SORT_SEARCH_PARAM,
@@ -51,9 +51,18 @@ import {
  * does follow the language switcher. See the user-movies notes in CLAUDE.md.
  *
  * **Three states, gated on auth in this order:** still loading → a skeleton;
- * confirmed signed out → `SignInRequired`; signed in → the list. Reading them
- * in that order is what stops "unknown" being treated as "signed out", which
- * would flash the sign-in prompt at someone who is in fact logged in.
+ * confirmed signed out → redirect to Discover; signed in → the list. Reading
+ * them in that order is what stops "unknown" being treated as "signed out",
+ * which would bounce someone who is in fact logged in.
+ *
+ * **The signed-out branch used to render an in-page `SignInRequired`; it now
+ * redirects, and that component is gone.** A page that exists only to say the
+ * visitor may not have it is still a page they landed on — the route is now
+ * simply not reachable signed out, and the explanation travels with them to
+ * Discover as a one-shot notice (see `lib/auth-notice.ts`). Note this is *not*
+ * a return to the older silent `router.replace`: what made that read as a
+ * broken link was arriving somewhere else with no explanation, and the notice
+ * is precisely that missing explanation.
  */
 export type MyListViewProps = {
   /**
@@ -122,6 +131,51 @@ export function MyListView({ genres = [] }: MyListViewProps) {
   };
 
   /*
+   * Did this mount ever hold a session?
+   *
+   * Assigned during render, the same way `LoginRegisterModal` maintains
+   * `canDismissRef`, so it is already correct by the time the effect below
+   * runs — on the render where `isSignedIn` flips to `false` it still carries
+   * `true` from the render before.
+   */
+  const hadSessionRef = useRef(false);
+  if (isSignedIn) hadSessionRef.current = true;
+
+  /*
+   * The route's own guard: a confirmed signed-out visitor does not stay here.
+   *
+   * Gated on `!isAuthLoading` first, which is the whole discipline — acting on
+   * the unresolved state would bounce a genuinely signed-in user off their own
+   * list in the moment before `/auth/me` answers.
+   *
+   * `requestAuthNotice()` before the navigation, so Discover can say why they
+   * moved; it is a one-shot flag, cleared as it is read, so a later ordinary
+   * visit to Discover is silent.
+   *
+   * `router` from `@/i18n/navigation` and `DISCOVER_HREF` rather than a literal
+   * path: the locale prefix and the `/moviex` base path are both added for us,
+   * so someone browsing in Turkish lands on `/moviex/tr`. `replace`, not
+   * `push` — Back should not return to a page that will only bounce again.
+   *
+   * This runs in an effect rather than during render because it is a side
+   * effect, and it sits above the early returns below so the hook order is
+   * unconditional.
+   */
+  useEffect(() => {
+    if (isAuthLoading || isSignedIn) return;
+
+    /*
+     * Only explain to someone who never had a session here. **Logging out from
+     * this page also lands in this branch**, and telling a user who just chose
+     * to sign out that they "need to sign in to view your list" would be
+     * answering a question they did not ask. `useLogoutMutation` is already
+     * navigating them to Discover on its own; this leaves it to say nothing.
+     */
+    if (!hadSessionRef.current) requestAuthNotice();
+    router.replace(DISCOVER_HREF);
+  }, [isAuthLoading, isSignedIn, router]);
+
+  /*
    * Auth is unresolved, so neither branch below can be trusted yet. A skeleton
    * of the real layout is the app's established loading treatment (see
    * `MovieCardSkeleton`) and commits to nothing: it is visibly not content, so
@@ -136,14 +190,14 @@ export function MyListView({ genres = [] }: MyListViewProps) {
   }
 
   /*
-   * Confirmed signed out. Nothing else renders — no heading, stats, tabs or
-   * grid — because every one of them would be describing a list this visitor
-   * does not have. Replaces an older silent redirect to Discover.
+   * Confirmed signed out: nothing of this page renders. The skeleton stands in
+   * for the frame or two before the redirect commits — it is visibly not
+   * content, so it cannot be mistaken for an empty list.
    */
   if (!isSignedIn) {
     return (
-      <main className="font-mx">
-        <SignInRequired />
+      <main className="px-4 py-6 font-mx sm:px-6">
+        <MyListSkeleton />
       </main>
     );
   }

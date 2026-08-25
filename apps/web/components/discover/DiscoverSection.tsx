@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { Genre, MovieSortId, MovieSummary } from "@moviex/shared-types";
 
 import { useLibraryActions } from "@/hooks/use-library-actions";
 import { useMovieStatuses } from "@/hooks/use-user-movies";
+import { useAuthRequiredNotice } from "@/components/auth/AuthRequiredNotice";
+import { consumeAuthNotice } from "@/lib/auth-notice";
 import { DiscoverHero } from "@/components/discover/DiscoverHero";
 import { MovieGrid } from "@/components/discover/MovieGrid";
 import { MovieList } from "@/components/discover/MovieList";
@@ -53,6 +56,30 @@ export function DiscoverSection({
   sort,
 }: DiscoverSectionProps) {
   const [viewMode, setViewMode] = useState<ViewModeId>(DEFAULT_VIEW_MODE);
+
+  /*
+   * "You were sent here because you are signed out."
+   *
+   * `/my-list` redirects a confirmed signed-out visitor to Discover and leaves
+   * a one-shot flag behind; this is where it is spent. Same notice component
+   * and same copy the navbar's gated "My list" click shows, so the two entry
+   * points cannot drift apart.
+   *
+   * On mount only, and `consumeAuthNotice()` clears the flag as it reads it —
+   * so a refresh, a bookmark or any later ordinary arrival at Discover shows
+   * nothing. The empty dependency list is the point: this is about *this*
+   * arrival, not about anything that changes afterwards.
+   */
+  const tMyList = useTranslations("myList");
+  const authNotice = useAuthRequiredNotice({
+    title: tMyList("signInTitle"),
+    message: tMyList("signInBody"),
+  });
+
+  useEffect(() => {
+    if (consumeAuthNotice()) authNotice.show();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Same gate the detail page uses: signed out opens the auth modal, signed in
   // hits the placeholder handler. TODO lives in the hook, not here.
@@ -107,6 +134,13 @@ export function DiscoverSection({
       </div>
 
       {authModal}
+
+      {/*
+        The redirect-triggered notice, and the `LoginRegisterModal` it hands
+        off to. Separate from `authModal` above, which is the card actions'
+        own gate — different trigger, same modal component.
+      */}
+      {authNotice.element}
     </>
   );
 }
