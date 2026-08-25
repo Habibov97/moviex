@@ -191,6 +191,38 @@ async function bootstrap() {
   logger.log(
     `[CORS DEBUG] raw FRONTEND_URLS=${JSON.stringify(process.env.FRONTEND_URLS ?? null)} raw FRONTEND_URL=${JSON.stringify(process.env.FRONTEND_URL ?? null)}`,
   );
+
+  /*
+   * Every FRONTEND-ish key this process can actually see, with its value.
+   * This is what distinguishes "the dashboard disagrees with reality" from
+   * "the value went into a *different* key" — a `FRONTEND_URL` (singular)
+   * holding the real origin while the plural still holds an old one looks
+   * identical from the outside, and the plural is what wins here. Names are
+   * matched loosely so a typo'd or trailing-space key still shows up.
+   *
+   * Safe to print: these are origins, not credentials. Do not widen the
+   * filter — dumping the whole environment would put JWT_SECRET,
+   * DATABASE_URL and SMTP_PASS into the log.
+   */
+  const frontendEnvKeys = Object.keys(process.env)
+    .filter((key) => /FRONT|ORIGIN|CORS/i.test(key))
+    .sort();
+
+  logger.log(
+    `[CORS DEBUG] all FRONTEND-ish env keys visible to this process: ${JSON.stringify(
+      Object.fromEntries(frontendEnvKeys.map((key) => [key, process.env[key]])),
+    )}`,
+  );
+
+  /*
+   * Which build is actually serving. A failed deploy leaves the *previous*
+   * instance running with the environment it started with, so a variable
+   * changed in the dashboard since then is simply not here — and that is
+   * indistinguishable from a wrong value unless the commit is printed.
+   */
+  logger.log(
+    `[CORS DEBUG] running on Render: service=${process.env.RENDER_SERVICE_NAME ?? '(unset)'} commit=${process.env.RENDER_GIT_COMMIT ?? '(unset — not a Render instance?)'} branch=${process.env.RENDER_GIT_BRANCH ?? '(unset)'}`,
+  );
   logger.log(
     `[CORS DEBUG] parsed entries (${allowedOrigins.length}): ${JSON.stringify(allowedOrigins)}`,
   );
