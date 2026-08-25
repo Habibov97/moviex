@@ -5,6 +5,12 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      // Build-time inputs Turbo must key its cache on. NEXT_PUBLIC_API_URL is
+      // inlined into the client bundle; API_URL is read by next.config.js to
+      // build the /moviex/api/* proxy destination and is baked into
+      // routes-manifest.json. A cached build carrying the wrong value for
+      // either would point the deployed app at the wrong API.
+      "env": ["API_URL", "NEXT_PUBLIC_API_URL", "NODE_ENV"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
     "lint": {

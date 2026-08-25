@@ -15,30 +15,51 @@ export const ACCESS_TOKEN_COOKIE = 'access_token';
  * or the browser treats logout's cookie as a different one and leaves the
  * original in place.
  *
- * **`sameSite` follows the environment, and in production it must be `none`.**
- * Deployed, the frontend and the API are on genuinely different sites
- * (`*.vercel.app` and `*.onrender.com`), so every call from the app is a
- * cross-site request. Under `sameSite: 'lax'` the browser *stores* the cookie
- * and simply declines to attach it to `fetch()` — only top-level navigations
- * carry it. That failure is unusually confusing: `POST /auth/login` returns
- * 200 with a `Set-Cookie` the DevTools cookie jar shows, and the very next
- * `GET /auth/me` still 401s with no cookie at all.
+ * **`sameSite` is `lax` in every environment, and the reason it can be is the
+ * Vercel proxy.** The browser only ever talks to the frontend's own origin:
+ * `habiboff.cc/moviex/api/*` is rewritten server-side by Next to
+ * `moviex-skr4.onrender.com/*` (see `rewrites()` in `apps/web/next.config.js`),
+ * so this cookie is set and sent on requests the browser considers same-site.
+ * `lax` is the stricter, safer default and restores the CSRF protection that
+ * `none` had given up.
  *
- * `none` is only honoured together with `Secure`, which is why the two are
- * driven by the same flag rather than set independently — a `SameSite=None`
- * cookie without `Secure` is rejected outright by every current browser, which
- * would turn a working `lax` setup into no cookie whatsoever.
+ * **This deliberately reverses the previous `sameSite: 'none'` in production**,
+ * and the history is worth keeping. Deployed directly, the frontend and the API
+ * were on genuinely different sites (`*.vercel.app` and `*.onrender.com`), so
+ * every call was cross-site and `lax` meant the browser *stored* the cookie and
+ * then declined to attach it to `fetch()` — `POST /auth/login` returning 200
+ * with a `Set-Cookie` DevTools happily showed, followed by `GET /auth/me`
+ * 401ing with no cookie at all. `none` fixed that on Chrome and Firefox, and
+ * then failed anyway on mobile Safari/WebKit, which blocks third-party cookies
+ * outright no matter what the attributes say. Proxying is what actually removed
+ * the cross-site request rather than negotiating with it.
  *
- * Development stays `lax` + insecure on purpose: `localhost:3001` →
- * `localhost:3000` is *same-site* (one registrable domain), so `lax` is both
- * sufficient and stricter, and `Secure` would drop the cookie over plain HTTP.
+ * **So: do not put `none` back without also removing the proxy.** If the two
+ * halves are ever served from different sites again, `none` + `secure` is
+ * required — and `none` is only honoured together with `Secure`, which is why
+ * that pair would have to move together.
+ *
+ * `secure` still follows the environment on its own: HTTPS in production,
+ * plain HTTP in local dev where `Secure` would drop the cookie entirely.
+ * `localhost:3001` → `localhost:3000` is same-site too, so `lax` is right there
+ * for the same reason it is right in production.
  */
 const isProduction = () => process.env.NODE_ENV === 'production';
 
 export const accessTokenCookieOptions = (): CookieOptions => ({
   httpOnly: true,
-  // Same source for both: `none` without `secure` is discarded by the browser.
   secure: isProduction(),
-  sameSite: isProduction() ? 'none' : 'lax',
+  /*
+   * Constant, not environment-dependent — every request that carries this
+   * cookie is same-site now, in dev and in production alike. See above before
+   * changing it.
+   */
+  sameSite: 'lax',
+  /*
+   * Root, not the frontend's `/moviex` base path. The API is a separate origin
+   * server-side and knows nothing about where Vercel mounts the app; `/` is
+   * also what Swagger UI at `<api-host>/docs` needs, since that page is served
+   * from this origin directly.
+   */
   path: '/',
 });

@@ -19,18 +19,48 @@ import type {
 const LANG_PARAM = "lang";
 
 /**
- * Base URL of our own NestJS API.
+ * Base URL of our own NestJS API — **different in the browser and on the
+ * server, and that asymmetry is the whole point.**
  *
- * Two variables on purpose: `getSearchResults` is called from the navbar
- * typeahead, which runs in the **browser**, where a server-only `API_URL` is
- * `undefined`. Next inlines `NEXT_PUBLIC_API_URL` into the client bundle, so
- * that one has to be set for the typeahead to reach the API in any deployed
- * environment; `API_URL` still covers the Server Component calls.
+ * Deployed, the browser must never name the Render host. It calls the relative
+ * `/moviex/api/*`, which is same-origin with the page, and `next.config.js`'s
+ * `rewrites()` forwards it to Render server-to-server. That is what makes the
+ * session cookie same-site (and so survivable in mobile Safari/WebKit).
+ *
+ * A relative path cannot work on the server: `fetch("/moviex/api/tmdb/genres")`
+ * inside a Server Component has no origin to resolve against and throws. Server
+ * rendering is also not subject to browser cookie or CORS rules, so there is
+ * nothing to gain by routing it through Vercel — it would only add a hop.
+ * `API_URL` therefore stays the **absolute** Render URL.
+ *
+ * Hence two variables with two different jobs, and the precedence deliberately
+ * differs by side:
+ *
+ * - `NEXT_PUBLIC_API_URL` — inlined into the client bundle at build time.
+ *   `/moviex/api` in production; the absolute `http://localhost:3000` in dev,
+ *   where the browser talks to Nest directly.
+ * - `API_URL` — server-only, always absolute. It takes priority over the
+ *   public variable on the server precisely because the public one is now a
+ *   relative path there.
+ */
+const DEFAULT_API_URL = "http://localhost:3000";
+
+/** Absolute, for Server Components. Never a relative path. */
+const SERVER_API_BASE_URL =
+  process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API_URL;
+
+/** Whatever the browser should call: the relative proxy path, or a dev host. */
+const BROWSER_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API_URL;
+
+/**
+ * Resolved once per bundle rather than per call, which is what makes it
+ * correct: the server and the client each evaluate this module in their own
+ * environment, so each gets its own answer. A client component rendered during
+ * SSR reads the *server* value here — also right, since a relative URL could
+ * not be fetched from Node anyway.
  */
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  process.env.API_URL ??
-  "http://localhost:3000";
+  typeof window === "undefined" ? SERVER_API_BASE_URL : BROWSER_API_BASE_URL;
 
 /** Local alias so the rest of this file reads as before. */
 const API_URL = API_BASE_URL;
@@ -44,18 +74,23 @@ const API_URL = API_BASE_URL;
  * `/auth/me` answers 401 forever. Login still returns 200, which is what makes
  * it so confusing: the app looks logged out with no error anywhere.
  *
+ * A **relative** value is exempt: that is the production proxy path, which is
+ * same-origin by construction and has no host to compare.
+ *
  * The two hosts must match. Warn loudly rather than fail silently.
  */
 if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
   try {
-    const apiHost = new URL(API_BASE_URL).hostname;
-    if (apiHost !== window.location.hostname) {
-      console.warn(
-        `[moviex] NEXT_PUBLIC_API_URL host "${apiHost}" does not match the ` +
-          `browser host "${window.location.hostname}". The auth cookie is ` +
-          `SameSite=Lax, so it will not be sent cross-site and you will ` +
-          `appear permanently signed out. Use the same host for both.`,
-      );
+    if (!API_BASE_URL.startsWith("/")) {
+      const apiHost = new URL(API_BASE_URL).hostname;
+      if (apiHost !== window.location.hostname) {
+        console.warn(
+          `[moviex] NEXT_PUBLIC_API_URL host "${apiHost}" does not match the ` +
+            `browser host "${window.location.hostname}". The auth cookie is ` +
+            `SameSite=Lax, so it will not be sent cross-site and you will ` +
+            `appear permanently signed out. Use the same host for both.`,
+        );
+      }
     }
   } catch {
     // A malformed URL is not worth crashing the app over.
