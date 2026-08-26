@@ -101,27 +101,36 @@
   }
 
   /*
-   * The sonar wave. Invisible at rest; it exists only while the card is hovered.
+   * The sonar. **Two waves, not one**, half a cycle apart — a second is always
+   * already on its way out as the first fades, which reads as a repeating ping
+   * rather than as one lonely ripple. `::before` and `::after` share one
+   * keyframe and one 1300ms period; the offset is purely `animation-delay` on
+   * the second, so the two can never drift apart.
    *
-   * **A stroked ring, not a filled disc, and that is what makes the long throw
-   * possible.** The poster is `overflow-hidden` and this sits 29px from its
-   * right and bottom edges, so anything past a 29px radius is cut off. A filled
-   * disc reaching `scale(2.3)` (51px) would stop reading as a wave a third of
-   * the way out and become a red flood in the corner with two hard straight
-   * edges. A stroke just has its arc leave the frame — the wave visibly travels
-   * up and to the left across the poster and exits, which is what sonar from a
-   * corner actually looks like. The 2px is scaled by the transform along with
-   * everything else, so the wave thickens as it fades; that is intentional.
+   * **A stroked ring, not a filled disc, and that is load-bearing.** The poster
+   * is `overflow-hidden` and these sit 29px from its right and bottom edges, so
+   * anything past a 29px radius is cut off. A filled disc would stop reading as
+   * a wave the moment it hit that and become a flood in the corner with two
+   * hard straight edges. A stroke just has its arc leave the frame — the wave
+   * travels up and to the left across the poster and exits, which is what sonar
+   * from a corner actually looks like. The 2px is scaled by the transform along
+   * with everything else, so a wave thickens as it fades; that is intentional.
    *
-   * Note it paints *above* the button's background rather than behind it, and
+   * The stroke is the **bright** `--mx-accent`, deliberately unlike the muted
+   * disc it leaves: this is the part that has to stay legible down at ~10%
+   * opacity halfway through its travel, and the disc is now dark enough that a
+   * ring in its own colour would simply not be there.
+   *
+   * Note they paint *above* the button's background rather than behind it, and
    * that is forced rather than chosen: CSS paints negative-z children after the
    * parent's own background (Appendix E), and this button establishes a
    * stacking context anyway (`z-10` + `backdrop-filter`), so `z-index: -1` here
-   * could not escape behind the disc. Harmless — the ring is the same hue, and
-   * at `scale(1)` sitting exactly on the button's rim it reads as the wave being
-   * emitted. The icon is lifted clear of it by `.mx-add-fab-icon` below.
+   * could not escape behind the disc. Harmless — at `scale(1)` a ring sits
+   * exactly on the button's rim, which reads as the wave being emitted. The
+   * icon is lifted clear of both by `.mx-add-fab-icon` below.
    */
-  .mx-add-fab::before {
+  .mx-add-fab::before,
+  .mx-add-fab::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -135,20 +144,27 @@
     pointer-events: none;
   }
 
+  /* Half of 1300ms. The only difference between the two rings. */
+  .mx-add-fab::after {
+    animation-delay: 650ms;
+  }
+
   .mx-add-fab-icon {
-    /* Above the ring — see the note on `::before`. */
+    /*
+     * Above both rings — see the note on the pseudo-elements. **It does not
+     * animate**, on hover or otherwise: a plus that pulsed alongside the sonar
+     * was one moving part too many, and the rings alone carry the effect.
+     */
     position: relative;
     z-index: 1;
   }
 
   @media (hover: hover) {
     /*
-     * Both loops are keyed off the **card**, not the button, and share one
-     * 1300ms period so they stay rhythmically locked: the plus is at its
-     * fullest as each wave is emitted. They start the moment the button fades
-     * in and run until the pointer leaves, then stop wherever they are — an
-     * abrupt stop mid-cycle is normal for this kind of effect and the button is
-     * fading out over it anyway.
+     * Keyed off the **card**, not the button, so the sonar is already running
+     * as the button fades in. It stops wherever it is when the pointer leaves —
+     * an abrupt stop mid-cycle is normal for this, and the button is fading out
+     * over the top of it anyway.
      *
      * `.mx-movie-card` is a marker class on the card's `<article>`, added
      * because these rules need to see the card's hover from hand-written CSS.
@@ -157,13 +173,13 @@
      * where that is the idiomatic tool.
      */
     .mx-movie-card:hover .mx-add-fab::before,
-    .mx-add-fab:focus-visible::before {
-      animation: mx-add-fab-ping 1300ms ease-out infinite;
-    }
-
-    .mx-movie-card:hover .mx-add-fab-icon,
-    .mx-add-fab:focus-visible .mx-add-fab-icon {
-      animation: mx-add-fab-breathe 1300ms ease-in-out infinite;
+    .mx-movie-card:hover .mx-add-fab::after,
+    .mx-add-fab:focus-visible::before,
+    .mx-add-fab:focus-visible::after {
+      animation-name: mx-add-fab-ping;
+      animation-duration: 1300ms;
+      animation-timing-function: ease-out;
+      animation-iteration-count: infinite;
     }
 
     /* The press spring, on the button itself — pointing at it, not at the card. */
@@ -177,15 +193,15 @@
   }
 
   /*
-   * **`2.3` is checked against the poster, not chosen by eye.** The button is
-   * 40px at `bottom/right: 9px`, so this is centred 29px from both edges, and
-   * the ring is a *child* of the button — it inherits `scale(1.12)` while the
-   * button is hovered. Effective radius runs to 20 × 2.3 × 1.12 = 51.5px, so
-   * the arc leaves the frame through the right and bottom edges about a third
-   * of the way through each cycle. That is deliberate and is why this is a
-   * stroke; a filled disc at this size would be a corner flood. It stays inside
-   * on the other two sides even on the narrowest card (2-up at 320px puts the
-   * centre 107px from the left edge and 175px from the top).
+   * **`1.75` is checked against the poster, not chosen by eye.** The button is
+   * 40px at `bottom/right: 9px`, so a ring is centred 29px from both edges, and
+   * it is a *child* of the button — it inherits `scale(1.12)` while the button
+   * is hovered. Effective radius runs to 20 × 1.75 × 1.12 = 39.2px, so the arc
+   * leaves the frame through the right and bottom edges partway through each
+   * cycle. That is deliberate and is why these are strokes; a filled disc at
+   * this size would be a corner flood. It stays inside on the other two sides
+   * even on the narrowest card (2-up at 320px puts the centre 107px from the
+   * left edge and 175px from the top).
    */
   @keyframes mx-add-fab-ping {
     from {
@@ -193,22 +209,8 @@
       opacity: 0.5;
     }
     to {
-      transform: scale(2.3);
+      transform: scale(1.75);
       opacity: 0;
-    }
-  }
-
-  /*
-   * Starts and ends at rest, so hover-in and hover-out are both seamless
-   * however the loop is interrupted. Peaks halfway through the wave's travel.
-   */
-  @keyframes mx-add-fab-breathe {
-    0%,
-    100% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.15);
     }
   }
 }
@@ -412,26 +414,37 @@
   --mx-tag-watched: #0f6f57;
   --mx-tag-listed: #864e0c;
   /*
-   * `--mx-accent` (#e24b4a) at 92%, so the poster reads faintly through the
-   * button and the `backdrop-blur` on it has something to blur. The icon on top
-   * is `--mx-on-accent`, the same dark ink every other accent surface uses.
-   */
-  --mx-add-fab: rgba(226, 75, 74, 0.92);
-  --mx-add-fab-border: rgba(255, 255, 255, 0.2);
-  --mx-add-fab-glow: rgba(226, 75, 74, 0.45);
-  /*
-   * The plus itself. White, not `--mx-on-accent` (#2c0808) as it first was —
-   * against the translucent accent disc the dark ink read as a smudge, and
-   * white separates cleanly at any poster brightness.
+   * A deep, muted red at 92%, so the poster reads faintly through the button
+   * and the `backdrop-blur` on it has something to blur.
    *
-   * Its own token rather than reusing `--mx-on-accent`, which is shared by
-   * every accent surface in the app: repointing that would have turned the
-   * text on the auth modal's submit, the row Add button and the detail page's
-   * actions white too. Same value as `--mx-poster-fg`, deliberately not that
-   * token either — that one means "text laid directly on artwork", and this
-   * sits on the disc.
+   * **This is deliberately no longer `--mx-accent`.** Full accent (#e24b4a) at
+   * this size was a bright dot competing with the artwork it floats over, and
+   * neither ink tried on it worked: near-black read as a smudge, white as a
+   * sticker. Dropping the disc into the same deep-red family as the dark
+   * poster tints (`--mx-poster-1` is #6b1919) settles it into the card, and
+   * leaves the bright accent free for the *rings*, which are the part that has
+   * to read while they fade.
    */
-  --mx-add-fab-fg: #fafafa;
+  --mx-add-fab: rgba(80, 19, 19, 0.92);
+  --mx-add-fab-border: rgba(255, 255, 255, 0.2);
+  /*
+   * Softened along with the disc: the same deep red rather than a vivid accent
+   * glow, so it reads as depth under the button rather than as a light source.
+   */
+  --mx-add-fab-glow: rgba(80, 19, 19, 0.5);
+  /*
+   * The plus. A warm cream — the same value `--mx-state-list-fg` carries on the
+   * "In list" chip, which is the tone this app already uses for text sitting on
+   * a deep, saturated surface.
+   *
+   * Its own token rather than pointing at either of the two tokens that happen
+   * to share a value. `--mx-on-accent` is used by every accent surface in the
+   * app, so repointing it would have changed the auth modal's submit, the row
+   * Add button and the detail page's actions; `--mx-state-list-fg` means
+   * "text on the In-list chip", and borrowing it here is how a token stops
+   * meaning anything.
+   */
+  --mx-add-fab-fg: #faeeda;
   /* Accent tint behind a selected option row; identical in both themes. */
   --mx-option-selected: rgba(226, 75, 74, 0.12);
   /*

@@ -134,12 +134,12 @@ export function MovieCard({
           invisible button is never clickable.
 
           **The rest of the choreography lives in `globals.css` under
-          `.mx-add-fab`**: a sonar wave looping out of a `::before`, the plus
-          breathing on the same 1300ms period, and the button's own press
-          spring. It needs a pseudo-element and its own keyframes, which as
-          arbitrary variants would be an unreadable class attribute — read the
-          notes there before changing the size, the offset or the hover scale,
-          because the wave's throw is measured against all three.
+          `.mx-add-fab`**: two sonar waves half a cycle apart, out of `::before`
+          and `::after`, plus the button's own press spring. The plus itself
+          does not move. It needs pseudo-elements and their own keyframes, which
+          as arbitrary variants would be an unreadable class attribute — read
+          the notes there before changing the size, the offset or the hover
+          scale, because the waves' throw is measured against all three.
         */}
         {!movie.userState && (
           <button
