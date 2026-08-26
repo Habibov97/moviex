@@ -56,7 +56,14 @@ export function MovieCard({
       : format.number(movie.rating, RATING_NUMBER_FORMAT);
 
   return (
-    <article className={cn("group relative font-mx", className)}>
+    <article
+      className={cn(
+        // `mx-movie-card` is what the Add button's sonar/breathing rules in
+        // globals.css key off — see the note there on why not `.group`.
+        "mx-movie-card group relative font-mx",
+        className,
+      )}
+    >
       <div className={cn(posterBase, posterTone(toneIndex))}>
         {/*
           Layered over the tone rather than replacing it, so a missing or
@@ -118,22 +125,21 @@ export function MovieCard({
           visible. Sits above the card-wide link (z-10) and stops its own click
           there, so adding never also navigates to the detail page.
 
-          Always visible — no hover gate. The old bar faded in on
-          `group-hover`, which meant a second rule to un-hide it on touch; a
-          mark this small does not need to hide, so hover only animates it.
+          **Hidden until the card is hovered, on hover-capable devices only.**
+          The reveal is keyed to the whole card rather than to the button, the
+          same way `MyListCard`'s actions are, and the same `[@media(hover:none)]`
+          escape hatch keeps it permanently visible on touch — there is no hover
+          intent to key off there, and a button you cannot reveal is a button
+          that does not exist. `pointer-events` follows the opacity so an
+          invisible button is never clickable.
 
-          **The hover choreography lives in `globals.css` under `.mx-add-fab`,
-          not here.** Three things move on three different clocks — the button
-          springs to 1.12, a ping expands and fades from a `::before`, the plus
-          tilts and lifts — which needs a pseudo-element and its own keyframes,
-          and as arbitrary variants would be an unreadable class attribute. The
-          appearance below is still Tailwind and tokens; only the motion moved.
-          Read the notes there before changing the size, the offset or the hover
-          scale: the ring's ceiling is computed from all three.
-
-          Tailwind v4 compiles `hover:` inside `@media (hover: hover)` and the
-          hand-written rules match it, so a tap on a phone leaves the button
-          entirely static.
+          **The rest of the choreography lives in `globals.css` under
+          `.mx-add-fab`**: a sonar wave looping out of a `::before`, the plus
+          breathing on the same 1300ms period, and the button's own press
+          spring. It needs a pseudo-element and its own keyframes, which as
+          arbitrary variants would be an unreadable class attribute — read the
+          notes there before changing the size, the offset or the hover scale,
+          because the wave's throw is measured against all three.
         */}
         {!movie.userState && (
           <button
@@ -149,6 +155,18 @@ export function MovieCard({
               "mx-add-fab absolute right-[9px] bottom-[9px] z-10 flex size-[40px] items-center justify-center rounded-full",
               "border border-mx-add-fab-border bg-mx-add-fab backdrop-blur-[8px]",
               "shadow-[0_4px_14px_var(--mx-add-fab-glow)] text-mx-add-fab-fg outline-none",
+              /*
+               * These set `opacity` and `pointer-events` only — no
+               * `transition-*` utility, deliberately: the transition is the
+               * `.mx-add-fab` rule in globals.css, and a `transition-opacity`
+               * here would replace its `transition-property` and kill the
+               * button's scale animation.
+               */
+              "opacity-0 pointer-events-none",
+              "group-hover:opacity-100 group-hover:pointer-events-auto",
+              "group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
+              // No hover to key off: always visible, and the CSS leaves it static.
+              "[@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
             )}
           >
             <IconPlus

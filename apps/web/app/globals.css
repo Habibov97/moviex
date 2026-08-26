@@ -70,49 +70,56 @@
    * The Add button on a movie card, and its hover choreography.
    *
    * Here rather than in utilities because it needs a pseudo-element with its
-   * own keyframes, and three targets that animate on different clocks — which
-   * as arbitrary variants would be a class attribute nobody could read. The
-   * button's *appearance* is still Tailwind + tokens on the element; this file
-   * only owns the motion. See `MovieCard.tsx`.
+   * own keyframes and three targets on three clocks — which as arbitrary
+   * variants would be a class attribute nobody could read. The button's
+   * *appearance* is still Tailwind + tokens on the element; this file owns only
+   * the motion. See `MovieCard.tsx`.
    *
-   * **Only `transform` and `opacity` animate, on all three.** Both are
+   * **Only `transform` and `opacity` animate, on all of it.** Both are
    * composited by the GPU, so nothing here costs a layout or a paint — which
    * matters on a grid drawing twenty of these. Animating the glow's spread, the
    * blur radius or the diameter would look similar and be far more expensive:
    * don't.
    *
-   * The layering is the point. Button, ring and icon each move on their own
-   * curve and their own duration, and it is the slight disagreement between
-   * them that reads as textured rather than as one flat transform.
+   * Everything except the fade-in is inside `@media (hover: hover)`, which is
+   * the same touch/desktop split `MyListCard` uses for its hover actions. A
+   * phone gets a permanently visible, permanently static button.
    */
   .mx-add-fab {
-    /*
-     * Overshoots ~10% past the target before settling — the spring. Scoped to
-     * this component rather than :root because nothing else uses it yet, and it
-     * inherits, so the icon rule below picks it up for free.
-     */
+    /* Overshoots ~10% past the target before settling — the press spring. */
     --mx-fab-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
     /*
-     * The **rest** state, so this is the hover-*out* transition: quicker than
-     * the way in, and no spring. A bounce on the way out reads as indecisive;
-     * a fast settle reads as responsive.
+     * `opacity` is the reveal (see `MovieCard.tsx` for where it is switched);
+     * `transform` is the rest state of the button's own hover scale, i.e. the
+     * way *out*, quicker than the way in and with no spring. A bounce leaving
+     * reads as indecisive, a fast settle reads as responsive.
      */
-    transition: transform 180ms ease-out;
+    transition:
+      opacity 180ms ease-out,
+      transform 180ms ease-out;
   }
 
   /*
-   * The sonar ping. Invisible at rest — it exists only during a hover.
+   * The sonar wave. Invisible at rest; it exists only while the card is hovered.
    *
-   * Note it paints *above* the button's background, not behind it, and that is
-   * forced rather than chosen: CSS paints negative-z children after the
+   * **A stroked ring, not a filled disc, and that is what makes the long throw
+   * possible.** The poster is `overflow-hidden` and this sits 29px from its
+   * right and bottom edges, so anything past a 29px radius is cut off. A filled
+   * disc reaching `scale(2.3)` (51px) would stop reading as a wave a third of
+   * the way out and become a red flood in the corner with two hard straight
+   * edges. A stroke just has its arc leave the frame — the wave visibly travels
+   * up and to the left across the poster and exits, which is what sonar from a
+   * corner actually looks like. The 2px is scaled by the transform along with
+   * everything else, so the wave thickens as it fades; that is intentional.
+   *
+   * Note it paints *above* the button's background rather than behind it, and
+   * that is forced rather than chosen: CSS paints negative-z children after the
    * parent's own background (Appendix E), and this button establishes a
-   * stacking context anyway (`z-10` + `backdrop-filter`), so a `z-index: -1`
-   * here could not escape behind the disc. It does not matter visually — the
-   * ring is the *same hue* as the button, so over the disc it is an
-   * imperceptible flush, and the part that reads is the halo outside it. What
-   * did matter is the icon, which is lifted above the ring by
-   * `.mx-add-fab-icon` below so the plus is never washed out.
+   * stacking context anyway (`z-10` + `backdrop-filter`), so `z-index: -1` here
+   * could not escape behind the disc. Harmless — the ring is the same hue, and
+   * at `scale(1)` sitting exactly on the button's rim it reads as the wave being
+   * emitted. The icon is lifted clear of it by `.mx-add-fab-icon` below.
    */
   .mx-add-fab::before {
     content: "";
@@ -123,7 +130,7 @@
      * Full accent; the 0.5 the design calls for is the animation's *starting*
      * opacity, since opacity is the half that animates.
      */
-    background: var(--mx-accent);
+    border: 2px solid var(--mx-accent);
     opacity: 0;
     pointer-events: none;
   }
@@ -132,63 +139,53 @@
     /* Above the ring — see the note on `::before`. */
     position: relative;
     z-index: 1;
-    transition: transform 180ms ease-out;
   }
 
-  /*
-   * Everything below is hover-only, and `@media (hover: hover)` is what keeps a
-   * tap on a phone completely static. Tailwind v4 wraps its own `hover:`
-   * variant the same way; this is the hand-written equivalent.
-   */
   @media (hover: hover) {
-    .mx-add-fab:hover {
+    /*
+     * Both loops are keyed off the **card**, not the button, and share one
+     * 1300ms period so they stay rhythmically locked: the plus is at its
+     * fullest as each wave is emitted. They start the moment the button fades
+     * in and run until the pointer leaves, then stop wherever they are — an
+     * abrupt stop mid-cycle is normal for this kind of effect and the button is
+     * fading out over it anyway.
+     *
+     * `.mx-movie-card` is a marker class on the card's `<article>`, added
+     * because these rules need to see the card's hover from hand-written CSS.
+     * Reaching for Tailwind's own `.group` here would couple this file to a
+     * utility class; the reveal itself still uses `group-hover:` on the element,
+     * where that is the idiomatic tool.
+     */
+    .mx-movie-card:hover .mx-add-fab::before,
+    .mx-add-fab:focus-visible::before {
+      animation: mx-add-fab-ping 1300ms ease-out infinite;
+    }
+
+    .mx-movie-card:hover .mx-add-fab-icon,
+    .mx-add-fab:focus-visible .mx-add-fab-icon {
+      animation: mx-add-fab-breathe 1300ms ease-in-out infinite;
+    }
+
+    /* The press spring, on the button itself — pointing at it, not at the card. */
+    .mx-add-fab:hover,
+    .mx-add-fab:focus-visible {
       transform: scale(1.12);
-      transition: transform 280ms var(--mx-fab-spring);
+      transition:
+        opacity 180ms ease-out,
+        transform 280ms var(--mx-fab-spring);
     }
-
-    /*
-     * A smaller tilt and a scale of its own, on the same spring — the icon
-     * lifts *relative to* the button rather than merely riding its scale.
-     */
-    .mx-add-fab:hover .mx-add-fab-icon {
-      transform: rotate(15deg) scale(1.15);
-      transition: transform 280ms var(--mx-fab-spring);
-    }
-
-    /*
-     * Single-shot, not a loop: one ping per hover-in. Removing the declaration
-     * on hover-out cancels it, and re-entering re-adds it, which restarts it
-     * from 0% — the clean retrigger, with no JS and no animation-name toggling.
-     */
-    .mx-add-fab:hover::before {
-      animation: mx-add-fab-ping 560ms cubic-bezier(0, 0, 0.2, 1);
-    }
-  }
-
-  /* Keyboard parity, outside the hover query — focus-visible never fires on a tap. */
-  .mx-add-fab:focus-visible {
-    transform: scale(1.12);
-    transition: transform 280ms var(--mx-fab-spring);
-  }
-
-  .mx-add-fab:focus-visible .mx-add-fab-icon {
-    transform: rotate(15deg) scale(1.15);
-    transition: transform 280ms var(--mx-fab-spring);
-  }
-
-  .mx-add-fab:focus-visible::before {
-    animation: mx-add-fab-ping 560ms cubic-bezier(0, 0, 0.2, 1);
   }
 
   /*
-   * **1.28 is a measured ceiling, not a taste call — do not raise it.** The
-   * poster is `overflow-hidden`, the button is 40px at `bottom/right: 9px`, so
-   * the ring's centre sits 29px from both edges and anything past a 29px radius
-   * is cut off mid-ping. The ring is a *child* of the button, so it inherits
-   * the button's own `scale(1.12)`: the effective radius is 20 × 1.28 × 1.12 =
-   * 28.7px. The naive 1.6 would reach 35.8px and clip visibly against the card
-   * corner. If the button's size, its offset or its hover scale ever change,
-   * recompute this.
+   * **`2.3` is checked against the poster, not chosen by eye.** The button is
+   * 40px at `bottom/right: 9px`, so this is centred 29px from both edges, and
+   * the ring is a *child* of the button — it inherits `scale(1.12)` while the
+   * button is hovered. Effective radius runs to 20 × 2.3 × 1.12 = 51.5px, so
+   * the arc leaves the frame through the right and bottom edges about a third
+   * of the way through each cycle. That is deliberate and is why this is a
+   * stroke; a filled disc at this size would be a corner flood. It stays inside
+   * on the other two sides even on the narrowest card (2-up at 320px puts the
+   * centre 107px from the left edge and 175px from the top).
    */
   @keyframes mx-add-fab-ping {
     from {
@@ -196,26 +193,23 @@
       opacity: 0.5;
     }
     to {
-      transform: scale(1.28);
+      transform: scale(2.3);
       opacity: 0;
     }
   }
-}
 
-.imgDark {
-  display: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-
-  .imgLight {
-    display: none;
-  }
-  .imgDark {
-    display: unset;
+  /*
+   * Starts and ends at rest, so hover-in and hover-out are both seamless
+   * however the loop is interrupted. Peaks halfway through the wave's travel.
+   */
+  @keyframes mx-add-fab-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.15);
+    }
   }
 }
 
