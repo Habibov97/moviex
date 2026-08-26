@@ -80,8 +80,12 @@ export default async function MoviePage({ params }: MoviePageProps) {
         Edge padding only — no max width and no centering, same as Discover
         and Search. `md:px-8` just keeps content off the viewport edge on a
         large screen; the content itself still fills the available width.
+
+        `relative z-10` is not layout — the backdrop image now extends below its
+        own band and would otherwise paint over the title and meta row, since it
+        is a positioned element earlier in the document.
       */}
-      <div className="px-4 sm:px-6 md:px-8">
+      <div className="relative z-10 px-4 sm:px-6 md:px-8">
         {/* Pulled up over the backdrop band. */}
         <div className="-mt-14 flex items-start gap-4 md:-mt-24 md:gap-6">
           <div
