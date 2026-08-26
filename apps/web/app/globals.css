@@ -65,6 +65,141 @@
     border: 2px solid var(--mx-accent);
     cursor: pointer;
   }
+
+  /*
+   * The Add button on a movie card, and its hover choreography.
+   *
+   * Here rather than in utilities because it needs a pseudo-element with its
+   * own keyframes, and three targets that animate on different clocks — which
+   * as arbitrary variants would be a class attribute nobody could read. The
+   * button's *appearance* is still Tailwind + tokens on the element; this file
+   * only owns the motion. See `MovieCard.tsx`.
+   *
+   * **Only `transform` and `opacity` animate, on all three.** Both are
+   * composited by the GPU, so nothing here costs a layout or a paint — which
+   * matters on a grid drawing twenty of these. Animating the glow's spread, the
+   * blur radius or the diameter would look similar and be far more expensive:
+   * don't.
+   *
+   * The layering is the point. Button, ring and icon each move on their own
+   * curve and their own duration, and it is the slight disagreement between
+   * them that reads as textured rather than as one flat transform.
+   */
+  .mx-add-fab {
+    /*
+     * Overshoots ~10% past the target before settling — the spring. Scoped to
+     * this component rather than :root because nothing else uses it yet, and it
+     * inherits, so the icon rule below picks it up for free.
+     */
+    --mx-fab-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /*
+     * The **rest** state, so this is the hover-*out* transition: quicker than
+     * the way in, and no spring. A bounce on the way out reads as indecisive;
+     * a fast settle reads as responsive.
+     */
+    transition: transform 180ms ease-out;
+  }
+
+  /*
+   * The sonar ping. Invisible at rest — it exists only during a hover.
+   *
+   * Note it paints *above* the button's background, not behind it, and that is
+   * forced rather than chosen: CSS paints negative-z children after the
+   * parent's own background (Appendix E), and this button establishes a
+   * stacking context anyway (`z-10` + `backdrop-filter`), so a `z-index: -1`
+   * here could not escape behind the disc. It does not matter visually — the
+   * ring is the *same hue* as the button, so over the disc it is an
+   * imperceptible flush, and the part that reads is the halo outside it. What
+   * did matter is the icon, which is lifted above the ring by
+   * `.mx-add-fab-icon` below so the plus is never washed out.
+   */
+  .mx-add-fab::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    /*
+     * Full accent; the 0.5 the design calls for is the animation's *starting*
+     * opacity, since opacity is the half that animates.
+     */
+    background: var(--mx-accent);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .mx-add-fab-icon {
+    /* Above the ring — see the note on `::before`. */
+    position: relative;
+    z-index: 1;
+    transition: transform 180ms ease-out;
+  }
+
+  /*
+   * Everything below is hover-only, and `@media (hover: hover)` is what keeps a
+   * tap on a phone completely static. Tailwind v4 wraps its own `hover:`
+   * variant the same way; this is the hand-written equivalent.
+   */
+  @media (hover: hover) {
+    .mx-add-fab:hover {
+      transform: scale(1.12);
+      transition: transform 280ms var(--mx-fab-spring);
+    }
+
+    /*
+     * A smaller tilt and a scale of its own, on the same spring — the icon
+     * lifts *relative to* the button rather than merely riding its scale.
+     */
+    .mx-add-fab:hover .mx-add-fab-icon {
+      transform: rotate(15deg) scale(1.15);
+      transition: transform 280ms var(--mx-fab-spring);
+    }
+
+    /*
+     * Single-shot, not a loop: one ping per hover-in. Removing the declaration
+     * on hover-out cancels it, and re-entering re-adds it, which restarts it
+     * from 0% — the clean retrigger, with no JS and no animation-name toggling.
+     */
+    .mx-add-fab:hover::before {
+      animation: mx-add-fab-ping 560ms cubic-bezier(0, 0, 0.2, 1);
+    }
+  }
+
+  /* Keyboard parity, outside the hover query — focus-visible never fires on a tap. */
+  .mx-add-fab:focus-visible {
+    transform: scale(1.12);
+    transition: transform 280ms var(--mx-fab-spring);
+  }
+
+  .mx-add-fab:focus-visible .mx-add-fab-icon {
+    transform: rotate(15deg) scale(1.15);
+    transition: transform 280ms var(--mx-fab-spring);
+  }
+
+  .mx-add-fab:focus-visible::before {
+    animation: mx-add-fab-ping 560ms cubic-bezier(0, 0, 0.2, 1);
+  }
+
+  /*
+   * **1.28 is a measured ceiling, not a taste call — do not raise it.** The
+   * poster is `overflow-hidden`, the button is 40px at `bottom/right: 9px`, so
+   * the ring's centre sits 29px from both edges and anything past a 29px radius
+   * is cut off mid-ping. The ring is a *child* of the button, so it inherits
+   * the button's own `scale(1.12)`: the effective radius is 20 × 1.28 × 1.12 =
+   * 28.7px. The naive 1.6 would reach 35.8px and clip visibly against the card
+   * corner. If the button's size, its offset or its hover scale ever change,
+   * recompute this.
+   */
+  @keyframes mx-add-fab-ping {
+    from {
+      transform: scale(1);
+      opacity: 0.5;
+    }
+    to {
+      transform: scale(1.28);
+      opacity: 0;
+    }
+  }
 }
 
 .imgDark {

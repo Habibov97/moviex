@@ -122,19 +122,18 @@ export function MovieCard({
           `group-hover`, which meant a second rule to un-hide it on touch; a
           mark this small does not need to hide, so hover only animates it.
 
-          **The hover microinteraction is `transform` and nothing else** — the
-          button scales, the plus spins a quarter turn. Both composite on the
-          GPU, so neither costs a layout or a paint. Animating the glow's
-          spread, the blur radius or the diameter would look similar and be far
-          more expensive on a page showing twenty of these at once; don't.
+          **The hover choreography lives in `globals.css` under `.mx-add-fab`,
+          not here.** Three things move on three different clocks — the button
+          springs to 1.12, a ping expands and fades from a `::before`, the plus
+          tilts and lifts — which needs a pseudo-element and its own keyframes,
+          and as arbitrary variants would be an unreadable class attribute. The
+          appearance below is still Tailwind and tokens; only the motion moved.
+          Read the notes there before changing the size, the offset or the hover
+          scale: the ring's ceiling is computed from all three.
 
-          Two transforms, so two elements: a scale on the button and a rotate on
-          the icon cannot share one `transform` property. Hence the named
-          `group/add` — the icon reacts to hover on the *button*, not to hover
-          anywhere on the card, which the article's unnamed `group` would give.
-
-          Tailwind v4 compiles `hover:` inside `@media (hover: hover)`, so a tap
-          on a phone leaves the button entirely static with no extra rule here.
+          Tailwind v4 compiles `hover:` inside `@media (hover: hover)` and the
+          hand-written rules match it, so a tap on a phone leaves the button
+          entirely static.
         */}
         {!movie.userState && (
           <button
@@ -146,18 +145,14 @@ export function MovieCard({
             }}
             aria-label={t("addLabel", { title: movie.title })}
             className={cn(
-              "group/add absolute right-[9px] bottom-[9px] z-10 flex size-[40px] items-center justify-center rounded-full",
+              // `mx-add-fab` carries the motion; everything else is appearance.
+              "mx-add-fab absolute right-[9px] bottom-[9px] z-10 flex size-[40px] items-center justify-center rounded-full",
               "border border-mx-add-fab-border bg-mx-add-fab backdrop-blur-[8px]",
               "shadow-[0_4px_14px_var(--mx-add-fab-glow)] text-mx-add-fab-fg outline-none",
-              // Scale only, so the glass, the glow and the border are untouched.
-              "transition-transform duration-200 hover:scale-[1.1] focus-visible:scale-[1.1]",
             )}
           >
             <IconPlus
-              className={cn(
-                "size-[18px] transition-transform duration-200",
-                "group-hover/add:rotate-90 group-focus-visible/add:rotate-90",
-              )}
+              className="mx-add-fab-icon size-[18px]"
               stroke={2.25}
               aria-hidden="true"
             />
