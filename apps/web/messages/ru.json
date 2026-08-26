@@ -62,8 +62,6 @@
     "empty": "По этому фильтру фильмов не найдено",
     "add": "Добавить",
     "addLabel": "Добавить «{title}» в список",
-    "markWatched": "Просмотрено",
-    "markWatchedLabel": "Отметить «{title}» просмотренным",
     "tagWatched": "Просмотрено",
     "tagListed": "В списке",
     "notRated": "—",

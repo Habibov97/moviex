@@ -62,8 +62,6 @@
     "empty": "Bu filtreye uygun film bulunamadı",
     "add": "Ekle",
     "addLabel": "{title} filmini listenize ekleyin",
-    "markWatched": "İzledim",
-    "markWatchedLabel": "{title} filmini izlendi olarak işaretleyin",
     "tagWatched": "İzlendi",
     "tagListed": "Listede",
     "notRated": "—",

@@ -62,8 +62,6 @@
     "empty": "No movies found for this filter",
     "add": "Add",
     "addLabel": "Add {title} to your list",
-    "markWatched": "Watched",
-    "markWatchedLabel": "Mark {title} as watched",
     "tagWatched": "Watched",
     "tagListed": "In list",
     "notRated": "—",

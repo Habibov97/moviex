@@ -114,13 +114,27 @@ export function MovieCard({
           the list — and then reports state.
 
           Bottom-right rather than a full-width bar along the bottom: the badges
-          own the top of the poster, and a 34px circle leaves the artwork
+          own the top of the poster, and a 40px circle leaves the artwork
           visible. Sits above the card-wide link (z-10) and stops its own click
           there, so adding never also navigates to the detail page.
 
           Always visible — no hover gate. The old bar faded in on
           `group-hover`, which meant a second rule to un-hide it on touch; a
-          mark this small does not need to hide, so hover only scales it.
+          mark this small does not need to hide, so hover only animates it.
+
+          **The hover microinteraction is `transform` and nothing else** — the
+          button scales, the plus spins a quarter turn. Both composite on the
+          GPU, so neither costs a layout or a paint. Animating the glow's
+          spread, the blur radius or the diameter would look similar and be far
+          more expensive on a page showing twenty of these at once; don't.
+
+          Two transforms, so two elements: a scale on the button and a rotate on
+          the icon cannot share one `transform` property. Hence the named
+          `group/add` — the icon reacts to hover on the *button*, not to hover
+          anywhere on the card, which the article's unnamed `group` would give.
+
+          Tailwind v4 compiles `hover:` inside `@media (hover: hover)`, so a tap
+          on a phone leaves the button entirely static with no extra rule here.
         */}
         {!movie.userState && (
           <button
@@ -132,14 +146,21 @@ export function MovieCard({
             }}
             aria-label={t("addLabel", { title: movie.title })}
             className={cn(
-              "absolute right-[9px] bottom-[9px] z-10 flex size-[34px] items-center justify-center rounded-full",
+              "group/add absolute right-[9px] bottom-[9px] z-10 flex size-[40px] items-center justify-center rounded-full",
               "border border-mx-add-fab-border bg-mx-add-fab backdrop-blur-[8px]",
-              "shadow-[0_4px_14px_var(--mx-add-fab-glow)] text-mx-on-accent outline-none",
-              // Scale only, so the glass and the glow are untouched by hover.
-              "transition-transform duration-200 hover:scale-[1.08] focus-visible:scale-[1.08]",
+              "shadow-[0_4px_14px_var(--mx-add-fab-glow)] text-mx-add-fab-fg outline-none",
+              // Scale only, so the glass, the glow and the border are untouched.
+              "transition-transform duration-200 hover:scale-[1.1] focus-visible:scale-[1.1]",
             )}
           >
-            <IconPlus className="size-[18px]" stroke={2.25} aria-hidden="true" />
+            <IconPlus
+              className={cn(
+                "size-[18px] transition-transform duration-200",
+                "group-hover/add:rotate-90 group-focus-visible/add:rotate-90",
+              )}
+              stroke={2.25}
+              aria-hidden="true"
+            />
           </button>
         )}
       </div>

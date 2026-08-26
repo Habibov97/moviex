@@ -145,6 +145,7 @@
   --color-mx-add-fab: var(--mx-add-fab);
   --color-mx-add-fab-border: var(--mx-add-fab-border);
   --color-mx-add-fab-glow: var(--mx-add-fab-glow);
+  --color-mx-add-fab-fg: var(--mx-add-fab-fg);
   /*
    * Pagination. The chevrons and the "page X of Y" line sit at greys between
    * the existing `fg` steps, so they get their own tokens rather than being
@@ -289,6 +290,19 @@
   --mx-add-fab: rgba(226, 75, 74, 0.92);
   --mx-add-fab-border: rgba(255, 255, 255, 0.2);
   --mx-add-fab-glow: rgba(226, 75, 74, 0.45);
+  /*
+   * The plus itself. White, not `--mx-on-accent` (#2c0808) as it first was —
+   * against the translucent accent disc the dark ink read as a smudge, and
+   * white separates cleanly at any poster brightness.
+   *
+   * Its own token rather than reusing `--mx-on-accent`, which is shared by
+   * every accent surface in the app: repointing that would have turned the
+   * text on the auth modal's submit, the row Add button and the detail page's
+   * actions white too. Same value as `--mx-poster-fg`, deliberately not that
+   * token either — that one means "text laid directly on artwork", and this
+   * sits on the disc.
+   */
+  --mx-add-fab-fg: #fafafa;
   /* Accent tint behind a selected option row; identical in both themes. */
   --mx-option-selected: rgba(226, 75, 74, 0.12);
   /*
