@@ -104,7 +104,7 @@
    * The sonar. **Two waves, not one**, half a cycle apart — a second is always
    * already on its way out as the first fades, which reads as a repeating ping
    * rather than as one lonely ripple. `::before` and `::after` share one
-   * keyframe and one 1300ms period; the offset is purely `animation-delay` on
+   * keyframe and one 2000ms period; the offset is purely `animation-delay` on
    * the second, so the two can never drift apart.
    *
    * **A stroked ring, not a filled disc, and that is load-bearing.** The poster
@@ -144,9 +144,9 @@
     pointer-events: none;
   }
 
-  /* Half of 1300ms. The only difference between the two rings. */
+  /* Half of 2000ms. The only difference between the two rings. */
   .mx-add-fab::after {
-    animation-delay: 650ms;
+    animation-delay: 1000ms;
   }
 
   .mx-add-fab-icon {
@@ -177,7 +177,7 @@
     .mx-add-fab:focus-visible::before,
     .mx-add-fab:focus-visible::after {
       animation-name: mx-add-fab-ping;
-      animation-duration: 1300ms;
+      animation-duration: 2000ms;
       animation-timing-function: ease-out;
       animation-iteration-count: infinite;
     }
@@ -193,15 +193,17 @@
   }
 
   /*
-   * **`1.75` is checked against the poster, not chosen by eye.** The button is
+   * **`1.45` is checked against the poster, not chosen by eye.** The button is
    * 40px at `bottom/right: 9px`, so a ring is centred 29px from both edges, and
    * it is a *child* of the button — it inherits `scale(1.12)` while the button
-   * is hovered. Effective radius runs to 20 × 1.75 × 1.12 = 39.2px, so the arc
-   * leaves the frame through the right and bottom edges partway through each
-   * cycle. That is deliberate and is why these are strokes; a filled disc at
-   * this size would be a corner flood. It stays inside on the other two sides
-   * even on the narrowest card (2-up at 320px puts the centre 107px from the
-   * left edge and 175px from the top).
+   * is hovered. Effective radius runs to 20 × 1.45 × 1.12 = 32.5px against 29px
+   * of clearance, so an arc only leaves the frame through the right and bottom
+   * edges in the last stretch of its travel, by which point it has nearly faded
+   * out. That is why these are strokes rather than filled discs — a fill would
+   * be a flood in the corner from the boundary onward, and would cap at about
+   * `scale(1.29)`. Both stay well inside on the other two sides even on the
+   * narrowest card (2-up at 320px puts the centre 107px from the left edge and
+   * 175px from the top).
    */
   @keyframes mx-add-fab-ping {
     from {
@@ -209,7 +211,7 @@
       opacity: 0.5;
     }
     to {
-      transform: scale(1.75);
+      transform: scale(1.45);
       opacity: 0;
     }
   }
