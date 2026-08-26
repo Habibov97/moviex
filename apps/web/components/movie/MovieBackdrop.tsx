@@ -1,15 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { IconArrowLeft, IconPlayerPlayFilled } from "@tabler/icons-react";
+import { IconArrowLeft } from "@tabler/icons-react";
 import type { MovieTrailer } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
 import { useRouter } from "@/i18n/navigation";
 import { posterTone } from "@/lib/poster-tone";
-import { TrailerModal } from "@/components/movie/TrailerModal";
+import { WatchTrailerButton } from "@/components/movie/WatchTrailerButton";
 import { DISCOVER_HREF } from "@/lib/constants/discover";
 
 /**
@@ -22,8 +21,9 @@ import { DISCOVER_HREF } from "@/lib/constants/discover";
  * behind the poster and the head of the content column. A gradient fades that
  * overhang into `--mx-bg` so it ends in the page rather than at a hard edge.
  *
- * Client-side for the two interactive controls — Back reads history, and the
- * trailer opens a modal.
+ * Client-side for Back, which reads history. Watch trailer is only *here* on
+ * mobile, where it pairs with Back in this top row; the desktop one is rendered
+ * on the title row by the page, which is why it is its own component.
  */
 export function MovieBackdrop({
   backdropUrl,
@@ -39,7 +39,6 @@ export function MovieBackdrop({
 }) {
   const t = useTranslations("detail");
   const router = useRouter();
-  const [isTrailerOpen, setIsTrailerOpen] = useState(false);
 
   return (
     <div className="relative h-[150px] w-full md:h-[280px]">
@@ -111,32 +110,16 @@ export function MovieBackdrop({
       </button>
 
       {/*
-        Bottom-right, not centred: the poster overlaps upward from the left and
-        a centred button would collide with it.
+        Mobile only. It pairs with Back at the same vertical offset, sized to
+        match it — the desktop one is on the title row instead, because the
+        backdrop now extends well past this band and a button anchored to the
+        band's own bottom edge floats too high against it.
       */}
-      {trailer && (
-        <button
-          type="button"
-          onClick={() => setIsTrailerOpen(true)}
-          className="absolute right-4 bottom-4 z-10 inline-flex h-9 items-center gap-2.5 rounded-[8px] border-[0.5px] border-mx-border bg-mx-hero-pill pr-4 pl-2 text-[13.5px] font-medium text-mx-poster-fg outline-none transition-colors hover:border-mx-accent focus-visible:border-mx-accent md:right-8 md:bottom-6 md:h-11 md:gap-3 md:pr-5 md:pl-2.5 md:text-[14.5px]"
-        >
-          <span
-            aria-hidden="true"
-            className="flex size-6 items-center justify-center rounded-full bg-mx-accent md:size-7"
-          >
-            <IconPlayerPlayFilled className="size-3 text-mx-on-accent md:size-3.5" />
-          </span>
-          {t("watchTrailer")}
-        </button>
-      )}
-
-      {trailer && (
-        <TrailerModal
-          trailer={trailer}
-          isOpen={isTrailerOpen}
-          onClose={() => setIsTrailerOpen(false)}
-        />
-      )}
+      <WatchTrailerButton
+        trailer={trailer}
+        variant="compact"
+        className="absolute top-4 right-4 z-10 md:hidden"
+      />
 
       <span className="sr-only">{title}</span>
     </div>

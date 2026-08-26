@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { posterTone } from '@/lib/poster-tone';
 import { MovieBackdrop } from '@/components/movie/MovieBackdrop';
 import { MovieActions } from '@/components/movie/MovieActions';
+import { WatchTrailerButton } from '@/components/movie/WatchTrailerButton';
 import { TopCast } from '@/components/movie/TopCast';
 import { getMovieDetail } from '@/lib/api';
 import {
@@ -110,9 +111,25 @@ export default async function MoviePage({ params }: MoviePageProps) {
           </div>
 
           <div className="min-w-0 flex-1 pt-16 md:pt-28">
-            <h1 className="text-[23px] leading-tight font-medium text-mx-fg md:text-[38px]">
-              {movie.title}
-            </h1>
+            {/*
+              The desktop "Watch trailer" is a sibling of the title, not an
+              absolutely positioned overlay. A long title is the reason: as a
+              flex item next to it the h1 wraps at the button's edge, where an
+              overlay would simply have the title run underneath it. `min-w-0`
+              is what lets it wrap at all, and `items-start` puts the button on
+              the first line rather than centred on a two-line block.
+            */}
+            <div className="flex items-start gap-4 md:gap-5">
+              <h1 className="min-w-0 flex-1 text-[23px] leading-tight font-medium text-mx-fg md:text-[38px]">
+                {movie.title}
+              </h1>
+
+              <WatchTrailerButton
+                trailer={movie.trailer}
+                variant="full"
+                className="hidden shrink-0 md:inline-flex"
+              />
+            </div>
 
             {movie.tagline && (
               <p className="mt-1 text-[13.5px] text-mx-fg-subtle italic md:mt-2 md:text-[15px]">
