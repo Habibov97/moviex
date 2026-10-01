@@ -23,11 +23,11 @@ const LANG_PARAM = "lang";
  * server, and that asymmetry is the whole point.**
  *
  * Deployed, the browser must never name the Render host. It calls the relative
- * `/moviex/api/*`, which is same-origin with the page, and `next.config.js`'s
+ * `/api/*`, which is same-origin with the page, and `next.config.js`'s
  * `rewrites()` forwards it to Render server-to-server. That is what makes the
  * session cookie same-site (and so survivable in mobile Safari/WebKit).
  *
- * A relative path cannot work on the server: `fetch("/moviex/api/tmdb/genres")`
+ * A relative path cannot work on the server: `fetch("/api/tmdb/genres")`
  * inside a Server Component has no origin to resolve against and throws. Server
  * rendering is also not subject to browser cookie or CORS rules, so there is
  * nothing to gain by routing it through Vercel — it would only add a hop.
@@ -37,7 +37,7 @@ const LANG_PARAM = "lang";
  * differs by side:
  *
  * - `NEXT_PUBLIC_API_URL` — inlined into the client bundle at build time.
- *   `/moviex/api` in production; the absolute `http://localhost:3000` in dev,
+ *   `/api` in production; the absolute `http://localhost:3000` in dev,
  *   where the browser talks to Nest directly.
  * - `API_URL` — server-only, always absolute. It takes priority over the
  *   public variable on the server precisely because the public one is now a

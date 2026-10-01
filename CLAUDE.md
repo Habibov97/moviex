@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 MovieX is an npm-workspaces monorepo managed by Turborepo.
 
 - `apps/api` — NestJS backend (the active codebase; auth, entities, migrations all live here)
-- `apps/web` — Next.js frontend on port 3001. Stack: Tailwind CSS v4, shadcn/ui, TanStack Query, next-intl (en/tr/ru), lucide-react (see below). Every route lives under `app/[locale]/` — Discover (`/`), Search, movie detail and My List — and `app/[locale]/layout.tsx` is the root layout; there is no `app/layout.tsx`. It is served under **`basePath: '/moviex'`** and proxies the API at `/moviex/api/*`; routes are still written prefix-free everywhere, so read the deployment section before touching `next.config.js` or `proxy.ts`.
+- `apps/web` — Next.js frontend on port 3001. Stack: Tailwind CSS v4, shadcn/ui, TanStack Query, next-intl (en/tr/ru), lucide-react (see below). Every route lives under `app/[locale]/` — Discover (`/`), Search, movie detail and My List — and `app/[locale]/layout.tsx` is the root layout; there is no `app/layout.tsx`. It is served from the root of **`moviex.habiboff.cc`** (no `basePath`) and proxies the API at `/api/*`; read the deployment section before touching `next.config.js` or `proxy.ts`.
 - `packages/shared-types` (`@moviex/shared-types`) — the contract both apps are typed against: `movie.ts`, `genre.ts`, `user-movie.ts`, `locale.ts`, the zod auth schemas in `auth.ts` and the recovery-code policy/schemas in `recovery.ts`, all re-exported from `src/index.ts` (`user.ts` is still an empty placeholder). It ships **raw TS source**, so `apps/web` lists it in `transpilePackages` and `apps/api` may only import *types* from it — see the TMDB language note for what breaks otherwise.
 - `packages/ui`, `packages/eslint-config`, `packages/typescript-config` — shared React components / lint / tsconfig, consumed via `workspace:*`-style `"*"` deps
 
@@ -530,7 +530,7 @@ Two API-wide layers, added together. Neither is visible in normal use, which is 
 `hooks/use-current-user.ts` is the **single source of truth** for "is someone signed in, and who". Anything that needs to know — the library-action gate, the navbar account control, and the modal's submit once it lands — reads this hook rather than tracking its own flag or calling `/auth/me` again.
 
 - **Query key is `['auth','me']`** (`CURRENT_USER_QUERY_KEY`). Invalidate it after any change to the session — login, register, logout — and every consumer re-reads. `useLogoutMutation` already does this in `onSettled` (settled, not success: a failed logout leaves the cookie's state unknown, so re-reading is right either way).
-- **Logging out navigates to Discover, and that lives in the hook rather than in the button.** `useLogoutMutation`'s `onSettled` finishes with `router.replace(DISCOVER_HREF)` — `useRouter` from `@/i18n/navigation`, so the active locale is preserved and the `/moviex` base path is added by Next; a hard-coded path would lose both. Signing out *in place* was the bug: on `/my-list` the page emptied out and on a movie detail page the action buttons silently reverted, which reads as breakage rather than as a logout that worked. `replace`, not `push` — Back should not return to the page they just signed out of, which would only render that same signed-out state. It sits with the cache work in `onSettled` for the same reason the rest of it does: the session is discarded whether or not the request succeeded, so navigating only on success would strand exactly the case where the UI has gone signed-out but the page has not. **New callers get this for free; don't re-add a redirect at the call site.**
+- **Logging out navigates to Discover, and that lives in the hook rather than in the button.** `useLogoutMutation`'s `onSettled` finishes with `router.replace(DISCOVER_HREF)` — `useRouter` from `@/i18n/navigation`, so the active locale is preserved; a hard-coded path would lose it. Signing out *in place* was the bug: on `/my-list` the page emptied out and on a movie detail page the action buttons silently reverted, which reads as breakage rather than as a logout that worked. `replace`, not `push` — Back should not return to the page they just signed out of, which would only render that same signed-out state. It sits with the cache work in `onSettled` for the same reason the rest of it does: the session is discarded whether or not the request succeeded, so navigating only on success would strand exactly the case where the UI has gone signed-out but the page has not. **New callers get this for free; don't re-add a redirect at the call site.**
   - **This and `/my-list`'s own signed-out redirect both fire when you log out from that page, and only one of them may speak.** `MyListView` tracks whether the mount ever held a session (`hadSessionRef`) and skips `requestAuthNotice()` when it did — telling someone who just chose to sign out that they "need to sign in to view your list" answers a question they did not ask. Any future page that both gates on auth and can be logged out from owes the same check.
 - **A 401 is the logged-out answer, not an error** → the query resolves to `null`, with `retry: false` so React Query doesn't hammer a correct rejection. `staleTime` is 5 minutes.
 - **`credentials: "include"` is mandatory** on every auth call: the token is an httpOnly cookie JS cannot read, so the browser must be told to attach it cross-origin. This is also why the API's CORS has to name the exact origin — see the LAN-testing section.
@@ -560,32 +560,31 @@ Every function in `lib/api.ts` goes through **`fetchWithRetry()`**, which retrie
 
 **`apps/web` also has a `predev` script** — `wait-on http-get://localhost:3000 -t 15000` against the API's `GET /` — so the web dev server usually does not start until Nest is answering. It is a convenience, not the fix: on timeout it prints a note and lets `next dev` start anyway, and it only ever helps at process startup. `fetchWithRetry` is what covers a mid-session blip. Do not remove one on the grounds that the other exists.
 
-## Deployment: `habiboff.cc/moviex`, and the Vercel proxy in front of the API
+## Deployment: `moviex.habiboff.cc`, and the Vercel proxy in front of the API
 
-**The public app is `https://habiboff.cc/moviex`. `moviex-web-one.vercel.app` and `moviex-skr4.onrender.com` are internal implementation details now — hosting addresses, not URLs anyone is given.** The root of `habiboff.cc` is deliberately left free for a separate personal site; MovieX is mounted on a sub-path and nothing it serves answers at `/`.
+**The public app is `https://moviex.habiboff.cc`, served from the root of its own subdomain. `moviex-web-one.vercel.app` and `moviex-skr4.onrender.com` are internal implementation details — hosting addresses, not URLs anyone is given.**
 
-Two pieces of `apps/web/next.config.js` do the whole thing, and they are related: the base path is what makes a sub-path mount possible, and the rewrite is what makes the API look like part of it.
+**It used to live at `habiboff.cc/moviex`, under `basePath: '/moviex'`, and moved to the subdomain.** The apex `habiboff.cc` (and `www`) now belongs to the portfolio, not to this app: both are removed from the MovieX Vercel project and 308-redirect to `portfolio.habiboff.cc` from the portfolio's own Vercel project. Nothing in this repo serves or configures them. The old `/moviex` links were never shared publicly, so there is deliberately no redirect from the old paths.
 
-### `basePath: '/moviex'`
+One piece of `apps/web/next.config.js` does the proxying — the rewrite below. There is **no `basePath`**: routes, `_next/*` assets and the `app/` icon files are all served at literal root paths. Routes were always written prefix-free (`<Link href="/my-list">`, `DISCOVER_HREF`, `Pagination`'s hrefs), which is why removing the base path touched no component.
 
-Next prefixes it automatically onto `next/link` hrefs, `router.push` / `router.replace`, server-side `redirect()` (verified: `app-render` wraps every redirect URL in `addPathPrefix(url, basePath)`), `_next/*` assets, and the `app/` icon file conventions. **So no route in this app is written with the prefix** — `<Link href="/my-list">` still renders `/moviex/tr/my-list`, `Pagination` still copies params forward onto plain locale-free paths, and `DISCOVER_HREF` is unchanged. Confirmed on a real build's HTML: every `href`/`src` came out `/moviex/…` with no component touched.
+### `proxy.ts`: one matcher entry, and `api` excluded
 
-It is a **build-time** constant, inlined into the client bundle. Changing it needs a rebuild, not a restart.
+`matcher: ['/((?!api|_next|_vercel|.*\\..*).*)']` — the shape next-intl documents for an app with no base path. `.*` may be empty, so it matches `/` and the front door redirects to `/en` (or the visitor's detected language). Checked against this Next version's `getMiddlewareMatchers`:
 
-next-intl needs no configuration for it. Its middleware reads `request.nextUrl.basePath` and re-applies the prefix to every redirect and rewrite it emits, and it scopes the `NEXT_LOCALE` cookie's `path` to the base path — observed on the wire as `set-cookie: NEXT_LOCALE=en; Path=/moviex`. `usePathname()` still answers the locale-free, prefix-free `/my-list`.
+| Request | Matcher |
+|---|---|
+| `/` | MATCH → 307 `/en` |
+| `/en`, `/tr/my-list`, `/ru/movie/603` | MATCH |
+| `/my-list` (no locale) | MATCH → `/en/my-list` |
+| `/api`, `/api/auth/login` | skip ✓ |
+| `/_next/…`, `/_vercel/…`, `/favicon.ico`, `/icon.svg` | skip ✓ |
 
-**The one thing that does *not* come for free is the middleware matcher, and getting it wrong 404s the front door.** See `proxy.ts`: matcher sources are written relative to the base path, because Next concatenates the configured `basePath` onto the front of each `source` before compiling it. The single-entry matcher this app used to have compiles to a regex that requires the separator after `/moviex` — and Next's own `trailingSlash: false` redirect has already turned `/moviex/` into `/moviex` by then. Net effect: **`/moviex` matches nothing, skips next-intl entirely, and 404s instead of redirecting to `/moviex/en`.** The fix is an explicit `'/'` entry alongside the exclusion pattern, which is what next-intl's own docs prescribe for a base path. Measured before and after against Next's `getMiddlewareMatchers`, then confirmed against the built `functions-config-manifest.json` and a live request:
+**History worth knowing if a base path ever comes back:** under `basePath: '/moviex'`, Next prepends the base path to every matcher source before compiling it, and this same single entry compiled to a regex that needed a separator after `/moviex`. Because `trailingSlash: false` had already turned `/moviex/` into `/moviex`, the bare base path matched nothing, skipped next-intl, and **404'd instead of redirecting to `/moviex/en`**. An explicit `'/'` entry fixed it then. It is redundant without a base path and was removed; reintroduce it alongside any future `basePath`.
 
-| Request | Matcher without `'/'` | Matcher with `'/'` |
-|---|---|---|
-| `/moviex` | **skip** ← 404 | MATCH → 307 `/moviex/en` |
-| `/moviex/` | MATCH | MATCH (308 → `/moviex` first) |
-| `/moviex/en/my-list` | MATCH | MATCH |
-| `/moviex/api/auth/login` | skip ✓ | skip ✓ |
+`api` in the exclusion list is load-bearing — it is what hands `/api/*` to the rewrite below instead of redirecting it into a locale (`/en/api/…`).
 
-`api` staying in that exclusion list is now load-bearing rather than cosmetic — it is what hands `/moviex/api/*` to the rewrite below instead of redirecting it into a locale.
-
-### The rewrite: `/moviex/api/*` → Render, server-to-server
+### The rewrite: `/api/*` → Render, server-to-server
 
 ```js
 async rewrites() {
@@ -593,32 +592,24 @@ async rewrites() {
 }
 ```
 
-**`source` is written *without* the base path.** Verified against this Next version's `load-custom-routes.js` rather than assumed: every `source` gets `srcBasePath` prepended, while `destination` is only prefixed when it starts with `/` (i.e. is internal). Writing `/moviex/api/:path*` here would compile to `/moviex/moviex/api/:path*`. The built `routes-manifest.json` confirms the correct output:
-
-```json
-{ "source": "/moviex/api/:path*", "destination": "https://moviex-skr4.onrender.com/:path*" }
-```
-
-**Do not add `basePath: false` either.** That option stops the base path being included *when matching*, so the rule would only fire for a bare `/api/*` this app never requests.
-
-Returned as a plain array, which means `afterFiles`: checked after static files but **before** dynamic routes, so `app/[locale]` can never swallow an API path.
+With no base path, `source` is matched literally. Returned as a plain array, which means `afterFiles`: checked after static files but **before** dynamic routes, so `app/[locale]` can never swallow an API path.
 
 The destination comes from `API_URL` — Next runs `loadEnvConfig` before evaluating `next.config.js` (checked in `server/config.js`), so `.env` is available there. One value drives both the proxy target and the Server Components' direct fetch target, and it means the proxy path can be exercised locally against `http://localhost:3000` instead of only ever in production.
 
 ### The full request path, walked end to end
 
-Browser at `https://habiboff.cc/moviex/en` submits the login form:
+Browser at `https://moviex.habiboff.cc/en` submits the login form:
 
-1. `fetch("/moviex/api/auth/login", { credentials: "include" })` — **relative**, so same-origin with the page. No preflight, no CORS, no third-party cookie.
-2. Vercel: redirects checked (none match), then the middleware matcher — `/moviex/api/…` is excluded, so next-intl never sees it.
-3. `afterFiles` rewrite matches `/moviex/api/:path*` and Vercel proxies **server-side** to `https://moviex-skr4.onrender.com/auth/login`, body and query string intact.
+1. `fetch("/api/auth/login", { credentials: "include" })` — **relative**, so same-origin with the page. No preflight, no CORS, no third-party cookie.
+2. Vercel: redirects checked (none match), then the middleware matcher — `/api/…` is excluded, so next-intl never sees it.
+3. `afterFiles` rewrite matches `/api/:path*` and Vercel proxies **server-side** to `https://moviex-skr4.onrender.com/auth/login`, body and query string intact.
 4. Nest answers `200` with `Set-Cookie: access_token=…; Path=/; HttpOnly; Secure; SameSite=Lax`.
 5. Vercel pipes the response back unchanged, `Set-Cookie` included.
-6. The browser attributes that header to the request it actually made — to `habiboff.cc` — and stores the cookie for that host at `Path=/`. Every later `/moviex/api/*` call is **same-site**, so `Lax` sends it.
+6. The browser attributes that header to the request it actually made — to `moviex.habiboff.cc` — and stores a **host-only** cookie for that host at `Path=/`. Every later `/api/*` call is **same-site**, so `Lax` sends it.
 
-Steps 3–6 were verified against a production build served locally, with real responses from the deployed Render API: `Set-Cookie` passes through intact, POST bodies and multi-param query strings survive, `X-RateLimit-*` headers arrive, `/auth/me` with no cookie is a clean 401, and `/` (outside the base path) is a 404.
+The cookie is host-only (the API sets no `Domain`), so a session from the old `habiboff.cc` host is **not** carried over to the subdomain: everyone signs in once after the move. That is expected, not a bug — and it is also why the session never leaks to the portfolio or any other `*.habiboff.cc` host. Don't add a `Domain` attribute to "fix" it.
 
-`Path=/` rather than `/moviex` is deliberate: the API is a separate origin server-side and knows nothing about where Vercel mounts the app, and `/` is also what Swagger UI at `<api-host>/docs` needs, since that page is served from the API's own origin directly.
+`Path=/` is deliberate: the API is a separate origin server-side and knows nothing about where Vercel mounts the app, and `/` is also what Swagger UI at `<api-host>/docs` needs, since that page is served from the API's own origin directly.
 
 ### Consequence to check before trusting the rate limits: every browser call now arrives from Vercel
 
@@ -628,22 +619,22 @@ There are **two** hops now, not one, so `TRUST_PROXY=1` is probably not the righ
 
 ### Local development
 
-`basePath` is not conditional — dev and production must not diverge on routing — so the app now lives at **`http://localhost:3001/moviex`** locally too.
+The app is at **`http://localhost:3001`** — no base path, same routing as production.
 
 The rewrite works in `next dev` as well, which gives two workable local setups. `apps/web/.env.example` documents both:
 
-- **Mirror production** (the committed default): `NEXT_PUBLIC_API_URL=/moviex/api` with `API_URL` pointing at Render. The browser goes through the local Next server's proxy, so the same code path runs. Caveat: the deployed API issues a `Secure` cookie, which browsers accept over `http://localhost` but this is the one place the setup is not literally identical.
+- **Mirror production** (the committed default): `NEXT_PUBLIC_API_URL=/api` with `API_URL` pointing at Render. The browser goes through the local Next server's proxy, so the same code path runs. Caveat: the deployed API issues a `Secure` cookie, which browsers accept over `http://localhost` but this is the one place the setup is not literally identical.
 - **Run Nest locally**: both variables set to `http://localhost:3000`. The dev API issues a non-`Secure` `Lax` cookie and `localhost:3001` → `localhost:3000` is same-site, so this always works.
 
 ## Testing on a phone / LAN device
 
 This is for testing against a **locally run** API. Point both ends at the dev machine's LAN IP; changing only one leaves requests blocked or unroutable. Find the IP with `ipconfig getifaddr en0` (macOS) or `hostname -I` (Linux).
 
-**Mind the ports:** the **API is on 3000**, the **web app on 3001**. `FRONTEND_URLS` lists *frontend* origins (`:3001`); `API_URL` / `NEXT_PUBLIC_API_URL` point at the *API* (`:3000`). Mixing them up is the usual reason "it works on localhost but not on the phone". And the app is under a base path now, so the frontend URL to open is `http://<LAN-IP>:3001/moviex`.
+**Mind the ports:** the **API is on 3000**, the **web app on 3001**. `FRONTEND_URLS` lists *frontend* origins (`:3001`); `API_URL` / `NEXT_PUBLIC_API_URL` point at the *API* (`:3000`). Mixing them up is the usual reason "it works on localhost but not on the phone". The frontend URL to open is `http://<LAN-IP>:3001` (no base path).
 
 Testing the *deployed* app from a phone needs none of this — it is all one origin, which is the entire point of the proxy above.
 
-1. **`apps/api/.env` — `FRONTEND_URLS`**: a comma-separated list of allowed CORS origins, e.g. `https://habiboff.cc,http://localhost:3001,http://192.168.1.10:3001`. **Deployed, this is now a safety net rather than the load-bearing path** — the browser reaches the API through Vercel's rewrite, which is a server-to-server call and not subject to CORS at all. Keep `https://habiboff.cc` listed anyway so a direct browser call still works, and keep localhost for a locally-run frontend; the section below is still the right reading on how the matching works. Every entry stays valid at once, so adding the phone does not break localhost. `main.ts` passes a **validation function, never a static string**, to `enableCors` — in *every* environment, production included (see below for why that distinction cost a debugging pass). A request with no `Origin` header (curl, health checks, same-origin Swagger UI) is allowed; an unlisted origin gets no allow-header and the browser blocks it. `FRONTEND_URL` (singular) is still read as a fallback. **Matching is on canonical origins, not raw strings**: both sides go through `canonicalOrigin()` (`new URL(x).origin`, lowercased, after stripping wrapping quotes), so a trailing slash, a pasted pair of quotes, a stray path, a differently-cased host or a zero-width space in the env var cannot read as a different origin. It loosens nothing — two genuinely different hosts, or `http` against `https`, still do not match — and an entry with no scheme canonicalises to `null` and is dropped from the allow-list with an error logged, rather than sitting there matching nothing.
+1. **`apps/api/.env` — `FRONTEND_URLS`**: a comma-separated list of allowed CORS origins, e.g. `https://moviex.habiboff.cc,http://localhost:3001,http://192.168.1.10:3001`. **Deployed, this is now a safety net rather than the load-bearing path** — the browser reaches the API through Vercel's rewrite, which is a server-to-server call and not subject to CORS at all. Keep `https://moviex.habiboff.cc` listed anyway so a direct browser call still works, and keep localhost for a locally-run frontend; the section below is still the right reading on how the matching works. Every entry stays valid at once, so adding the phone does not break localhost. `main.ts` passes a **validation function, never a static string**, to `enableCors` — in *every* environment, production included (see below for why that distinction cost a debugging pass). A request with no `Origin` header (curl, health checks, same-origin Swagger UI) is allowed; an unlisted origin gets no allow-header and the browser blocks it. `FRONTEND_URL` (singular) is still read as a fallback. **Matching is on canonical origins, not raw strings**: both sides go through `canonicalOrigin()` (`new URL(x).origin`, lowercased, after stripping wrapping quotes), so a trailing slash, a pasted pair of quotes, a stray path, a differently-cased host or a zero-width space in the env var cannot read as a different origin. It loosens nothing — two genuinely different hosts, or `http` against `https`, still do not match — and an entry with no scheme canonicalises to `null` and is dropped from the allow-list with an error logged, rather than sitting there matching nothing.
 
 ### The production CORS bug: a static `origin` asserts a value the caller never sent
 
@@ -676,7 +667,7 @@ Deployed on Render with the frontend on Vercel, every browser call failed with `
 | Production | **`lax`** | `true` |
 | Development | **`lax`** | `false` |
 
-`sameSite` is now a **constant**; only `secure` still follows the environment (HTTPS in production, plain HTTP locally where `Secure` would drop the cookie entirely). Every request that carries this cookie is same-site in both environments — `habiboff.cc` → `habiboff.cc/moviex/api/*` through the Vercel rewrite, and `localhost:3001` → `localhost:3000` locally.
+`sameSite` is now a **constant**; only `secure` still follows the environment (HTTPS in production, plain HTTP locally where `Secure` would drop the cookie entirely). Every request that carries this cookie is same-site in both environments — `moviex.habiboff.cc` → `moviex.habiboff.cc/api/*` through the Vercel rewrite, and `localhost:3001` → `localhost:3000` locally.
 
 **This reversed the previous production `sameSite: 'none'`, and the history is why the rule is worth stating rather than just the value.** Deployed directly, the frontend and API were on genuinely different sites — `*.vercel.app` and `*.onrender.com` — so every call was cross-site, and under `lax` the browser **stored the cookie and then declined to attach it to `fetch()`**; only top-level navigations carried it.
 
@@ -691,12 +682,12 @@ Deployed on Render with the frontend on Vercel, every browser call failed with `
 
 2. **`apps/web/.env` — `NEXT_PUBLIC_API_URL`**: for this scenario, the LAN IP, e.g. `http://192.168.1.10:3000`. A phone cannot resolve `localhost` to your machine, and the typeahead and every auth call fetch from the **browser**, so they use this public variable rather than the server-only `API_URL`. **`NEXT_PUBLIC_*` is inlined at build time — restart the dev server after changing it**, or the old value stays compiled into the client bundle.
 
-**The two variables are no longer the same value, and `lib/api.ts` resolves them separately.** `NEXT_PUBLIC_API_URL` is what the *browser* calls — the relative `/moviex/api` in production, an absolute host when talking to a local API directly. `API_URL` is what the *server* calls and must always be absolute: `fetch("/moviex/api/…")` from a Server Component has no origin to resolve against and throws. So `API_URL` takes priority on the server precisely because the public one is a relative path there. The export is picked once per bundle on `typeof window`, which is why each side gets its own answer.
+**The two variables are no longer the same value, and `lib/api.ts` resolves them separately.** `NEXT_PUBLIC_API_URL` is what the *browser* calls — the relative `/api` in production, an absolute host when talking to a local API directly. `API_URL` is what the *server* calls and must always be absolute: `fetch("/api/…")` from a Server Component has no origin to resolve against and throws. So `API_URL` takes priority on the server precisely because the public one is a relative path there. The export is picked once per bundle on `typeof window`, which is why each side gets its own answer.
 
 > **When the browser talks to the API directly, the API host must match the host the browser is on.** This is not a preference — it is what makes auth work at all. The session is a `SameSite=Lax` cookie, so a browser at `http://localhost:3001` calling an API at `http://192.168.31.53:3000` is a **cross-site** request: the cookie is never stored or sent, `/auth/me` answers 401 forever, and the whole app looks signed out — while `POST /auth/login` still returns 200 with a `Set-Cookie` header, which is exactly what makes this so hard to spot. It cost a full debugging pass once.
 >
-> - Working on the dev machine → `NEXT_PUBLIC_API_URL=http://localhost:3000`, browse `http://localhost:3001/moviex`.
-> - Testing from a phone → `NEXT_PUBLIC_API_URL=http://<LAN-IP>:3000`, and open the frontend at `http://<LAN-IP>:3001/moviex` too — **not** `localhost`.
+> - Working on the dev machine → `NEXT_PUBLIC_API_URL=http://localhost:3000`, browse `http://localhost:3001`.
+> - Testing from a phone → `NEXT_PUBLIC_API_URL=http://<LAN-IP>:3000`, and open the frontend at `http://<LAN-IP>:3001` too — **not** `localhost`.
 >
 > `lib/api.ts` warns in the console (dev only) when the two hosts disagree, so the next occurrence is loud rather than silent. **A relative value is exempt from that check** — it is the proxy path, same-origin by construction, with no host to compare.
 
@@ -769,7 +760,7 @@ Where they live, so a new one can be checked against the same list:
 - **Cached one hour** (`next: { revalidate: 3600 }`), deliberately unlike search/discover's `cache: 'no-store'`: a single movie is a stable resource, while result lists depend on a query and shift with TMDB popularity. Pick the cache policy from whether the resource is stable, not by habit.
 - **Elements overlapping a backdrop need their own separation treatment.** A film's backdrop and poster come from the same palette, so the poster's top half dissolves into the band it overlaps. Two things fix it and both are required: a `--mx-hero-overlay` (`rgba(0,0,0,0.42)`) layer above the image but below the controls — which also makes white button text readable over bright backdrops — and a **light hairline** `--mx-poster-edge` plus a lift shadow on the poster. A page-background-coloured border does *not* work: it separates the poster from the page, not from the backdrop. The same applies to anything else placed over artwork later.
 - **The share button opens `components/movie/SharePopover.tsx` — a small popover with the link and a Copy button, not a direct copy and not the Web Share API.** `navigator.share` opens the *platform's* sheet, which is absent on most desktops, so the same button would mean two different interactions; one popover behaves the same everywhere. Deliberately just the link — no per-network buttons.
-  - **The URL is `window.location.href`, read when the popover opens, never assembled.** The app is served under a `/moviex` base path inside a locale prefix (`habiboff.cc/moviex/tr/movie/603`), so anything rebuilt from the route would have to reproduce both and would be wrong the next time either changed. Reading it on the click rather than in an effect also means the panel's first render is already correct.
+  - **The URL is `window.location.href`, read when the popover opens, never assembled.** The route alone knows neither the host nor the locale prefix (`moviex.habiboff.cc/tr/movie/603`), so anything rebuilt from it would have to reproduce both and would be wrong the next time either changed — the app has already moved once, from `habiboff.cc/moviex` to its own subdomain. Reading it on the click rather than in an effect also means the panel's first render is already correct.
   - **It is not `FilterPopover`**, whose trigger is a labelled chip with a chevron baked in; this one is the square icon button in the action row. The panel classes and the mousedown/touchstart/Escape dismissal are copied from there on purpose so the two read as the same object — if that shell ever takes a custom trigger, fold this into it.
   - **Its edge-collision default is the mirror of `FilterPopover`'s: right, not left.** The trigger sits at `ml-auto`, so left-anchoring would put the panel off the side of the window on *every* open; the measured check flips to the left edge only when hanging right would overflow. Same `max-w-[calc(100vw-1rem)]` clamp for a viewport narrower than the panel.
   - **The link renders in a `<p>`, not a read-only `<input>`** — an input would be one line needing horizontal scroll, and any field under 16px makes iOS zoom in and never back (see the form-field note above), a constraint a non-editable box has no reason to inherit. `break-all` is required: a URL is one unbroken word, so ordinary wrapping would run it out of the box. `select-all` makes one tap select the whole thing, which is the manual fallback when `navigator.clipboard` is missing — it needs a secure context, so it is simply undefined over plain HTTP on a LAN IP, which is how this app gets tested from a phone. The copy failure stays silent for that reason.
@@ -795,7 +786,7 @@ The rule for any new TMDB-derived field:
 - **`PaginatedMoviesResponse`** (`packages/shared-types/src/movie.ts`) is the shared envelope for discover *and* search — they differ in how results are chosen, not in what a page looks like. `DiscoverMoviesResponse` remains as a deprecated alias. This is why `/search` reuses Discover's `MovieGrid`, `MovieList`, `ViewToggle` and `Pagination` unchanged rather than growing parallel components; `Pagination` takes a `pathname` prop so it can point at `/search`.
 - **`/search` redirects to `DISCOVER_HREF` when `q` is missing or blank** — there is no meaningful search page without a query. Note Discover lives at **`/`**, not `/discover`; use the `DISCOVER_HREF` constant rather than hard-coding either.
 - **Typeahead debounce pattern** (`components/search/SearchTypeahead.tsx` + `hooks/use-debounced-value.ts`): the raw input stays in the component's own state so a keystroke never re-renders the navbar, and the **debounced** value — never the raw one — goes into the TanStack Query key. That is what actually collapses typing into one request; debouncing only the UI would still key a new query per keystroke, and a superseded key is abandoned automatically. `enabled` gates on the debounced length (`SEARCH_MIN_QUERY_LENGTH`). Keyboard nav only moves an index in state.
-- **`NEXT_PUBLIC_API_URL` must be set in any deployed environment**, and deployed it is the relative `/moviex/api`, not a host. `lib/api.ts` is called from both Server Components (which use the absolute `API_URL`) and, via the typeahead, the **browser** — where a server-only var is `undefined`. The public variable is the one Next inlines into the client bundle.
+- **`NEXT_PUBLIC_API_URL` must be set in any deployed environment**, and deployed it is the relative `/api`, not a host. `lib/api.ts` is called from both Server Components (which use the absolute `API_URL`) and, via the typeahead, the **browser** — where a server-only var is `undefined`. The public variable is the one Next inlines into the client bundle.
 - Poster thumbnails use `next/image`, which is why `next.config.js` allowlists `image.tmdb.org` under `images.remotePatterns`. Any new remote image host needs adding there or it will not render.
 
 ### Discover filters live in the URL
