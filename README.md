@@ -4,7 +4,7 @@ A personal movie discovery and tracking app — browse, search, and keep a
 watchlist of what you want to watch and what you've already seen, powered
 by [TMDB](https://www.themoviedb.org/).
 
-**Live:** [habiboff.cc/moviex](https://habiboff.cc/moviex)
+**Live:** [moviex.habiboff.cc](https://moviex.habiboff.cc)
 
 ---
 
@@ -76,11 +76,11 @@ tracking rather than critique.
 
 **Deployment:** [Vercel](https://vercel.com/) (frontend) +
 [Render](https://render.com/) (backend), served together from a single
-custom domain via a path-based reverse proxy (`habiboff.cc/moviex/api/*`
-→ the Render backend) — this keeps every request same-origin from the
-browser's perspective, which matters for cookie-based auth working
-reliably across browsers, including Safari's strict cross-site cookie
-policies.
+custom subdomain via a path-based reverse proxy
+(`moviex.habiboff.cc/api/*` → the Render backend) — this keeps every
+request same-origin from the browser's perspective, which matters for
+cookie-based auth working reliably across browsers, including Safari's
+strict cross-site cookie policies.
 
 ## Project Structure
 

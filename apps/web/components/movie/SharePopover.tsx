@@ -33,10 +33,11 @@ const COPIED_FEEDBACK_MS = 2000;
  * same button. One popover behaves the same everywhere.
  *
  * **The URL is read from `window.location.href` at the moment the popover
- * opens, never assembled.** This app is served through a `/moviex` base path
- * under a locale prefix (`habiboff.cc/moviex/tr/movie/603`), so anything built
- * from the route alone would have to reproduce both, and would be wrong the
- * next time either changes. The address bar already knows the answer.
+ * opens, never assembled.** The route alone does not know the host or the
+ * locale prefix (`moviex.habiboff.cc/tr/movie/603`), so anything built from it
+ * would have to reproduce both, and would be wrong the next time either
+ * changes — the app has already moved once, from `habiboff.cc/moviex` to its
+ * own subdomain. The address bar already knows the answer.
  *
  * It is **not** `FilterPopover`, whose trigger is a labelled chip with a
  * chevron baked in — this one is a square icon button in the action row. The

@@ -29,6 +29,12 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
+      // Omitting fields with `const { password: _password, ...rest } = user`
+      // is the intended pattern (see `AuthService.issueSession`).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { ignoreRestSiblings: true },
+      ],
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },

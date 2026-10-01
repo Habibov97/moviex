@@ -14,10 +14,6 @@ import { routing } from './i18n/routing';
  * `/en/my-list` (or the visitor's detected language), so no route in the app
  * has to cope with a missing prefix.
  *
- * next-intl is basePath-aware: it reads `request.nextUrl.basePath` and re-adds
- * the prefix to every redirect and rewrite it produces, and scopes the
- * `NEXT_LOCALE` cookie's `path` to it. Nothing here has to do that by hand.
- *
  * It is **not** an auth guard — `/my-list` still protects itself client-side
  * via `useCurrentUser`, because the session lives in an httpOnly cookie the
  * page reads at render time. See the My List notes in CLAUDE.md.
@@ -26,29 +22,25 @@ export default createMiddleware(routing);
 
 export const config = {
   /*
-   * Matcher sources are written **relative to the basePath** — Next prepends
-   * `basePath` to each one before compiling it (verified against this version's
-   * `getMiddlewareMatchers`, which does `source = \`${basePath}${source}\``).
+   * Everything except Next's internals, the API proxy, and files with an
+   * extension. `_vercel` covers deployment probes; the extension test is what
+   * keeps `favicon.ico` and the fonts from being redirected into a locale that
+   * does not serve them. This is the shape next-intl documents for an app with
+   * no `basePath`.
    *
-   * Hence two entries, not one:
+   * **One entry covers the front door.** `.*` may be empty, so `/` matches and
+   * is redirected to `/en` (or the detected language). Checked against this
+   * Next version's `getMiddlewareMatchers`: `/`, `/en`, `/tr/my-list` and a
+   * bare `/my-list` all MATCH; `/api`, `/api/auth/login`, `/_next/…`,
+   * `/_vercel/…` and `/favicon.ico` skip. An explicit `'/'` entry used to sit
+   * beside it, and was required only while the app lived under
+   * `basePath: '/moviex'` — the compiled pattern then needed a separator after
+   * `/moviex`, so the bare base path matched nothing and 404'd. If a base path
+   * is ever reintroduced, that entry has to come back with it.
    *
-   * 1. `'/'` — the root of the basePath. Without it, `/moviex` (no trailing
-   *    slash) matches nothing: the pattern below compiles to
-   *    `^/moviex(?:/…)?(?:/(…))…$`, which needs the separator, and Next's own
-   *    `trailingSlash: false` redirect has already turned `/moviex/` into
-   *    `/moviex`. The result is that the site's front door skips next-intl
-   *    entirely and 404s instead of redirecting to `/moviex/en`. Measured, not
-   *    guessed — this entry is the difference between MATCH and skip on
-   *    `/moviex`. next-intl documents the same requirement for base paths.
-   * 2. Everything else except Next's internals, the API proxy, and files with
-   *    an extension. `_vercel` covers deployment probes; the extension test is
-   *    what keeps `favicon.ico` and the fonts from being redirected into a
-   *    locale that does not serve them.
-   *
-   * `api` staying in the exclusion list is load-bearing now rather than
-   * cosmetic: it is what keeps `/moviex/api/*` out of next-intl's hands so the
-   * `rewrites()` proxy in `next.config.js` gets it. Without it every API call
-   * would be redirected to `/moviex/en/api/…`.
+   * `api` in the exclusion list is load-bearing: it is what keeps `/api/*` out
+   * of next-intl's hands so the `rewrites()` proxy in `next.config.js` gets it.
+   * Without it every API call would be redirected to `/en/api/…`.
    */
-  matcher: ['/', '/((?!api|_next|_vercel|.*\\..*).*)'],
+  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
 };

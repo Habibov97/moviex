@@ -17,7 +17,7 @@ export const ACCESS_TOKEN_COOKIE = 'access_token';
  *
  * **`sameSite` is `lax` in every environment, and the reason it can be is the
  * Vercel proxy.** The browser only ever talks to the frontend's own origin:
- * `habiboff.cc/moviex/api/*` is rewritten server-side by Next to
+ * `moviex.habiboff.cc/api/*` is rewritten server-side by Next to
  * `moviex-skr4.onrender.com/*` (see `rewrites()` in `apps/web/next.config.js`),
  * so this cookie is set and sent on requests the browser considers same-site.
  * `lax` is the stricter, safer default and restores the CSRF protection that
@@ -56,10 +56,10 @@ export const accessTokenCookieOptions = (): CookieOptions => ({
    */
   sameSite: 'lax',
   /*
-   * Root, not the frontend's `/moviex` base path. The API is a separate origin
-   * server-side and knows nothing about where Vercel mounts the app; `/` is
-   * also what Swagger UI at `<api-host>/docs` needs, since that page is served
-   * from this origin directly.
+   * Root. The API is a separate origin server-side and knows nothing about
+   * where Vercel mounts the app (it once sat under a `/moviex` sub-path, and
+   * `/` was right then too); `/` is also what Swagger UI at `<api-host>/docs`
+   * needs, since that page is served from this origin directly.
    */
   path: '/',
 });

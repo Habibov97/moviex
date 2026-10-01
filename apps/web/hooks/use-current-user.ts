@@ -88,9 +88,8 @@ export function useLogoutMutation() {
   /*
    * From `@/i18n/navigation`, never `next/navigation` — that is what keeps the
    * active language on the way out. `DISCOVER_HREF` is the locale-free `/`, and
-   * this router turns it into `/tr` for someone browsing in Turkish. Next then
-   * adds the `/moviex` base path on top, so the destination is
-   * `/moviex/tr`. A hard-coded path would get both of those wrong.
+   * this router turns it into `/tr` for someone browsing in Turkish. A
+   * hard-coded path would get that wrong.
    */
   const router = useRouter();
 

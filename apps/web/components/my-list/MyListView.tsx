@@ -153,8 +153,8 @@ export function MyListView({ genres = [] }: MyListViewProps) {
    * visit to Discover is silent.
    *
    * `router` from `@/i18n/navigation` and `DISCOVER_HREF` rather than a literal
-   * path: the locale prefix and the `/moviex` base path are both added for us,
-   * so someone browsing in Turkish lands on `/moviex/tr`. `replace`, not
+   * path: the locale prefix is added for us, so someone browsing in Turkish
+   * lands on `/tr`. `replace`, not
    * `push` — Back should not return to a page that will only bounce again.
    *
    * This runs in an effect rather than during render because it is a side
