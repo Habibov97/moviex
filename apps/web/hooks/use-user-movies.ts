@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AddUserMovieInput,
+  ListShare,
   MovieSummary,
   UserMovie,
   UserMovieStatus,
@@ -203,4 +204,57 @@ export function snapshotOf(
     releaseYear: movie.releaseYear,
     primaryGenreId: movie.primaryGenreId ?? null,
   };
+}
+
+/**
+ * The caller's list-share link token (`null` while not shared).
+ *
+ * User-owned, so it lives under `userMoviesKey(...)` like everything else
+ * here — a different account is a different cache entry, and login's
+ * `removeQueries({ queryKey: USER_MOVIES_KEY })` reaches it by prefix. Gated
+ * on `isSignedIn` for the same reason `useMovieStatuses` is: `enabled: false`
+ * alone would keep rendering the previous account's link after a sign-out.
+ *
+ * Fetched only once the share panel opens (`enabled`), not on every My List
+ * visit.
+ */
+export function useListShare(enabled: boolean) {
+  const { user, isSignedIn } = useCurrentUser();
+
+  const query = useQuery({
+    queryKey: listShareKey(user?.sub),
+    queryFn: () => request<ListShare>("/list-share"),
+    enabled: isSignedIn && enabled,
+  });
+
+  return {
+    token: isSignedIn ? (query.data?.token ?? null) : null,
+    isLoading: isSignedIn && enabled && query.isPending,
+    isError: query.isError,
+  };
+}
+
+const listShareKey = (userId: number | undefined) =>
+  [...userMoviesKey(userId), "share"] as const;
+
+/**
+ * Turn sharing on (idempotent on the API) or off. Both write the answer
+ * straight into the cache — the response *is* the new state, so there is
+ * nothing to refetch.
+ */
+export function useSetListShare() {
+  const queryClient = useQueryClient();
+  const { user } = useCurrentUser();
+
+  return useMutation({
+    mutationKey: [...USER_MOVIES_KEY, "share"],
+    mutationFn: async (enabled: boolean): Promise<ListShare> =>
+      enabled
+        ? request<ListShare>("/list-share", { method: "POST" })
+        : request<void>("/list-share", { method: "DELETE" }).then(() => ({
+            token: null,
+          })),
+    onSuccess: (share) =>
+      queryClient.setQueryData(listShareKey(user?.sub), share),
+  });
 }

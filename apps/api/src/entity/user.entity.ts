@@ -4,6 +4,7 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -13,6 +14,9 @@ export enum UserRole {
 }
 
 @Entity('users')
+// Named, so the migration that creates it and this declaration agree — an
+// auto-generated name would make `migration:generate` want to recreate it.
+@Unique('UQ_users_list_share_token', ['listShareToken'])
 export class UserEntity extends BaseEntity {
   @PrimaryGeneratedColumn('increment')
   id!: number;
@@ -46,6 +50,23 @@ export class UserEntity extends BaseEntity {
    */
   @Column({ type: 'varchar', nullable: true })
   recoveryCodeHash!: string | null;
+
+  /**
+   * The secret part of this user's public list link, `/shared/<token>`, or
+   * `null` while the list is not shared.
+   *
+   * 128 random bits (`randomBytes(16)`, base64url → 22 characters), so the
+   * link cannot be guessed or enumerated — it is the only thing standing
+   * between a list and the public, there is no other permission check on the
+   * public route. Clearing it is how sharing is revoked, and a later share
+   * mints a new value, so an old link never comes back to life.
+   *
+   * **`select: false`**, so ordinary user queries never load it: `login`
+   * returns the user row (minus the secrets it strips), and this should not
+   * ride along in that response. The share service selects it explicitly.
+   */
+  @Column({ type: 'varchar', length: 32, nullable: true, select: false })
+  listShareToken!: string | null;
 
   @Column({
     type: 'enum',

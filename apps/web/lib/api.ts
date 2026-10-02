@@ -1,8 +1,10 @@
+import { cache } from "react";
 import type {
   Genre,
   Locale,
   MovieDetail,
   PaginatedMoviesResponse,
+  SharedList,
 } from "@moviex/shared-types";
 
 /**
@@ -323,3 +325,37 @@ export async function getMovieDetail(
 
   return (await response.json()) as MovieDetail;
 }
+
+/**
+ * A shared list, by its link token — the public `/shared/<token>` page.
+ *
+ * `no-store`: the owner can add, remove or stop sharing at any moment, and a
+ * revoked link must stop working on the next visit rather than an hour later.
+ * Not locale-dependent either: the entries are snapshots from our own database,
+ * so there is no `lang` param.
+ *
+ * Returns `null` on 404 — malformed, unknown and revoked tokens look identical
+ * from here by design — so the page can explain instead of erroring; anything
+ * else throws into `error.tsx` like every other fetch here.
+ *
+ * Wrapped in React's `cache()` because the page and its `generateMetadata`
+ * both need it: one upstream request per render, not two.
+ */
+export const getSharedList = cache(
+  async (token: string): Promise<SharedList | null> => {
+    const response = await fetchWithRetry(
+      `${API_URL}/shared-lists/${encodeURIComponent(token)}`,
+      { cache: "no-store" },
+    );
+
+    if (response.status === 404) return null;
+
+    if (!response.ok) {
+      throw new Error(
+        `GET /shared-lists/:token responded ${response.status} ${response.statusText}`,
+      );
+    }
+
+    return (await response.json()) as SharedList;
+  },
+);

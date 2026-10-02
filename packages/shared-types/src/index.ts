@@ -3,5 +3,6 @@ export * from './genre';
 export * from './locale';
 export * from './movie';
 export * from './recovery';
+export * from './shared-list';
 export * from './user';
 export * from './user-movie';
