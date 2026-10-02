@@ -165,6 +165,12 @@
     "body": "Something went wrong while reaching our servers. Check your connection and try again.",
     "tryAgain": "Try again"
   },
+  "serverStatus": {
+    "waking": "Waking up the server — this can take up to a minute.",
+    "ready": "Server is ready.",
+    "unavailable": "The server isn't responding. Please try again in a few minutes.",
+    "dismiss": "Dismiss"
+  },
   "auth": {
     "signInOrCreate": "Sign in or create an account",
     "logOut": "Log out",

@@ -82,6 +82,12 @@ request same-origin from the browser's perspective, which matters for
 cookie-based auth working reliably across browsers, including Safari's
 strict cross-site cookie policies.
 
+The backend runs on Render's free tier, which sleeps after 15 minutes
+idle. A scheduled GitHub Actions workflow
+(`.github/workflows/keep-awake.yml`) pings its `/health` endpoint every
+10 minutes to keep it warm, and the frontend shows a small "waking up"
+notice in the rare case a visitor still catches a cold start.
+
 ## Project Structure
 
 ```

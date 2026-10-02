@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { HealthController } from './health/health.controller';
 import { AuthModule } from './auth/auth.module';
 import { TmdbModule } from './tmdb/tmdb.module';
 import { UserMoviesModule } from './user-movies/user-movies.module';
@@ -45,7 +46,7 @@ import { DEFAULT_LIMIT, THROTTLE_WINDOW_MS } from './throttle.constants';
     TmdbModule,
     UserMoviesModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     /*

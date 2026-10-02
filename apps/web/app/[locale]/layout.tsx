@@ -12,6 +12,7 @@ import { routing } from "@/i18n/routing";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { ServerStatus } from "@/components/layout/ServerStatus";
 import { getGenres } from "@/lib/api";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
@@ -97,6 +98,7 @@ export default async function LocaleLayout({
             <Navbar genres={genres} />
             <div className="flex-1">{children}</div>
             <Footer />
+            <ServerStatus />
           </Providers>
         </NextIntlClientProvider>
       </body>
