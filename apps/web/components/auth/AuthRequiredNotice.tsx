@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { IconLock, IconX } from "@tabler/icons-react";
 
 import { LoginRegisterModal } from "@/components/auth/LoginRegisterModal";
+import { useBackdropDismiss } from "@/hooks/use-backdrop-dismiss";
 
 export type AuthRequiredNoticeProps = {
   isOpen: boolean;
@@ -66,12 +67,14 @@ export function AuthRequiredNotice({
     };
   }, [isOpen, onDismiss]);
 
+  const backdropProps = useBackdropDismiss(onDismiss);
+
   if (!isOpen) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-mx-backdrop p-4 font-mx"
-      onClick={onDismiss}
+      {...backdropProps}
     >
       <div
         role="dialog"

@@ -27,6 +27,7 @@ import {
 } from "@moviex/shared-types";
 
 import { cn } from "@/lib/utils";
+import { useBackdropDismiss } from "@/hooks/use-backdrop-dismiss";
 import { LogoMark } from "@/components/shared/LogoMark";
 import {
   AuthError,
@@ -224,6 +225,15 @@ export function LoginRegisterModal({
     };
   }, [isOpen, onClose]);
 
+  /*
+   * Backdrop click-to-close, gated by the same ref as Escape. Called above the
+   * early return (it is a hook), which is why it reads `canDismissRef` rather
+   * than `canDismiss`, computed further down.
+   */
+  const backdropProps = useBackdropDismiss(() => {
+    if (canDismissRef.current) onClose();
+  });
+
   if (!isOpen) return null;
 
   const isSaveCode = mode === "saveCode" && savedCode !== null;
@@ -271,7 +281,10 @@ export function LoginRegisterModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-mx-backdrop p-4 font-mx"
-      onClick={canDismiss ? onClose : undefined}
+      // Only a press that starts *and* ends on the backdrop closes it — so
+      // drag-selecting text in a field and releasing outside the panel no
+      // longer closes the modal. See `useBackdropDismiss`.
+      {...backdropProps}
     >
       <div
         role="dialog"
