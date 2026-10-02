@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { IconX } from "@tabler/icons-react";
 import type { MovieTrailer } from "@moviex/shared-types";
 
+import { useBackdropDismiss } from "@/hooks/use-backdrop-dismiss";
+
 /**
  * YouTube player in a modal. Same conventions as `LoginRegisterModal`: Escape
  * and backdrop click close it, and body scroll is locked while it is open.
@@ -36,6 +38,8 @@ export function TrailerModal({
     };
   }, [isOpen, onClose]);
 
+  const backdropProps = useBackdropDismiss(onClose);
+
   if (!isOpen) return null;
 
   return (
@@ -43,7 +47,7 @@ export function TrailerModal({
       role="dialog"
       aria-modal="true"
       aria-label={trailer.name}
-      onClick={onClose}
+      {...backdropProps}
       className="fixed inset-0 z-50 flex items-center justify-center bg-mx-backdrop p-4 font-mx"
     >
       <div
