@@ -39,6 +39,10 @@ tracking rather than critique.
   metadata, pulled from TMDB in a single request
 - **My List** — personal Watchlist and Watched tabs with stats (counts,
   top genre) and quick actions (mark watched, remove)
+- **Shared lists** — share your whole list (watchlist and watched) as a
+  private link; anyone with it can view the list, and signed-in visitors
+  can add its movies to their own watchlist. Sharing can be revoked at
+  any time
 - **Authentication** — email/password accounts with a one-time
   **recovery code** shown at signup (used to reset a forgotten password;
   there is no email-based verification or password reset — the recovery

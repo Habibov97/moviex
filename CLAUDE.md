@@ -122,11 +122,11 @@ The cost is one redirect on `/` → `/en` for a first visit. That is the trade a
 
 ### Message files
 
-`messages/en.json`, `tr.json`, `ru.json` — one file per language, same key structure, grouped by feature: `meta`, `nav`, `language`, `discover`, `detail`, `search`, `myList`, `footer`, `errors`, `serverStatus`, `auth`. These mirror the `*_COPY` objects they replaced, with search split out of `discover` into its own namespace.
+`messages/en.json`, `tr.json`, `ru.json` — one file per language, same key structure, grouped by feature: `meta`, `nav`, `language`, `discover`, `detail`, `search`, `myList`, `sharedList`, `footer`, `errors`, `serverStatus`, `auth`. These mirror the `*_COPY` objects they replaced, with search split out of `discover` into its own namespace.
 
 - Server Components: `getTranslations('discover')` / `getFormatter()`. Client Components: `useTranslations('discover')` / `useFormatter()`. Getting these the wrong way round is a runtime error, not a type error.
 - **Option labels are derived from ids**, never stored beside them: `SORT_OPTIONS` holds `{ id, sortBy }` and the label is `t(\`sort.${id}\`)`. So `?sort=rating` and "Highest rated" cannot drift, and a new option is one entry plus three keys.
-- Key parity is checkable: flatten all three files and diff the key sets. They must be identical — 216 keys as of writing.
+- Key parity is checkable: flatten all three files and diff the key sets. They must be identical — 234 keys as of writing.
 
 ### Plurals and numbers go through ICU, not string concatenation
 
@@ -197,7 +197,7 @@ Turbopack does not reliably invalidate its build cache when a `messages/*.json` 
 
 ### Navigation only links to routes that exist — and the footer links to nothing at all
 
-`NAV_LINKS` in `lib/constants/navigation.ts` is the **single list of in-app destinations, and the navbar is the only thing that renders it.** The whole app is four routes — `/`, `/my-list`, `/search`, `/movie/[tmdbId]` — and only the first two are linkable without context, which is exactly what the array holds. Discover is referenced there as `DISCOVER_HREF` rather than a literal `'/'`, since that constant is already the shared answer for "where is Discover" (`/search`'s blank-query redirect uses it too); `/my-list` has no such constant and is written once, in `NAV_LINKS`.
+`NAV_LINKS` in `lib/constants/navigation.ts` is the **single list of in-app destinations, and the navbar is the only thing that renders it.** The whole app is five routes — `/`, `/my-list`, `/search`, `/movie/[tmdbId]`, `/shared/[token]` — and only the first two are linkable without context, which is exactly what the array holds. `/shared/[token]` in particular is reached only from a link someone sent, so it never belongs in the navbar. Discover is referenced there as `DISCOVER_HREF` rather than a literal `'/'`, since that constant is already the shared answer for "where is Discover" (`/search`'s blank-query redirect uses it too); `/my-list` has no such constant and is written once, in `NAV_LINKS`.
 
 **When adding, renaming or removing a route, check it against `NAV_LINKS`. Don't add a link for a page that does not exist yet** — a link to a planned route is a 404 with a TODO beside it, and the TODO is what gets forgotten. Nothing fails loudly here: a dead `<Link>` only breaks when someone clicks it.
 
@@ -262,6 +262,40 @@ Consumed in `DiscoverSection` — the Discover screen's existing client boundary
   - `useLibraryActions()` **no longer takes a `genres` option.** It only existed to resolve that name before saving; saving now needs no genre list at all, since `MovieSummary` already carries `genreIds` (the detail page passes `movie.genres[0].id`).
 - **Cards here are not Discover cards.** No permanent overlay button on the face — actions appear on hover (`[@media(hover:none)]:hidden`), with a `⋯` menu as the touch-device counterpart (`[@media(hover:hover)]:hidden`). The watched badge is the one thing that stays visible.
 - The page renders **client-side only**: `useSearchParams` (tab + sort) opts the subtree out of static prerendering, so its HTML is empty and everything renders after hydration. Expected for a per-user page — but it means `curl` shows nothing; check it in a browser.
+
+## Shared lists (`/shared/[token]`)
+
+A user can share their **whole** list — both tabs — as a link. Anyone holding the link can view it, no account needed; adding one of its films to your *own* watchlist needs to be signed in. Sharing is **off until the owner turns it on** from My List's "Share list" button, and can be revoked there at any time.
+
+| Route | Auth | Notes |
+|---|---|---|
+| `GET /list-share` | owner | `{ token }`, `null` while not shared. |
+| `POST /list-share` | owner | Turns sharing on. **Idempotent** — returns the existing token, so a double click never kills a link someone already copied. 200, not 201. |
+| `DELETE /list-share` | owner | Revokes. 204. Sharing again mints a **new** token, so a revoked link never comes back. |
+| `GET /shared-lists/:token` | **public** | `{ userName, movies }`. Malformed, unknown and revoked tokens all answer the same **404**. |
+
+- **The token is the whole permission check**, so it is 128 random bits (`randomBytes(16)` → 22 base64url characters) from `node:crypto`. There is nothing else between a list and whoever has the link; that is the intended model ("send it to a friend"), and revocation is the control.
+- **`users.listShareToken`** (`varchar(32)`, nullable, unique as `UQ_users_list_share_token`), added by `1790935200000-AddListShareToken`. Purely additive, no backfill — `null` is "not shared", which is every account until its owner chooses otherwise. **It is `select: false` on the entity**, so it never rides along on an ordinary user query; `login` returns the user row, and verified on the wire: the token is not in that response. `SharedListsService` selects it explicitly.
+- **The public payload is an allow-list**: `userName` plus, per film, `tmdbId`, `status`, `title`, `posterUrl`, `releaseYear`, `primaryGenreId`, `createdAt`. No email, no user id, no row id. `SharedListMovie` in `@moviex/shared-types` is that shape and the DTOs `implements` it — add a field there deliberately, because anyone with the link can read it.
+- **Owner routes live at `/list-share`, not `/user-movies/share`.** `UserMoviesController` has `DELETE /user-movies/:tmdbId` behind `ParseIntPipe`; a fixed `share` segment there would only work by declaration order.
+- **The public route is throttled like everything else (100/min per route per IP)** — but the page is server-rendered, so in production every visitor's request comes from the Next server's address and shares that bucket. The same known limitation as `/tmdb/*`; see the throttler section.
+- **The copied link has no locale prefix** — `https://moviex.habiboff.cc/shared/<token>`, built from `window.location.origin` plus `sharedListHref()`. This is the one deliberate exception to "every URL carries its locale": the entries are snapshots from our own database, so the locale changes only the chrome, and that should be the *friend's* language, not the sharer's. The proxy redirects the bare path to the visitor's detected locale (verified: `Accept-Language: tr` → `/tr/shared/<token>`).
+
+### The page
+
+- **Server Component, like Discover**: `getSharedList(token)` (`no-store`, so a revoked link is dead on the next load; wrapped in React `cache()` so the page and `generateMetadata` share one fetch) plus `getGenres(locale)`. `null` renders an in-page "This list isn't available" with a way back to Discover — someone followed a link a friend sent, and a bare framework 404 would read as the site being broken. `robots: noindex, nofollow`.
+- **Two people's state on one screen, kept apart.** The tabs are the **owner's** statuses. The badge on each card is the **viewer's** own, from `useMovieStatuses` — the exact Discover behaviour: a film the viewer already has shows "In list"/"Watched" and no button; anything else shows Add. Never copy the owner's status onto the card.
+- **Cards are Discover's `MovieGrid`**, fed `MovieSummary`s mapped from the entries (`rating: null` — the "unrated" case the card already handles — and `genreIds: [primaryGenreId]`). Not `MyListCard`: that carries the owner's actions (mark watched, remove), which mean nothing to a visitor. Add goes through `useLibraryActions().runCardAction`, so the signed-out branch is the same login modal every other card opens, and the film lands in the viewer's list with its genre id.
+- When the signed-in viewer *is* the owner (`userName` is unique), a one-line note says this is what people with the link see.
+- `ListTab` (`components/my-list/ListTab.tsx`) is the tab used by both My List and this page — it used to be private to `MyListView`.
+
+### The owner's control
+
+`components/my-list/ShareListButton.tsx`, in My List's `PageHeading` `aside`. Button + panel with the same shell and dismissal as `SharePopover`; the panel hangs from the right because the trigger is right-aligned. States: create link → link + copy + stop sharing (with a one-line note that stopping kills the link and re-sharing makes a new one). `useListShare` / `useSetListShare` in `hooks/use-user-movies.ts` key the token under **`userMoviesKey(user?.sub)`** and gate the rendered value on `isSignedIn` — the three-part rule from the data-isolation section applies to this exactly as to statuses. The token is fetched only once the panel opens.
+
+### Deploying it
+
+**The migration has to run against the production database before (or with) the API deploy**: `cd apps/api && npm run migration:run`, with `.env`'s `DATABASE_URL` pointing at Supabase. Until it has, only the share routes fail — `select: false` means no other query touches the column — but the feature is dead. Verified locally against a scratch Postgres 16: the whole chain of migrations runs, `migration:generate` reports no drift between the entities and the result, and the new migration reverts and re-applies cleanly.
 
 ## `user-movies`: saved lists
 

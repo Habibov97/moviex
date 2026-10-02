@@ -146,12 +146,32 @@
     "signInBody": "Your watchlist and watched movies are saved to your account. Sign in to view them.",
     "noAccount": "No account?",
     "browseMovies": "Browse movies",
+    "share": "Share list",
+    "shareTitle": "Share your list",
+    "shareBody": "Anyone with this link can see your watchlist and the movies you've watched, and add them to their own list.",
+    "shareCreate": "Create link",
+    "shareCopy": "Copy link",
+    "shareCopied": "Link copied",
+    "shareStop": "Stop sharing",
+    "shareStopHint": "The link stops working right away. Sharing again creates a new one.",
+    "shareError": "Something went wrong. Please try again.",
+    "shareLoading": "Loading…",
     "sort": {
       "recent": "Recently added",
       "title": "Title A–Z",
       "year": "Release year",
       "rating": "Rating"
     }
+  },
+  "sharedList": {
+    "metaTitle": "{name}'s list · MovieX",
+    "title": "{name}'s list",
+    "subtitle": "What {name} wants to watch and has already seen. Add anything that catches your eye to your own watchlist.",
+    "ownList": "This is your own list — exactly what anyone with your link sees.",
+    "emptyWatchlist": "Nothing on {name}'s watchlist yet.",
+    "emptyWatched": "{name} hasn't marked anything as watched yet.",
+    "unavailableTitle": "This list isn't available",
+    "unavailableBody": "The link may be mistyped, or its owner has stopped sharing it."
   },
   "footer": {
     "author": "Created by Najaf Habibov",

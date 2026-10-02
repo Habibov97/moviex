@@ -11,7 +11,6 @@ import {
 } from "@tabler/icons-react";
 import type { Genre, UserMovie, UserMovieStatus } from "@moviex/shared-types";
 
-import { cn } from "@/lib/utils";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -19,7 +18,9 @@ import {
   useUpdateUserMovieStatus,
   useUserMovies,
 } from "@/hooks/use-user-movies";
+import { ListTab } from "@/components/my-list/ListTab";
 import { MyListCard } from "@/components/my-list/MyListCard";
+import { ShareListButton } from "@/components/my-list/ShareListButton";
 import { MyListSortDropdown } from "@/components/my-list/MyListSortDropdown";
 import { PageHeading } from "@/components/shared/PageHeading";
 import { requestAuthNotice } from "@/lib/auth-notice";
@@ -204,7 +205,11 @@ export function MyListView({ genres = [] }: MyListViewProps) {
 
   return (
     <main className="px-4 py-6 font-mx sm:px-6">
-      <PageHeading title={t("title")} description={t("subtitle")} />
+      <PageHeading
+        title={t("title")}
+        description={t("subtitle")}
+        aside={<ShareListButton />}
+      />
 
       <div className="mt-5 flex flex-wrap gap-3">
         <StatCard
@@ -240,13 +245,13 @@ export function MyListView({ genres = [] }: MyListViewProps) {
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-4 border-b-[0.5px] border-mx-border-subtle">
-        <Tab
+        <ListTab
           label={t("tabWatchlist")}
           count={watchlist.length}
           isActive={tab === "watchlist"}
           onClick={() => setParam(STATUS_SEARCH_PARAM, "watchlist")}
         />
-        <Tab
+        <ListTab
           label={t("tabWatched")}
           count={watched.length}
           isActive={tab === "watched"}
@@ -351,44 +356,6 @@ function StatCard({
         {unit && <span className="text-[11px] text-mx-page-meta">{unit}</span>}
       </p>
     </div>
-  );
-}
-
-function Tab({
-  label,
-  count,
-  isActive,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={isActive}
-      className={cn(
-        "-mb-px inline-flex items-center gap-2 border-b-2 pb-2 text-[13px] outline-none transition-colors",
-        isActive
-          ? "border-mx-accent font-medium text-mx-fg"
-          : "border-transparent text-mx-fg-faint hover:text-mx-fg-muted",
-      )}
-    >
-      {label}
-      <span
-        className={cn(
-          "inline-flex h-[18px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-[11px]",
-          isActive
-            ? "bg-mx-accent text-mx-on-accent"
-            : "bg-mx-typeahead-active text-mx-fg-faint",
-        )}
-      >
-        {count}
-      </span>
-    </button>
   );
 }
 

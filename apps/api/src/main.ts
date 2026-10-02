@@ -228,6 +228,7 @@ async function bootstrap() {
     .addTag('movies')
     .addTag('tmdb', 'Public catalogue data proxied from TMDB')
     .addTag('user-movies', "The signed-in user's saved movies")
+    .addTag('shared-lists', 'Sharing a list by link, and reading a shared one')
     .addTag('health', 'Liveness probe used to keep the Render instance awake')
     /*
      * Auth is a httpOnly cookie, not an Authorization header, so there is no

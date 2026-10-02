@@ -146,12 +146,32 @@
     "signInBody": "İzleme listeniz ve izlediğiniz filmler hesabınıza kaydedilir. Görmek için giriş yapın.",
     "noAccount": "Hesabınız yok mu?",
     "browseMovies": "Filmlere göz at",
+    "share": "Listeyi paylaş",
+    "shareTitle": "Listenizi paylaşın",
+    "shareBody": "Bu bağlantıya sahip olan herkes izleme listenizi ve izlediğiniz filmleri görebilir, kendi listesine ekleyebilir.",
+    "shareCreate": "Bağlantı oluştur",
+    "shareCopy": "Bağlantıyı kopyala",
+    "shareCopied": "Bağlantı kopyalandı",
+    "shareStop": "Paylaşımı durdur",
+    "shareStopHint": "Bağlantı hemen çalışmaz hâle gelir. Yeniden paylaşırsanız yeni bir bağlantı oluşturulur.",
+    "shareError": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+    "shareLoading": "Yükleniyor…",
     "sort": {
       "recent": "Son eklenenler",
       "title": "Ada göre A–Z",
       "year": "Çıkış yılı",
       "rating": "Puan"
     }
+  },
+  "sharedList": {
+    "metaTitle": "{name} kullanıcısının listesi · MovieX",
+    "title": "{name} kullanıcısının listesi",
+    "subtitle": "{name} kullanıcısının izlemek istedikleri ve izledikleri. Beğendiklerinizi kendi izleme listenize ekleyin.",
+    "ownList": "Bu sizin listeniz — bağlantınıza sahip olan herkes tam olarak bunu görür.",
+    "emptyWatchlist": "{name} kullanıcısının izleme listesi henüz boş.",
+    "emptyWatched": "{name} henüz hiçbir filmi izlendi olarak işaretlemedi.",
+    "unavailableTitle": "Bu liste kullanılamıyor",
+    "unavailableBody": "Bağlantı yanlış yazılmış olabilir ya da sahibi paylaşımı durdurmuş olabilir."
   },
   "footer": {
     "author": "Najaf Habibov tarafından yapıldı",

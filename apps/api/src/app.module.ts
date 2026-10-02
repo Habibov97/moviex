@@ -5,6 +5,7 @@ import { HealthController } from './health/health.controller';
 import { AuthModule } from './auth/auth.module';
 import { TmdbModule } from './tmdb/tmdb.module';
 import { UserMoviesModule } from './user-movies/user-movies.module';
+import { SharedListsModule } from './shared-lists/shared-lists.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import configs from './config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -45,6 +46,7 @@ import { DEFAULT_LIMIT, THROTTLE_WINDOW_MS } from './throttle.constants';
     AuthModule,
     TmdbModule,
     UserMoviesModule,
+    SharedListsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
