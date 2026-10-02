@@ -122,11 +122,11 @@ The cost is one redirect on `/` → `/en` for a first visit. That is the trade a
 
 ### Message files
 
-`messages/en.json`, `tr.json`, `ru.json` — one file per language, same key structure, grouped by feature: `meta`, `nav`, `language`, `discover`, `detail`, `search`, `myList`, `footer`, `errors`, `auth`. These mirror the `*_COPY` objects they replaced, with search split out of `discover` into its own namespace.
+`messages/en.json`, `tr.json`, `ru.json` — one file per language, same key structure, grouped by feature: `meta`, `nav`, `language`, `discover`, `detail`, `search`, `myList`, `footer`, `errors`, `serverStatus`, `auth`. These mirror the `*_COPY` objects they replaced, with search split out of `discover` into its own namespace.
 
 - Server Components: `getTranslations('discover')` / `getFormatter()`. Client Components: `useTranslations('discover')` / `useFormatter()`. Getting these the wrong way round is a runtime error, not a type error.
 - **Option labels are derived from ids**, never stored beside them: `SORT_OPTIONS` holds `{ id, sortBy }` and the label is `t(\`sort.${id}\`)`. So `?sort=rating` and "Highest rated" cannot drift, and a new option is one entry plus three keys.
-- Key parity is checkable: flatten all three files and diff the key sets. They must be identical — 212 keys as of writing.
+- Key parity is checkable: flatten all three files and diff the key sets. They must be identical — 216 keys as of writing.
 
 ### Plurals and numbers go through ICU, not string concatenation
 
@@ -584,6 +584,8 @@ One piece of `apps/web/next.config.js` does the proxying — the rewrite below. 
 
 `api` in the exclusion list is load-bearing — it is what hands `/api/*` to the rewrite below instead of redirecting it into a locale (`/en/api/…`).
 
+**One `/api` path is served by Next itself, not proxied: `/api/wake`** (`app/api/wake/route.ts`, see the keep-awake section below). Route handlers are filesystem routes, which Next resolves *before* `afterFiles` rewrites, so it wins over `/api/:path*` for that one path. Verified on a production build: `/api/wake` answers from Next while `/api/tmdb/genres` still reaches the backend. Don't add a Nest route at `/wake` — it would be unreachable through the proxy.
+
 ### The rewrite: `/api/*` → Render, server-to-server
 
 ```js
@@ -625,6 +627,26 @@ The rewrite works in `next dev` as well, which gives two workable local setups. 
 
 - **Mirror production** (the committed default): `NEXT_PUBLIC_API_URL=/api` with `API_URL` pointing at Render. The browser goes through the local Next server's proxy, so the same code path runs. Caveat: the deployed API issues a `Secure` cookie, which browsers accept over `http://localhost` but this is the one place the setup is not literally identical.
 - **Run Nest locally**: both variables set to `http://localhost:3000`. The dev API issues a non-`Secure` `Lax` cookie and `localhost:3001` → `localhost:3000` is same-site, so this always works.
+
+### Keeping the Render API awake
+
+The API is on Render's **free tier, which stops a web service after 15 minutes without inbound traffic**; the next request then waits ~30–50s for a cold start. Three pieces deal with it — one prevents it, two explain it when prevention slips.
+
+| Piece | Where | Job |
+|---|---|---|
+| `GET /health` | `apps/api/src/health/health.controller.ts` | Liveness probe. Returns `{ status: 'ok' }` and touches nothing else. |
+| Keep-awake cron | `.github/workflows/keep-awake.yml` | Pings `/health` every 10 minutes (minutes 3, 13, 23, …) so the instance never idles long enough to sleep. |
+| `GET /api/wake` | `apps/web/app/api/wake/route.ts` | Asks `/health` on the browser's behalf with a 5s timeout and returns `{ status: 'up' }` (200) or `{ status: 'waking' }` (503). |
+| `ServerStatus` | `apps/web/components/layout/ServerStatus.tsx` + `hooks/use-server-status.ts` | Mounted once in the layout; polls `/api/wake` and shows a small pill while the API is waking. |
+
+- **`/health` deliberately checks no database and no TMDB.** It answers "is the process up", which is all both callers need, and it is hit constantly. A probe that queried Postgres would also fail on a Supabase hiccup, which is not what "awake" means.
+- **`/health` is `@SkipThrottle()`, on purpose.** Every web-app call to it arrives from Vercel's address, so all visitors share one bucket (see the throttler section); under `DEFAULT_LIMIT` a busy minute would 429 and `/api/wake` would report a healthy API as still waking. It returns a constant, so there is nothing to protect. Verified: with the limit forced to 2, four calls in a row all returned 200 with no `X-RateLimit-*` headers.
+- **The cron is best-effort, and that is why the banner exists.** GitHub delays scheduled runs under load (the off-the-hour minute is to dodge the worst of it) and **disables schedules in a public repo after 60 days without activity** — re-enable it from the Actions tab. `workflow_dispatch` is there to run it by hand. The target is the Render URL directly, overridable with a repository variable `HEALTH_URL`; it does not go through Vercel because it does not need to.
+- **Render's free tier is 750 instance-hours per month per workspace, and one always-on service uses ~744.** Keeping a *second* free service awake the same way exhausts the budget, and Render then suspends every free service in the workspace until the month resets. This is the one way this setup can make things worse; check it before copying the pattern to another app on the same account.
+- **`ServerStatus` renders nothing in the normal case.** The first check against a warm API answers before anything is shown, so a visitor only ever sees it when there is a wait to explain: waking (spinner) → ready (check mark, 3s, then gone — and only after a visible wake-up, or every page load would flash it) → or unavailable, after ~2 minutes of polling, which stays until dismissed. The live region is always mounted so screen readers announce the change.
+- **What `ServerStatus` cannot cover:** Discover, Search and the movie page fetch from the API in Server Components, so a cold start blocks their HTML — the banner included — until the API answers. It helps on the client-rendered surfaces (My List, sign-in, the typeahead) and on later pages. The cron is the real fix; don't try to "fix" this by making those pages client-rendered.
+- **Its fetch goes to the relative `/api/wake`, never `API_BASE_URL`**, so it reaches this Next server even in local dev, where `NEXT_PUBLIC_API_URL` points the browser at Nest directly. `WAKE_PATH` and the `WakeStatus` type live in `lib/server-status.ts`, shared by the route and the hook.
+- Its query key is `['server-status']` with no user id — it is not user data. Logout's cache removal drops it, which is harmless: the mounted observer keeps its last answer and the next page load checks again.
 
 ## Testing on a phone / LAN device
 

@@ -165,6 +165,12 @@
     "body": "Sunucularımıza ulaşırken bir sorun oluştu. Bağlantınızı kontrol edip tekrar deneyin.",
     "tryAgain": "Tekrar dene"
   },
+  "serverStatus": {
+    "waking": "Sunucu uyanıyor — bu bir dakikayı bulabilir.",
+    "ready": "Sunucu hazır.",
+    "unavailable": "Sunucu yanıt vermiyor. Lütfen birkaç dakika sonra tekrar deneyin.",
+    "dismiss": "Kapat"
+  },
   "auth": {
     "signInOrCreate": "Giriş yapın veya hesap oluşturun",
     "logOut": "Çıkış yap",

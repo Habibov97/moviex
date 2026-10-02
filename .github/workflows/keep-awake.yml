@@ -1,0 +1,44 @@
+# Keeps the Render free-tier API from spinning down.
+#
+# Render stops a free web service after 15 minutes without inbound traffic,
+# and the next visitor then waits ~30–50s for a cold start. Pinging the API's
+# `/health` every 10 minutes keeps it inside that window.
+#
+# Caveats worth knowing:
+# - GitHub does not guarantee schedule timing; runs can be delayed or, under
+#   load, skipped. The web app's ServerStatus banner covers the gaps.
+# - GitHub disables scheduled workflows in a public repo after 60 days with
+#   no repository activity. Re-enable it from the Actions tab if that happens.
+# - Render's free tier is 750 instance-hours per month per workspace. One
+#   always-on service uses ~744 of them, so keeping a SECOND free service
+#   awake the same way exhausts the budget and Render suspends them all
+#   until the month resets.
+#
+# Override the target with a repository variable named HEALTH_URL
+# (Settings → Secrets and variables → Actions → Variables) if the API moves.
+name: Keep API awake
+
+on:
+  schedule:
+    # Minute 3, 13, 23, … rather than :00 — GitHub's queue is busiest on the
+    # hour, which is when scheduled runs are most often delayed.
+    - cron: "3-59/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    # Worst case is 4 attempts × 90s plus 3 × 15s of retry delay.
+    timeout-minutes: 8
+    steps:
+      - name: Ping /health
+        env:
+          HEALTH_URL: ${{ vars.HEALTH_URL || 'https://moviex-skr4.onrender.com/health' }}
+        # --max-time 90 leaves room for a full cold start if the instance did
+        # fall asleep; --retry covers Render's 502/503 while it boots.
+        run: |
+          curl --fail --silent --show-error \
+            --max-time 90 --retry 3 --retry-delay 15 --retry-all-errors \
+            "$HEALTH_URL"
