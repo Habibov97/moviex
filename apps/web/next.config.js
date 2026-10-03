@@ -32,8 +32,24 @@ const nextConfig = {
   // so Next has to compile it alongside the app.
   transpilePackages: ["@moviex/shared-types"],
   images: {
-    // Posters are absolute TMDB URLs built in `TmdbService.toMovieSummary`;
-    // next/image refuses any remote host not listed here.
+    /*
+     * **Off on purpose: every `next/image` loads straight from TMDB's CDN.**
+     *
+     * Optimised, each image is fetched through Vercel's `/_next/image`, which
+     * on the Hobby plan has a monthly transformation quota. Once it ran out,
+     * every image not already in Vercel's cache failed — the detail page's
+     * backdrop, poster and cast photos fell back to their placeholder tone on
+     * most films, while ones viewed earlier still worked from cache. The
+     * catalogue cards were unaffected only because they use a plain `<img>`.
+     *
+     * TMDB already serves pre-sized files (`w500` posters, `w1280` backdrops),
+     * so the resizing bought little. `next/image` is kept for its `fill`
+     * layout and lazy loading; it now just emits the TMDB URL as-is.
+     */
+    unoptimized: true,
+    // Posters are absolute TMDB URLs built in `TmdbService.toMovieSummary`.
+    // Not enforced while `unoptimized` is on, but kept so turning
+    // optimisation back on cannot silently allow any remote host.
     remotePatterns: [
       {
         protocol: "https",
